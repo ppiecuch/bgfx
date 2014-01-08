@@ -8,7 +8,7 @@ project "bgfx"
 	kind "StaticLib"
 
 	includedirs {
-		BGFX_DIR .. "../bx/include",
+		BGFX_DIR .. "3rdparty/bx/include",
 	}
 
 	defines {

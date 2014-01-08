@@ -8,7 +8,11 @@
 
 #include <string>
 #include <vector>
-#include <unordered_map>
+#ifdef __APPLE__
+# include <tr1/unordered_map>
+#else
+# include <unordered_map>
+#endif
 #include <map>
 
 namespace std { namespace tr1 {} }

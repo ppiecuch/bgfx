@@ -18,7 +18,11 @@
 #include <algorithm>
 #include <string>
 #include <vector>
-#include <unordered_map>
+#ifdef __APPLE__
+# include <tr1/unordered_map>
+#else
+# include <unordered_map>
+#endif
 
 #define MAX_TAGS 256
 extern "C"

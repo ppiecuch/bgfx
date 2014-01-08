@@ -5,7 +5,11 @@
 
 #include <memory.h>
 #include <string>
-#include <unordered_map>
+#ifdef __APPLE__
+# include <tr1/unordered_map>
+#else
+# include <unordered_map>
+#endif
 
 #include "entry_p.h"
 #include "input.h"

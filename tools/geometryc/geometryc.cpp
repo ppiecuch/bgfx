@@ -13,7 +13,11 @@
 #include <algorithm>
 #include <vector>
 #include <string>
-#include <unordered_map>
+#if __APPLE__
+# include <tr1/unordered_map>
+#else
+# include <unordered_map>
+#endif
 
 #include <forsythtriangleorderoptimizer.h>
 

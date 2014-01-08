@@ -12,7 +12,11 @@
 #include "dbg.h"
 #include "cmd.h"
 #include <string>
-#include <unordered_map>
+#ifdef __APPLE__
+# include <tr1/unordered_map>
+#else
+# include <unordered_map>
+#endif
 
 // Reference:
 // http://msdn.microsoft.com/en-us/library/a1y7w461.aspx

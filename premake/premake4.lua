@@ -21,7 +21,7 @@ solution "bgfx"
 BGFX_DIR = (path.getabsolute("..") .. "/")
 local BGFX_BUILD_DIR = (BGFX_DIR .. ".build/")
 local BGFX_THIRD_PARTY_DIR = (BGFX_DIR .. "3rdparty/")
-BX_DIR = (BGFX_DIR .. "../bx/")
+BX_DIR = (BGFX_DIR .. "3rdparty/bx/")
 
 defines {
 	"BX_CONFIG_ENABLE_MSVC_LEVEL4_WARNINGS=1"
