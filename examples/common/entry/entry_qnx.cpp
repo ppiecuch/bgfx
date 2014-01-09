@@ -4,6 +4,7 @@
  */
 
 #include "entry.h"
+#include "entry_p.h"
 
 #if ENTRY_CONFIG_USE_NATIVE && BX_PLATFORM_QNX
 

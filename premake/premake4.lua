@@ -111,6 +111,7 @@ function exampleProject(_name, _uuid)
 		}
 
 	configuration { "osx" }
+		kind "ConsoleApp"
 		files {
 			BGFX_DIR .. "examples/common/**.mm",
 		}
@@ -133,10 +134,11 @@ function exampleProject(_name, _uuid)
 		}
 
 	configuration { "qnx*" }
+		kind "ConsoleApp"
 		targetextension ""
 		links {
 			"EGL",
-			"GLESv2",
+			"GLESv2"
 		}
 
 	configuration {}

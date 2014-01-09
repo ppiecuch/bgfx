@@ -12,6 +12,7 @@
 #include <math.h>
 #include <string.h>
 
+#ifndef __QNXNTO__
 inline float fmin(float _a, float _b)
 {
 	return _a < _b ? _a : _b;
@@ -21,6 +22,7 @@ inline float fmax(float _a, float _b)
 {
 	return _a > _b ? _a : _b;
 }
+#endif
 
 inline float flerp(float _a, float _b, float _t)
 {

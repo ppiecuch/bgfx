@@ -25,10 +25,16 @@
 #include <string.h>
 #include <assert.h>
 
+#ifdef __QNXNTO__
+// (PP) for QNX it gives template C linkage error
+# include "main/core.h" /* for struct gl_context */
+# include "main/context.h"
+#else
 extern "C" {
-#include "main/core.h" /* for struct gl_context */
-#include "main/context.h"
+# include "main/core.h" /* for struct gl_context */
+# include "main/context.h"
 }
+#endif
 
 #include "ralloc.h"
 #include "ast.h"
