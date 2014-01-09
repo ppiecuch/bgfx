@@ -1,0 +1,3 @@
+#!/bin/bash
+export PATH=/bin:/sbin:/usr/bin
+../bin/premake4-osx --gcc=osx gmake && make -C ../.build/projects/gmake-osx/ && open ../.build/osx32_gcc/bin/
