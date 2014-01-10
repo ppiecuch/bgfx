@@ -1,0 +1,13 @@
+#!/bin/bash
+export PATH=/bin:/sbin:/usr/bin
+
+#echo "Playbook SDK"
+#.  /Developer/SDKs/bbndk-2.1.0/bbndk-env.sh
+echo "BB10 SDK"
+.  /Developer/SDKs/bbndk/bbndk-env.sh
+
+#    && sed -i "" 's/-m32 /-mfpu=neon /g' ../.build/projects/gmake-qnx-arm/* \
+../bin/premake4-osx --gcc=qnx-arm gmake \
+    && sed -i "" 's/-m32 //g' ../.build/projects/gmake-qnx-arm/* \
+    && make -C ../.build/projects/gmake-qnx-arm/ \
+    && open ../.build/qnx-arm/bin/
