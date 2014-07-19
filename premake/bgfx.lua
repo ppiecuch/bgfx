@@ -87,6 +87,12 @@ project "bgfx-shared-lib"
 			"Cocoa.framework",
 		}
 
+	configuration { "ios*" }
+		links {
+			"Foundation.framework",
+			"OpenGLES.framework",
+		}
+
 	configuration { "vs* or linux or mingw or osx or ios*" }
 		includedirs {
 			--nacl has GLES2 headers modified...

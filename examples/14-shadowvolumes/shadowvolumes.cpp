@@ -8,7 +8,7 @@
 
 #include <string>
 #include <vector>
-#if defined __clang_major__ && __clang_major__ < 5
+#ifdef __ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__
 # include <tr1/unordered_map>
 #else
 # include <unordered_map>
