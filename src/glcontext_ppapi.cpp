@@ -1,19 +1,18 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
 #include "bgfx_p.h"
 
-#if BX_PLATFORM_NACL & (BGFX_CONFIG_RENDERER_OPENGLES2|BGFX_CONFIG_RENDERER_OPENGLES3|BGFX_CONFIG_RENDERER_OPENGL)
+#if BX_PLATFORM_NACL & (BGFX_CONFIG_RENDERER_OPENGLES|BGFX_CONFIG_RENDERER_OPENGL)
 #	include <bgfxplatform.h>
 #	include "renderer_gl.h"
 
 namespace bgfx
 {
 #	define GL_IMPORT(_optional, _proto, _func, _import) _proto _func
-#		include "glimports.h"
-#	undef GL_IMPORT
+#	include "glimports.h"
 
 	void naclSwapCompleteCb(void* /*_data*/, int32_t /*_result*/);
 
@@ -37,7 +36,7 @@ namespace bgfx
 		{
 		}
 
-		void setIntefraces(PP_Instance _instance, const PPB_Instance* _instInterface, const PPB_Graphics3D* _graphicsInterface, PostSwapBuffersFn _postSwapBuffers);
+		bool setInterfaces(PP_Instance _instance, const PPB_Instance* _instInterface, const PPB_Graphics3D* _graphicsInterface, PostSwapBuffersFn _postSwapBuffers);
 
 		void resize(uint32_t _width, uint32_t _height, bool /*_vsync*/)
 		{
@@ -96,14 +95,15 @@ namespace bgfx
 		s_ppapi.m_instancedArrays->DrawElementsInstancedANGLE(s_ppapi.m_context, _mode, _count, _type, _indices, _primcount);
 	}
 
-	void naclSetIntefraces(PP_Instance _instance, const PPB_Instance* _instInterface, const PPB_Graphics3D* _graphicsInterface, PostSwapBuffersFn _postSwapBuffers)
+	bool naclSetInterfaces(PP_Instance _instance, const PPB_Instance* _instInterface, const PPB_Graphics3D* _graphicsInterface, PostSwapBuffersFn _postSwapBuffers)
 	{
-		s_ppapi.setIntefraces( _instance, _instInterface, _graphicsInterface, _postSwapBuffers);
+		return s_ppapi.setInterfaces( _instance, _instInterface, _graphicsInterface, _postSwapBuffers);
 	}
 
-	void Ppapi::setIntefraces(PP_Instance _instance, const PPB_Instance* _instInterface, const PPB_Graphics3D* _graphicsInterface, PostSwapBuffersFn _postSwapBuffers)
+	bool Ppapi::setInterfaces(PP_Instance _instance, const PPB_Instance* _instInterface, const PPB_Graphics3D* _graphicsInterface, PostSwapBuffersFn _postSwapBuffers)
 	{
 		BX_TRACE("PPAPI Interfaces");
+
 		m_instance = _instance;
 		m_instInterface = _instInterface;
 		m_graphicsInterface = _graphicsInterface;
@@ -123,6 +123,12 @@ namespace bgfx
 		};
 
 		m_context = m_graphicsInterface->Create(m_instance, 0, attribs);
+		if (0 == m_context)
+		{
+			BX_TRACE("Failed to create context!");
+			return false;
+		}
+
 		m_instInterface->BindGraphics(m_instance, m_context);
 		glSetCurrentContextPPAPI(m_context);
 		m_graphicsInterface->SwapBuffers(m_context, naclSwapComplete);
@@ -130,6 +136,10 @@ namespace bgfx
 		glVertexAttribDivisor   = naclVertexAttribDivisor;
 		glDrawArraysInstanced   = naclDrawArraysInstanced;
 		glDrawElementsInstanced = naclDrawElementsInstanced;
+
+		// Prevent render thread creation.
+		RenderFrame::Enum result = renderFrame();
+		return RenderFrame::NoContext == result;
 	}
 
 	void GlContext::create(uint32_t _width, uint32_t _height)
@@ -164,4 +174,4 @@ namespace bgfx
 
 } // namespace bgfx
 
-#endif // BX_PLATFORM_NACL & (BGFX_CONFIG_RENDERER_OPENGLES2|BGFX_CONFIG_RENDERER_OPENGLES3|BGFX_CONFIG_RENDERER_OPENGL)
+#endif // BX_PLATFORM_NACL & (BGFX_CONFIG_RENDERER_OPENGLES|BGFX_CONFIG_RENDERER_OPENGL)

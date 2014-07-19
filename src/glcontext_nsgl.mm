@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
@@ -15,7 +15,6 @@ namespace bgfx
 
 #	define GL_IMPORT(_optional, _proto, _func, _import) _proto _func
 #	include "glimports.h"
-#	undef GL_IMPORT
 	
 	static void* s_opengl = NULL;
 
@@ -49,6 +48,8 @@ namespace bgfx
 		};
 
 		NSOpenGLPixelFormat* pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:pixelFormatAttributes];
+		BGFX_FATAL(NULL != pixelFormat, Fatal::UnableToInitialize, "Failed to initialize pixel format.");
+
 		NSRect glViewRect = [[nsWindow contentView] bounds];
 		NSOpenGLView* glView = [[NSOpenGLView alloc] initWithFrame:glViewRect pixelFormat:pixelFormat];
 		
@@ -56,12 +57,15 @@ namespace bgfx
 		[nsWindow setContentView:glView];
 		
 		NSOpenGLContext* glContext = [glView openGLContext];
+		BGFX_FATAL(NULL != glContext, Fatal::UnableToInitialize, "Failed to initialize GL context.");
 
 		[glContext makeCurrentContext];
+		GLint interval = 0;
+		[glContext setValues:&interval forParameter:NSOpenGLCPSwapInterval];
 		
 		m_view    = glView;
 		m_context = glContext;
-		
+
 		import();
 	}
 
@@ -78,6 +82,10 @@ namespace bgfx
 	void GlContext::resize(uint32_t _width, uint32_t _height, bool _vsync)
 	{
 		BX_UNUSED(_width, _height, _vsync);
+
+		GLint interval = _vsync ? 1 : 0;
+		NSOpenGLContext* glContext = (NSOpenGLContext*)m_context;
+		[glContext setValues:&interval forParameter:NSOpenGLCPSwapInterval];
 	}
 
 	void GlContext::swap()
@@ -89,13 +97,17 @@ namespace bgfx
 
 	void GlContext::import()
 	{
-#	define GL_IMPORT(_optional, _proto, _func, _import) \
-		{ \
-			_func = (_proto)bx::dlsym(s_opengl, #_import); \
-			BGFX_FATAL(_optional || NULL != _func, Fatal::UnableToInitialize, "Failed to create OpenGL context. NSGLGetProcAddress(\"%s\")", #_import); \
-		}
+		BX_TRACE("Import:");
+#	define GL_EXTENSION(_optional, _proto, _func, _import) \
+				{ \
+					if (_func == NULL) \
+					{ \
+						_func = (_proto)bx::dlsym(s_opengl, #_import); \
+						BX_TRACE("%p " #_func " (" #_import ")", _func); \
+					} \
+					BGFX_FATAL(_optional || NULL != _func, Fatal::UnableToInitialize, "Failed to create OpenGL context. NSGLGetProcAddress(\"%s\")", #_import); \
+				}
 #	include "glimports.h"
-#	undef GL_IMPORT
 	}
 
 } // namespace bgfx

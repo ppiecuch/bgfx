@@ -1,10 +1,11 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
 #include <bgfx.h>
 #include <bx/string.h>
+#include <bx/readerwriter.h>
 
 #include <time.h>
 
@@ -12,13 +13,15 @@
 #include "cmd.h"
 #include "input.h"
 
-extern int _main_(int _argc, char** _argv);
+extern "C" int _main_(int _argc, char** _argv);
 
 namespace entry
 {
 	static uint32_t s_debug = BGFX_DEBUG_NONE;
 	static uint32_t s_reset = BGFX_RESET_NONE;
 	static bool s_exit = false;
+	static bx::FileReaderI* s_fileReader = NULL;
+	static bx::FileWriterI* s_fileWriter = NULL;
 
 	bool setOrToggle(uint32_t& _flags, const char* _name, uint32_t _bit, int _first, int _argc, char const* const* _argv)
 	{
@@ -118,7 +121,12 @@ namespace entry
 
 	int main(int _argc, char** _argv)
 	{
-		DBG(BX_COMPILER_NAME " / " BX_CPU_NAME " / " BX_ARCH_NAME " / " BX_PLATFORM_NAME);
+		//DBG(BX_COMPILER_NAME " / " BX_CPU_NAME " / " BX_ARCH_NAME " / " BX_PLATFORM_NAME);
+
+#if BX_CONFIG_CRT_FILE_READER_WRITER
+		s_fileReader = new bx::CrtFileReader;
+		s_fileWriter = new bx::CrtFileWriter;
+#endif // BX_CONFIG_CRT_FILE_READER_WRITER
 
 		cmdAdd("mouselock", cmdMouseLock);
 		cmdAdd("graphics",  cmdGraphics );
@@ -127,6 +135,15 @@ namespace entry
 		inputAddBindings("bindings", s_bindings);
 
 		int32_t result = ::_main_(_argc, _argv);
+
+#if BX_CONFIG_CRT_FILE_READER_WRITER
+		delete s_fileReader;
+		s_fileReader = NULL;
+
+		delete s_fileWriter;
+		s_fileWriter = NULL;
+#endif // BX_CONFIG_CRT_FILE_READER_WRITER
+
 		return result;
 	}
 
@@ -216,4 +233,19 @@ namespace entry
 		return s_exit;
 	}
 
+	bx::FileReaderI* getFileReader()
+	{
+		return s_fileReader;
+	}
+
+	bx::FileWriterI* getFileWriter()
+	{
+		return s_fileWriter;
+	}
+
 } // namespace entry
+
+extern "C" bool entry_process_events(uint32_t* _width, uint32_t* _height, uint32_t* _debug, uint32_t* _reset)
+{
+	return entry::processEvents(*_width, *_height, *_debug, *_reset, NULL);
+}

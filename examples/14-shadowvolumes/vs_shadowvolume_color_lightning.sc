@@ -2,7 +2,7 @@ $input a_position, a_color0, a_normal, a_texcoord0
 $output  v_normal, v_view, v_pos
 
 /*
- * Copyright 2013 Dario Manesku. All rights reserved.
+ * Copyright 2013-2014 Dario Manesku. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
@@ -19,5 +19,5 @@ void main()
 	v_view = mul(u_modelView, vec4(a_position, 1.0)).xyz;
 
 	v_pos = gl_Position;
-	v_pos.y *= -u_flipV;
+	v_pos.y *= u_flipV;
 }

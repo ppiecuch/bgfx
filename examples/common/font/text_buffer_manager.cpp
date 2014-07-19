@@ -184,9 +184,9 @@ private:
 	uint16_t* m_indexBuffer;
 	uint8_t* m_styleBuffer;
 
-	uint32_t m_vertexCount;
 	uint32_t m_indexCount;
 	uint32_t m_lineStartIndex;
+	uint16_t m_vertexCount;
 };
 
 TextBuffer::TextBuffer(FontManager* _fontManager)
@@ -207,9 +207,9 @@ TextBuffer::TextBuffer(FontManager* _fontManager)
 	, m_vertexBuffer(new TextVertex[MAX_BUFFERED_CHARACTERS * 4])
 	, m_indexBuffer(new uint16_t[MAX_BUFFERED_CHARACTERS * 6])
 	, m_styleBuffer(new uint8_t[MAX_BUFFERED_CHARACTERS * 4])
-	, m_vertexCount(0)
 	, m_indexCount(0)
 	, m_lineStartIndex(0)
+	, m_vertexCount(0)
 {
 	m_rectangle.width = 0;
 	m_rectangle.height = 0;
@@ -384,17 +384,18 @@ void TextBuffer::appendGlyph(FontHandle _handle, CodePoint _codePoint)
 			, sizeof(TextVertex)
 			);
 
-		setVertex(m_vertexCount + 0, x0, y0, m_backgroundColor, STYLE_BACKGROUND);
-		setVertex(m_vertexCount + 1, x0, y1, m_backgroundColor, STYLE_BACKGROUND);
-		setVertex(m_vertexCount + 2, x1, y1, m_backgroundColor, STYLE_BACKGROUND);
-		setVertex(m_vertexCount + 3, x1, y0, m_backgroundColor, STYLE_BACKGROUND);
+		const uint16_t vertexCount = m_vertexCount;
+		setVertex(vertexCount + 0, x0, y0, m_backgroundColor, STYLE_BACKGROUND);
+		setVertex(vertexCount + 1, x0, y1, m_backgroundColor, STYLE_BACKGROUND);
+		setVertex(vertexCount + 2, x1, y1, m_backgroundColor, STYLE_BACKGROUND);
+		setVertex(vertexCount + 3, x1, y0, m_backgroundColor, STYLE_BACKGROUND);
 
-		m_indexBuffer[m_indexCount + 0] = m_vertexCount + 0;
-		m_indexBuffer[m_indexCount + 1] = m_vertexCount + 1;
-		m_indexBuffer[m_indexCount + 2] = m_vertexCount + 2;
-		m_indexBuffer[m_indexCount + 3] = m_vertexCount + 0;
-		m_indexBuffer[m_indexCount + 4] = m_vertexCount + 2;
-		m_indexBuffer[m_indexCount + 5] = m_vertexCount + 3;
+		m_indexBuffer[m_indexCount + 0] = vertexCount + 0;
+		m_indexBuffer[m_indexCount + 1] = vertexCount + 1;
+		m_indexBuffer[m_indexCount + 2] = vertexCount + 2;
+		m_indexBuffer[m_indexCount + 3] = vertexCount + 0;
+		m_indexBuffer[m_indexCount + 4] = vertexCount + 2;
+		m_indexBuffer[m_indexCount + 5] = vertexCount + 3;
 		m_vertexCount += 4;
 		m_indexCount += 6;
 	}
@@ -586,32 +587,30 @@ TextBufferManager::TextBufferManager(FontManager* _fontManager)
 		break;
 	}
 
-	bgfx::VertexShaderHandle vsh;
-	bgfx::FragmentShaderHandle fsh;
+	m_basicProgram = bgfx::createProgram(
+									  bgfx::createShader(vs_font_basic)
+									, bgfx::createShader(fs_font_basic)
+									, true
+									);
 
-	vsh = bgfx::createVertexShader(vs_font_basic);
-	fsh = bgfx::createFragmentShader(fs_font_basic);
-	m_basicProgram = bgfx::createProgram(vsh, fsh);
-	bgfx::destroyVertexShader(vsh);
-	bgfx::destroyFragmentShader(fsh);
+	m_distanceProgram = bgfx::createProgram(
+									  bgfx::createShader(vs_font_distance_field)
+									, bgfx::createShader(fs_font_distance_field)
+									, true
+									);
 
-	vsh = bgfx::createVertexShader(vs_font_distance_field);
-	fsh = bgfx::createFragmentShader(fs_font_distance_field);
-	m_distanceProgram = bgfx::createProgram(vsh, fsh);
-	bgfx::destroyVertexShader(vsh);
-	bgfx::destroyFragmentShader(fsh);
+	m_distanceSubpixelProgram = bgfx::createProgram(
+									  bgfx::createShader(vs_font_distance_field_subpixel)
+									, bgfx::createShader(fs_font_distance_field_subpixel)
+									, true
+									);
 
-	vsh = bgfx::createVertexShader(vs_font_distance_field_subpixel);
-	fsh = bgfx::createFragmentShader(fs_font_distance_field_subpixel);
-	m_distanceSubpixelProgram = bgfx::createProgram(vsh, fsh);
-	bgfx::destroyVertexShader(vsh);
-	bgfx::destroyFragmentShader(fsh);
-
-	m_vertexDecl.begin();
-	m_vertexDecl.add(bgfx::Attrib::Position, 2, bgfx::AttribType::Float);
-	m_vertexDecl.add(bgfx::Attrib::TexCoord0, 4, bgfx::AttribType::Int16, true);
-	m_vertexDecl.add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true);
-	m_vertexDecl.end();
+	m_vertexDecl
+		.begin()
+		.add(bgfx::Attrib::Position,  2, bgfx::AttribType::Float)
+		.add(bgfx::Attrib::TexCoord0, 4, bgfx::AttribType::Int16, true)
+		.add(bgfx::Attrib::Color0,    4, bgfx::AttribType::Uint8, true)
+		.end();
 
 	u_texColor = bgfx::createUniform("u_texColor", bgfx::UniformType::Uniform1iv);
 }
@@ -692,15 +691,13 @@ void TextBufferManager::submitTextBuffer(TextBufferHandle _handle, uint8_t _id, 
 
 	BufferCache& bc = m_textBuffers[_handle.idx];
 
-	uint32_t indexSize = bc.textBuffer->getIndexCount() * bc.textBuffer->getIndexSize();
+	uint32_t indexSize  = bc.textBuffer->getIndexCount()  * bc.textBuffer->getIndexSize();
 	uint32_t vertexSize = bc.textBuffer->getVertexCount() * bc.textBuffer->getVertexSize();
 
 	if (0 == indexSize || 0 == vertexSize)
 	{
 		return;
 	}
-
-	const bgfx::Memory* mem;
 
 	bgfx::setTexture(0, u_texColor, m_fontManager->getAtlas()->getTextureHandle() );
 
@@ -741,24 +738,25 @@ void TextBufferManager::submitTextBuffer(TextBufferHandle _handle, uint8_t _id, 
 
 			if (bgfx::invalidHandle == bc.vertexBufferHandleIdx)
 			{
-				mem = bgfx::alloc(indexSize);
-				memcpy(mem->data, bc.textBuffer->getIndexBuffer(), indexSize);
-				ibh = bgfx::createIndexBuffer(mem);
+				ibh = bgfx::createIndexBuffer(
+								bgfx::copy(bc.textBuffer->getIndexBuffer(), indexSize)
+								);
 
-				mem = bgfx::alloc(vertexSize);
-				memcpy(mem->data, bc.textBuffer->getVertexBuffer(), vertexSize);
-				vbh = bgfx::createVertexBuffer(mem, m_vertexDecl);
+				vbh = bgfx::createVertexBuffer(
+								  bgfx::copy(bc.textBuffer->getVertexBuffer(), vertexSize)
+								, m_vertexDecl
+								);
 
-				bc.indexBufferHandleIdx = ibh.idx;
 				bc.vertexBufferHandleIdx = vbh.idx;
+				bc.indexBufferHandleIdx = ibh.idx;
 			}
 			else
 			{
-				ibh.idx = bc.indexBufferHandleIdx;
 				vbh.idx = bc.vertexBufferHandleIdx;
+				ibh.idx = bc.indexBufferHandleIdx;
 			}
 
-			bgfx::setVertexBuffer(vbh, bc.textBuffer->getVertexCount() );
+			bgfx::setVertexBuffer(vbh, 0, bc.textBuffer->getVertexCount() );
 			bgfx::setIndexBuffer(ibh, bc.textBuffer->getIndexCount() );
 		}
 		break;
@@ -770,13 +768,14 @@ void TextBufferManager::submitTextBuffer(TextBufferHandle _handle, uint8_t _id, 
 
 			if (bgfx::invalidHandle == bc.vertexBufferHandleIdx )
 			{
-				mem = bgfx::alloc(indexSize);
-				memcpy(mem->data, bc.textBuffer->getIndexBuffer(), indexSize);
-				ibh = bgfx::createDynamicIndexBuffer(mem);
+				ibh = bgfx::createDynamicIndexBuffer(
+								bgfx::copy(bc.textBuffer->getIndexBuffer(), indexSize)
+								);
 
-				mem = bgfx::alloc(vertexSize);
-				memcpy(mem->data, bc.textBuffer->getVertexBuffer(), vertexSize);
-				vbh = bgfx::createDynamicVertexBuffer(mem, m_vertexDecl);
+				vbh = bgfx::createDynamicVertexBuffer(
+								  bgfx::copy(bc.textBuffer->getVertexBuffer(), vertexSize)
+								, m_vertexDecl
+								);
 
 				bc.indexBufferHandleIdx = ibh.idx;
 				bc.vertexBufferHandleIdx = vbh.idx;
@@ -786,13 +785,13 @@ void TextBufferManager::submitTextBuffer(TextBufferHandle _handle, uint8_t _id, 
 				ibh.idx = bc.indexBufferHandleIdx;
 				vbh.idx = bc.vertexBufferHandleIdx;
 
-				mem = bgfx::alloc(indexSize);
-				memcpy(mem->data, bc.textBuffer->getIndexBuffer(), indexSize);
-				bgfx::updateDynamicIndexBuffer(ibh, mem);
+				bgfx::updateDynamicIndexBuffer(ibh
+						, bgfx::copy(bc.textBuffer->getIndexBuffer(), indexSize)
+						);
 
-				mem = bgfx::alloc(vertexSize);
-				memcpy(mem->data, bc.textBuffer->getVertexBuffer(), vertexSize);
-				bgfx::updateDynamicVertexBuffer(vbh, mem);
+				bgfx::updateDynamicVertexBuffer(vbh
+						, bgfx::copy(bc.textBuffer->getVertexBuffer(), vertexSize)
+						);
 			}
 
 			bgfx::setVertexBuffer(vbh, bc.textBuffer->getVertexCount() );
@@ -808,8 +807,8 @@ void TextBufferManager::submitTextBuffer(TextBufferHandle _handle, uint8_t _id, 
 			bgfx::allocTransientVertexBuffer(&tvb, bc.textBuffer->getVertexCount(), m_vertexDecl);
 			memcpy(tib.data, bc.textBuffer->getIndexBuffer(), indexSize);
 			memcpy(tvb.data, bc.textBuffer->getVertexBuffer(), vertexSize);
-			bgfx::setVertexBuffer(&tvb, bc.textBuffer->getVertexCount() );
-			bgfx::setIndexBuffer(&tib, bc.textBuffer->getIndexCount() );
+			bgfx::setVertexBuffer(&tvb, 0, bc.textBuffer->getVertexCount() );
+			bgfx::setIndexBuffer(&tib, 0, bc.textBuffer->getIndexCount() );
 		}
 		break;
 	}

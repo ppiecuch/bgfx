@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
@@ -74,6 +74,7 @@ namespace entry
 	bool initializeInterface(PPB_GetInterface _interface, const char* _name, const Type*& _result)
 	{
 		_result = reinterpret_cast<const Type*>(_interface(_name) );
+//		DBG("%p %s", _result, _name);
 		return NULL != _result;
 	}
 
@@ -93,7 +94,6 @@ namespace entry
 			m_mte.m_argc = 1;
 			m_mte.m_argv = const_cast<char**>(argv);
 
-			bgfx::naclSetIntefraces(g_instance, g_instInterface, g_graphicsInterface, NULL);
 			m_thread.init(MainThreadEntry::threadFunc, &m_mte);
 		}
 
@@ -122,8 +122,14 @@ namespace entry
 	static PP_Bool naclInstanceDidCreate(PP_Instance _instance, uint32_t /*_argc*/, const char* /*_argn*/[], const char* /*_argv*/[])
 	{
 		g_instance = _instance; // one instance only!
-		s_ctx = new NaclContext;
-		return PP_TRUE;
+
+		if (bgfx::naclSetInterfaces(g_instance, g_instInterface, g_graphicsInterface, NULL) )
+		{
+			s_ctx = new NaclContext;
+			return PP_TRUE;
+		}
+
+		return PP_FALSE;
 	}
 
 	static void naclInstanceDidDestroy(PP_Instance _instance)
@@ -170,6 +176,8 @@ PP_EXPORT const void* PPP_GetInterface(const char* _name)
 
 PP_EXPORT int32_t PPP_InitializeModule(PP_Module _module, PPB_GetInterface _interface)
 {
+	DBG("PPAPI version: %d", PPAPI_RELEASE);
+
 	BX_UNUSED(_module);
 	bool result = true;
 	result &= initializeInterface(_interface, PPB_CORE_INTERFACE,            g_coreInterface);

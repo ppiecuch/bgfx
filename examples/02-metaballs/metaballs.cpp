@@ -1,30 +1,35 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
 #include "common.h"
-
 #include <bgfx.h>
-#include <bx/timer.h>
-#include "entry/entry.h"
-#include "fpumath.h"
-
-#include <stdio.h>
-#include <string.h>
 
 // embedded shaders
 #include "vs_metaballs.bin.h"
 #include "fs_metaballs.bin.h"
-
-bgfx::VertexDecl s_PosNormalColorDecl;
 
 struct PosNormalColorVertex
 {
 	float m_pos[3];
 	float m_normal[3];
 	uint32_t m_abgr;
+
+	static void init()
+	{
+		ms_decl
+			.begin()
+			.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+			.add(bgfx::Attrib::Normal,   3, bgfx::AttribType::Float)
+			.add(bgfx::Attrib::Color0,   4, bgfx::AttribType::Uint8, true)
+			.end();
+	};
+
+	static bgfx::VertexDecl ms_decl;
 };
+
+bgfx::VertexDecl PosNormalColorVertex::ms_decl;
 
 struct Grid
 {
@@ -477,11 +482,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		);
 
 	// Create vertex stream declaration.
-	s_PosNormalColorDecl.begin();
-	s_PosNormalColorDecl.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float);
-	s_PosNormalColorDecl.add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float);
-	s_PosNormalColorDecl.add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true);
-	s_PosNormalColorDecl.end();
+	PosNormalColorVertex::init();
 
 	const bgfx::Memory* vs_metaballs;
 	const bgfx::Memory* fs_metaballs;
@@ -504,18 +505,11 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		break;
 	}
 
-	bgfx::VertexShaderHandle vsh = bgfx::createVertexShader(vs_metaballs);
-	bgfx::FragmentShaderHandle fsh = bgfx::createFragmentShader(fs_metaballs);
+	bgfx::ShaderHandle vsh = bgfx::createShader(vs_metaballs);
+	bgfx::ShaderHandle fsh = bgfx::createShader(fs_metaballs);
 
 	// Create program from shaders.
-	bgfx::ProgramHandle program = bgfx::createProgram(vsh, fsh);
-
-	// We can destroy vertex and fragment shader here since
-	// their reference is kept inside bgfx after calling createProgram.
-	// Vertex and fragment shader will be destroyed once program is
-	// destroyed.
-	bgfx::destroyVertexShader(vsh);
-	bgfx::destroyFragmentShader(fsh);
+	bgfx::ProgramHandle program = bgfx::createProgram(vsh, fsh, true /* destroy shaders when program is destroyed */);
 
 #define DIMS 32
 
@@ -553,8 +547,8 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		
 		float view[16];
 		float proj[16];
-		mtxLookAt(view, eye, at);
-		mtxProj(proj, 60.0f, float(width)/float(height), 0.1f, 100.0f);
+		bx::mtxLookAt(view, eye, at);
+		bx::mtxProj(proj, 60.0f, float(width)/float(height), 0.1f, 100.0f);
 
 		// Set view and projection matrix for view 0.
 		bgfx::setViewTransform(0, view, proj);
@@ -568,7 +562,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		// Allocate 32K vertices in transient vertex buffer.
 		uint32_t maxVertices = (32<<10);
 		bgfx::TransientVertexBuffer tvb;
-		bgfx::allocTransientVertexBuffer(&tvb, maxVertices, s_PosNormalColorDecl);
+		bgfx::allocTransientVertexBuffer(&tvb, maxVertices, PosNormalColorVertex::ms_decl);
 
 		const uint32_t numSpheres = 16;
 		float sphere[numSpheres][4];
@@ -635,7 +629,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 						grid[xoffset-zpitch].m_val - grid[xoffset+zpitch].m_val,
 					};
 
-					vec3Norm(grid[xoffset].m_normal, normal);
+					bx::vec3Norm(grid[xoffset].m_normal, normal);
 				}
 			}
 		}
@@ -684,7 +678,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 						&grid[xoffset                ],
 					};
 
-					uint32_t num = triangulate( (uint8_t*)vertex, s_PosNormalColorDecl.m_stride, rgb, pos, val, 0.5f);
+					uint32_t num = triangulate( (uint8_t*)vertex, PosNormalColorVertex::ms_decl.getStride(), rgb, pos, val, 0.5f);
 					vertex += num;
 					numVertices += num;
 				}
@@ -694,7 +688,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		profTriangulate = bx::getHPCounter() - profTriangulate;
 
 		float mtx[16];
-		mtxRotateXY(mtx, time*0.67f, time);
+		bx::mtxRotateXY(mtx, time*0.67f, time);
 
 		// Set model matrix for rendering.
 		bgfx::setTransform(mtx);
@@ -703,7 +697,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		bgfx::setProgram(program);
 
 		// Set vertex and index buffer.
-		bgfx::setVertexBuffer(&tvb, numVertices);
+		bgfx::setVertexBuffer(&tvb, 0, numVertices);
 
 		// Submit primitive for rendering to view 0.
 		bgfx::submit(0);

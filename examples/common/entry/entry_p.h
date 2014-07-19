@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
@@ -11,12 +11,15 @@
 #include "entry.h"
 
 #ifndef ENTRY_CONFIG_USE_SDL
-#	define ENTRY_CONFIG_USE_SDL 0 //BX_PLATFORM_OSX
+#	define ENTRY_CONFIG_USE_SDL 0
 #endif // ENTRY_CONFIG_USE_SDL
 
-#ifndef ENTRY_CONFIG_USE_NATIVE
-#	define ENTRY_CONFIG_USE_NATIVE !ENTRY_CONFIG_USE_SDL
-#endif // ENTRY_CONFIG_USE_NATIVE
+#if !ENTRY_CONFIG_USE_SDL && \
+	!defined(ENTRY_CONFIG_USE_NATIVE)
+#	define ENTRY_CONFIG_USE_NATIVE 1
+#else
+#	define ENTRY_CONFIG_USE_NATIVE 0
+#endif // ...
 
 #if !defined(ENTRY_DEFAULT_WIDTH) && !defined(ENTRY_DEFAULT_HEIGHT)
 #	define ENTRY_DEFAULT_WIDTH  1280

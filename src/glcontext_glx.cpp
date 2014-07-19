@@ -1,11 +1,11 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
 #include "bgfx_p.h"
 
-#if BX_PLATFORM_LINUX & (BGFX_CONFIG_RENDERER_OPENGLES2|BGFX_CONFIG_RENDERER_OPENGLES3|BGFX_CONFIG_RENDERER_OPENGL)
+#if BX_PLATFORM_LINUX & (BGFX_CONFIG_RENDERER_OPENGLES|BGFX_CONFIG_RENDERER_OPENGL)
 #	include "renderer_gl.h"
 #	define GLX_GLXEXT_PROTOTYPES
 #	include <glx/glxext.h>
@@ -20,8 +20,7 @@ namespace bgfx
 	PFNGLXSWAPINTERVALSGIPROC glXSwapIntervalSGI;
 
 #	define GL_IMPORT(_optional, _proto, _func, _import) _proto _func
-#		include "glimports.h"
-#	undef GL_IMPORT
+#	include "glimports.h"
 
 	static ::Display* s_display;
 	static ::Window s_window;
@@ -220,15 +219,18 @@ namespace bgfx
 
 	void GlContext::import()
 	{
-#	define GL_IMPORT(_optional, _proto, _func, _import) \
-	{ \
-		_func = (_proto)glXGetProcAddress((const GLubyte*)#_import); \
-		BGFX_FATAL(_optional || NULL != _func, Fatal::UnableToInitialize, "Failed to create OpenGL context. glXGetProcAddress %s", #_import); \
-	}
+#	define GL_EXTENSION(_optional, _proto, _func, _import) \
+				{ \
+					if (NULL == _func) \
+					{ \
+						_func = (_proto)glXGetProcAddress( (const GLubyte*)#_import); \
+						BX_TRACE("%p " #_func " (" #_import ")", _func); \
+						BGFX_FATAL(_optional || NULL != _func, Fatal::UnableToInitialize, "Failed to create OpenGL context. glXGetProcAddress %s", #_import); \
+					} \
+				}
 #	include "glimports.h"
-#	undef GL_IMPORT
 	}
 
 } // namespace bgfx
 
-#endif // BX_PLATFORM_LINUX & (BGFX_CONFIG_RENDERER_OPENGLES2|BGFX_CONFIG_RENDERER_OPENGLES3|BGFX_CONFIG_RENDERER_OPENGL)
+#endif // BX_PLATFORM_LINUX & (BGFX_CONFIG_RENDERER_OPENGLES|BGFX_CONFIG_RENDERER_OPENGL)

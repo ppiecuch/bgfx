@@ -1,21 +1,16 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
 #include "common.h"
+#include "bgfx_utils.h"
 
-#include <bgfx.h>
-#include <bx/timer.h>
-#include <bx/readerwriter.h>
 #include <bx/allocator.h>
 #include <bx/string.h>
-#include "fpumath.h"
 #include "aviwriter.h"
 
 #include <inttypes.h>
-#include <stdio.h>
-#include <string.h>
 
 struct PosColorVertex
 {
@@ -23,9 +18,20 @@ struct PosColorVertex
 	float m_y;
 	float m_z;
 	uint32_t m_abgr;
+
+	static void init()
+	{
+		ms_decl
+			.begin()
+			.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+			.add(bgfx::Attrib::Color0,   4, bgfx::AttribType::Uint8, true)
+			.end();
+	};
+
+	static bgfx::VertexDecl ms_decl;
 };
 
-static bgfx::VertexDecl s_PosColorDecl;
+bgfx::VertexDecl PosColorVertex::ms_decl;
 
 static PosColorVertex s_cubeVertices[8] =
 {
@@ -54,48 +60,6 @@ static const uint16_t s_cubeIndices[36] =
 	2, 3, 6, // 10
 	6, 3, 7,
 };
-
-static const char* s_shaderPath = NULL;
-
-static void shaderFilePath(char* _out, const char* _name)
-{
-	strcpy(_out, s_shaderPath);
-	strcat(_out, _name);
-	strcat(_out, ".bin");
-}
-
-long int fsize(FILE* _file)
-{
-	long int pos = ftell(_file);
-	fseek(_file, 0L, SEEK_END);
-	long int size = ftell(_file);
-	fseek(_file, pos, SEEK_SET);
-	return size;
-}
-
-static const bgfx::Memory* load(const char* _filePath)
-{
-	FILE* file = fopen(_filePath, "rb");
-	if (NULL != file)
-	{
-		uint32_t size = (uint32_t)fsize(file);
-		const bgfx::Memory* mem = bgfx::alloc(size+1);
-		size_t ignore = fread(mem->data, 1, size, file);
-		BX_UNUSED(ignore);
-		fclose(file);
-		mem->data[mem->size-1] = '\0';
-		return mem;
-	}
-
-	return NULL;
-}
-
-static const bgfx::Memory* loadShader(const char* _name)
-{
-	char filePath[512];
-	shaderFilePath(filePath, _name);
-	return load(filePath);
-}
 
 void saveTga(const char* _filePath, uint32_t _width, uint32_t _height, uint32_t _srcPitch, const void* _src, bool _grayscale, bool _yflip)
 {
@@ -146,6 +110,15 @@ void saveTga(const char* _filePath, uint32_t _width, uint32_t _height, uint32_t 
 
 		fclose(file);
 	}
+}
+
+long int fsize(FILE* _file)
+{
+	long int pos = ftell(_file);
+	fseek(_file, 0L, SEEK_END);
+	long int size = ftell(_file);
+	fseek(_file, pos, SEEK_SET);
+	return size;
 }
 
 struct BgfxCallback : public bgfx::CallbackI
@@ -283,7 +256,7 @@ struct BgfxCallback : public bgfx::CallbackI
 
 	virtual void captureBegin(uint32_t _width, uint32_t _height, uint32_t /*_pitch*/, bgfx::TextureFormat::Enum /*_format*/, bool _yflip) BX_OVERRIDE
 	{
-		m_writer = new AviWriter;
+		m_writer = new AviWriter(entry::getFileWriter() );
 		if (!m_writer->open("temp/capture.avi", _width, _height, 60, _yflip) )
 		{
 			delete m_writer;
@@ -325,40 +298,54 @@ public:
 	{
 	}
 
-	virtual void* alloc(size_t _size, const char* _file, uint32_t _line) BX_OVERRIDE
+	virtual void* alloc(size_t _size, size_t _align, const char* _file, uint32_t _line) BX_OVERRIDE
 	{
-		BX_UNUSED(_file, _line);
-		void* ptr = ::malloc(_size);
-		dbgPrintf("%s(%d): ALLOC %p of %d byte(s)\n", _file, _line, ptr, _size);
-		++m_numBlocks;
-		m_maxBlocks = bx::uint32_max(m_maxBlocks, m_numBlocks);
-		return ptr;
+		if (BX_CONFIG_ALLOCATOR_NATURAL_ALIGNMENT >= _align)
+		{
+			void* ptr = ::malloc(_size);
+			dbgPrintf("%s(%d): ALLOC %p of %d byte(s)\n", _file, _line, ptr, _size);
+			++m_numBlocks;
+			m_maxBlocks = bx::uint32_max(m_maxBlocks, m_numBlocks);
+			return ptr;
+		}
+
+		return bx::alignedAlloc(this, _size, _align, _file, _line);
 	}
 
-	virtual void free(void* _ptr, const char* _file, uint32_t _line) BX_OVERRIDE
+	virtual void free(void* _ptr, size_t _align, const char* _file, uint32_t _line) BX_OVERRIDE
 	{
 		if (NULL != _ptr)
 		{
-			dbgPrintf("%s(%d): FREE %p\n", _file, _line, _ptr);
-			BX_UNUSED(_file, _line);
-			::free(_ptr);
-			--m_numBlocks;
+			if (BX_CONFIG_ALLOCATOR_NATURAL_ALIGNMENT >= _align)
+			{
+				dbgPrintf("%s(%d): FREE %p\n", _file, _line, _ptr);
+				::free(_ptr);
+				--m_numBlocks;
+			}
+			else
+			{
+				bx::alignedFree(this, _ptr, _align, _file, _line);
+			}
 		}
 	}
 
-	virtual void* realloc(void* _ptr, size_t _size, const char* _file, uint32_t _line) BX_OVERRIDE
+	virtual void* realloc(void* _ptr, size_t _size, size_t _align, const char* _file, uint32_t _line) BX_OVERRIDE
 	{
-		BX_UNUSED(_file, _line);
-		void* ptr = ::realloc(_ptr, _size);
-		dbgPrintf("%s(%d): REALLOC %p (old %p) of %d byte(s)\n", _file, _line, ptr, _ptr, _size);
-
-		if (NULL == _ptr)
+		if (BX_CONFIG_ALLOCATOR_NATURAL_ALIGNMENT >= _align)
 		{
-			++m_numBlocks;
-			m_maxBlocks = bx::uint32_max(m_maxBlocks, m_numBlocks);
+			void* ptr = ::realloc(_ptr, _size);
+			dbgPrintf("%s(%d): REALLOC %p (old %p) of %d byte(s)\n", _file, _line, ptr, _ptr, _size);
+
+			if (NULL == _ptr)
+			{
+				++m_numBlocks;
+				m_maxBlocks = bx::uint32_max(m_maxBlocks, m_numBlocks);
+			}
+
+			return ptr;
 		}
 
-		return ptr;
+		return bx::alignedRealloc(this, _ptr, _size, _align, _file, _line);
 	}
 
 	void dumpStats() const
@@ -379,8 +366,16 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	uint32_t width = 1280;
 	uint32_t height = 720;
 
-	bgfx::init(&callback, &allocator);
-	bgfx::reset(width, height, BGFX_RESET_CAPTURE);
+	// Enumerate supported backend renderers.
+	bgfx::RendererType::Enum renderers[bgfx::RendererType::Count];
+	uint8_t numRenderers = bgfx::getSupportedRenderers(renderers);
+
+	bgfx::init(
+		  renderers[bx::getHPCounter() % numRenderers] /* randomize renderer */
+		, &callback  // custom callback handler
+		, &allocator // custom allocator
+		);
+	bgfx::reset(width, height, BGFX_RESET_CAPTURE|BGFX_RESET_MSAA_X16);
 
 	// Enable debug text.
 	bgfx::setDebug(BGFX_DEBUG_TEXT);
@@ -396,64 +391,24 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		, 0
 		);
 
-	// Setup root path for binary shaders. Shader binaries are different 
-	// for each renderer.
-	switch (bgfx::getRendererType() )
-	{
-	default:
-	case bgfx::RendererType::Direct3D9:
-		s_shaderPath = "shaders/dx9/";
-		break;
-
-	case bgfx::RendererType::Direct3D11:
-		s_shaderPath = "shaders/dx11/";
-		break;
-
-	case bgfx::RendererType::OpenGL:
-		s_shaderPath = "shaders/glsl/";
-		break;
-
-	case bgfx::RendererType::OpenGLES2:
-	case bgfx::RendererType::OpenGLES3:
-		s_shaderPath = "shaders/gles/";
-		break;
-	}
-
 	// Create vertex stream declaration.
-	s_PosColorDecl.begin();
-	s_PosColorDecl.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float);
-	s_PosColorDecl.add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true);
-	s_PosColorDecl.end();
-
-	const bgfx::Memory* mem;
+	PosColorVertex::init();
 
 	// Create static vertex buffer.
-	mem = bgfx::makeRef(s_cubeVertices, sizeof(s_cubeVertices) );
-	bgfx::VertexBufferHandle vbh = bgfx::createVertexBuffer(mem, s_PosColorDecl);
+	bgfx::VertexBufferHandle vbh = bgfx::createVertexBuffer(
+		  bgfx::makeRef(s_cubeVertices, sizeof(s_cubeVertices) )
+		, PosColorVertex::ms_decl
+		);
 
 	// Create static index buffer.
-	mem = bgfx::makeRef(s_cubeIndices, sizeof(s_cubeIndices) );
-	bgfx::IndexBufferHandle ibh = bgfx::createIndexBuffer(mem);
-
-	// Load vertex shader.
-	mem = loadShader("vs_callback");
-	bgfx::VertexShaderHandle vsh = bgfx::createVertexShader(mem);
-
-	// Load fragment shader.
-	mem = loadShader("fs_callback");
-	bgfx::FragmentShaderHandle fsh = bgfx::createFragmentShader(mem);
+	bgfx::IndexBufferHandle ibh = bgfx::createIndexBuffer(bgfx::makeRef(s_cubeIndices, sizeof(s_cubeIndices) ) );
 
 	// Create program from shaders.
-	bgfx::ProgramHandle program = bgfx::createProgram(vsh, fsh);
-
-	// We can destroy vertex and fragment shader here since
-	// their reference is kept inside bgfx after calling createProgram.
-	// Vertex and fragment shader will be destroyed once program is
-	// destroyed.
-	bgfx::destroyVertexShader(vsh);
-	bgfx::destroyFragmentShader(fsh);
+	bgfx::ProgramHandle program = loadProgram("vs_callback", "fs_callback");
 
 	float time = 0.0f;
+
+	const bgfx::RendererType::Enum rendererType = bgfx::getRendererType();
 
 	// 5 second 60Hz video
 	for (uint32_t frame = 0; frame < 300; ++frame)
@@ -476,13 +431,22 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		bgfx::dbgTextPrintf(13, 3, 0x6f, "caching OpenGL binary shaders, and video capture.");
 		bgfx::dbgTextPrintf( 0, 4, 0x0f, "Frame: % 7.3f[ms]", double(frameTime)*toMs);
 
+		bgfx::dbgTextPrintf( 2, 6, 0x0e, "Supported renderers:");
+		for (uint8_t ii = 0; ii < numRenderers; ++ii)
+		{
+			bgfx::dbgTextPrintf( 2, 7+ii, 0x0c, "[%c] %s"
+				, renderers[ii] == rendererType ? '\xfe' : ' '
+				, bgfx::getRendererName(renderers[ii])
+				);
+		}
+
 		float at[3] = { 0.0f, 0.0f, 0.0f };
 		float eye[3] = { 0.0f, 0.0f, -35.0f };
 		
 		float view[16];
 		float proj[16];
-		mtxLookAt(view, eye, at);
-		mtxProj(proj, 60.0f, float(width)/float(height), 0.1f, 100.0f);
+		bx::mtxLookAt(view, eye, at);
+		bx::mtxProj(proj, 60.0f, float(width)/float(height), 0.1f, 100.0f);
 
 		// Set view and projection matrix for view 0.
 		bgfx::setViewTransform(0, view, proj);
@@ -495,7 +459,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 			for (uint32_t xx = 0; xx < 11-yy; ++xx)
 			{
 				float mtx[16];
-				mtxRotateXY(mtx, time + xx*0.21f, time + yy*0.37f);
+				bx::mtxRotateXY(mtx, time + xx*0.21f, time + yy*0.37f);
 				mtx[12] = -15.0f + float(xx)*3.0f;
 				mtx[13] = -15.0f + float(yy)*3.0f;
 				mtx[14] = 0.0f;

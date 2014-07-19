@@ -7,7 +7,7 @@
 
 #include <bgfx.h>
 #include <bx/timer.h>
-#include "fpumath.h"
+#include <bx/fpumath.h>
 
 #include "font/font_manager.h"
 #include "font/text_metrics.h"
@@ -92,7 +92,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	BX_UNUSED(ignore);
 	fclose(file);
 
-	imguiCreate(data, size);
+	imguiCreate(data);
 
 	free(data);
 
@@ -148,8 +148,8 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		imguiSeparatorLine();
 
 		bool recomputeVisibleText = false;
-		recomputeVisibleText |= imguiSlider("Number of lines", &visibleLineCount, 1.0f, 177.0f , 1.0f);
-		if (imguiSlider("Font size", &textSize, 6.0f, 64.0f , 1.0f) )
+		recomputeVisibleText |= imguiSlider("Number of lines", visibleLineCount, 1.0f, 177.0f , 1.0f);
+		if (imguiSlider("Font size", textSize, 6.0f, 64.0f , 1.0f) )
 		{
 			fontManager->destroyFont(fontScaled);
 			fontScaled = fontManager->createScaledFontToPixelSize(fontSdf, (uint32_t) textSize);
@@ -157,9 +157,9 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 			recomputeVisibleText = true;
 		}
 
-		recomputeVisibleText |= imguiSlider("Scroll", &textScroll, 0.0f, (lineCount-visibleLineCount) , 1.0f);
-		imguiSlider("Rotate", &textRotation, 0.0f, (float) M_PI *2.0f , 0.1f);
-		recomputeVisibleText |= imguiSlider("Scale", &textScale, 0.1f, 10.0f , 0.1f);
+		recomputeVisibleText |= imguiSlider("Scroll", textScroll, 0.0f, (lineCount-visibleLineCount) , 1.0f);
+		imguiSlider("Rotate", textRotation, 0.0f, (float) M_PI *2.0f , 0.1f);
+		recomputeVisibleText |= imguiSlider("Scale", textScale, 0.1f, 10.0f , 0.1f);
 
 		if (recomputeVisibleText)
 		{
@@ -197,11 +197,11 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 		float view[16];
 		float proj[16];
-		mtxLookAt(view, eye, at);
+		bx::mtxLookAt(view, eye, at);
 		float centering = 0.5f;
 
 		// Setup a top-left ortho matrix for screen space drawing.
-		mtxOrtho(proj, centering, width + centering, height + centering, centering, -1.0f, 1.0f);
+		bx::mtxOrtho(proj, centering, width + centering, height + centering, centering, -1.0f, 1.0f);
 
 		// Set view and projection matrix for view 0.
 		bgfx::setViewTransform(0, view, proj);
@@ -214,20 +214,20 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		float textScaleMat[16];
 		float screenCenterMat[16];
 
-		mtxRotateZ(textRotMat, textRotation);
-		mtxTranslate(textCenterMat, -(textAreaWidth * 0.5f), (-visibleLineCount)*metrics.getLineHeight()*0.5f, 0);
-		mtxScale(textScaleMat, textScale, textScale, 1.0f);
-		mtxTranslate(screenCenterMat, ( (width) * 0.5f), ( (height) * 0.5f), 0);
+		bx::mtxRotateZ(textRotMat, textRotation);
+		bx::mtxTranslate(textCenterMat, -(textAreaWidth * 0.5f), (-visibleLineCount)*metrics.getLineHeight()*0.5f, 0);
+		bx::mtxScale(textScaleMat, textScale, textScale, 1.0f);
+		bx::mtxTranslate(screenCenterMat, ( (width) * 0.5f), ( (height) * 0.5f), 0);
 
 		//first translate to text center, then scale, then rotate
 		float tmpMat[16];
-		mtxMul(tmpMat, textCenterMat, textRotMat);
+		bx::mtxMul(tmpMat, textCenterMat, textRotMat);
 
 		float tmpMat2[16];
-		mtxMul(tmpMat2, tmpMat, textScaleMat);
+		bx::mtxMul(tmpMat2, tmpMat, textScaleMat);
 
 		float tmpMat3[16];
-		mtxMul(tmpMat3, tmpMat2, screenCenterMat);
+		bx::mtxMul(tmpMat3, tmpMat2, screenCenterMat);
 
 		// Set model matrix for rendering.
 		bgfx::setTransform(tmpMat3);

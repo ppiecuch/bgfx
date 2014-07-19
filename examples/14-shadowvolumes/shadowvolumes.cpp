@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Dario Manesku. All rights reserved.
+ * Copyright 2013-2014 Dario Manesku. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
@@ -26,8 +26,9 @@ using namespace std::tr1;
 #include <bx/allocator.h>
 #include <bx/hash.h>
 #include <bx/float4_t.h>
+#include <bx/fpumath.h>
 #include "entry/entry.h"
-#include "fpumath.h"
+#include "camera.h"
 #include "imgui/imgui.h"
 
 #define SV_USE_SIMD 1
@@ -102,12 +103,13 @@ static const uint16_t s_planeIndices[s_numPlaneIndices] =
 
 static const char* s_shaderPath = NULL;
 static bool s_flipV = false;
+static float s_texelHalf = 0.0f;
 
 static uint32_t s_viewMask = 0;
 
 static bgfx::UniformHandle u_texColor;
 static bgfx::UniformHandle u_texStencil;
-static bgfx::RenderTargetHandle s_stencilRt;
+static bgfx::FrameBufferHandle s_stencilFb;
 
 inline uint32_t uint32_max(uint32_t _a, uint32_t _b)
 {
@@ -168,52 +170,14 @@ static bgfx::ProgramHandle loadProgram(const char* _vsName, const char* _fsName)
 
 	// Load vertex shader.
 	mem = loadShader(_vsName);
-	bgfx::VertexShaderHandle vsh = bgfx::createVertexShader(mem);
+	bgfx::ShaderHandle vsh = bgfx::createShader(mem);
 
 	// Load fragment shader.
 	mem = loadShader(_fsName);
-	bgfx::FragmentShaderHandle fsh = bgfx::createFragmentShader(mem);
+	bgfx::ShaderHandle fsh = bgfx::createShader(mem);
 
 	// Create program from shaders.
-	bgfx::ProgramHandle program = bgfx::createProgram(vsh, fsh);
-
-	// We can destroy vertex and fragment shader here since
-	// their reference is kept inside bgfx after calling createProgram.
-	// Vertex and fragment shader will be destroyed once program is
-	// destroyed.
-	bgfx::destroyVertexShader(vsh);
-	bgfx::destroyFragmentShader(fsh);
-
-	return program;
-}
-
-void mtxScaleRotateTranslate(float* _result
-							 , const float _scaleX
-							 , const float _scaleY
-							 , const float _scaleZ
-							 , const float _rotX
-							 , const float _rotY
-							 , const float _rotZ
-							 , const float _translateX
-							 , const float _translateY
-							 , const float _translateZ
-							 )
-{
-	float mtxRotateTranslate[16];
-	float mtxScale[16];
-
-	mtxRotateXYZ(mtxRotateTranslate, _rotX, _rotY, _rotZ);
-	mtxRotateTranslate[12] = _translateX;
-	mtxRotateTranslate[13] = _translateY;
-	mtxRotateTranslate[14] = _translateZ;
-
-	memset(mtxScale, 0, 16*sizeof(float) );
-	mtxScale[0]  = _scaleX;
-	mtxScale[5]  = _scaleY;
-	mtxScale[10] = _scaleZ;
-	mtxScale[15] = 1.0f;
-
-	mtxMul(_result, mtxScale, mtxRotateTranslate);
+	return bgfx::createProgram(vsh, fsh, true /* destroy shaders when program is destroyed */);
 }
 
 void mtxBillboard(float* __restrict _result
@@ -257,10 +221,10 @@ void planeNormal(float* __restrict _result
 	vec1[1] = _v2[1] - _v1[1];
 	vec1[2] = _v2[2] - _v1[2];
 
-	vec3Cross(cross, vec0, vec1);
-	vec3Norm(_result, cross);
+	bx::vec3Cross(cross, vec0, vec1);
+	bx::vec3Norm(_result, cross);
 
-	_result[3] = -vec3Dot(_result, _v0);
+	_result[3] = -bx::vec3Dot(_result, _v0);
 }
 
 struct Uniforms
@@ -269,8 +233,7 @@ struct Uniforms
 	{
 		m_params.m_ambientPass   = 1.0f;
 		m_params.m_lightningPass = 1.0f;
-		m_params.m_lightCount    = 4.0f;
-		m_params.m_alpha         = 1.0f;
+		m_params.m_texelHalf     = 0.0f;
 
 		m_ambient[0] = 0.05f;
 		m_ambient[1] = 0.05f;
@@ -377,16 +340,16 @@ struct Uniforms
 	{
 		float m_ambientPass;
 		float m_lightningPass;
-		float m_alpha;
-		float m_lightCount;
+		float m_texelHalf;
+		float m_unused00;
 	};
 
 	struct SvParams
 	{
 		float m_useStencilTex;
 		float m_dfail;
-		float m_unused0;
-		float m_unused1;
+		float m_unused10;
+		float m_unused11;
 	};
 
 	Params m_params;
@@ -405,8 +368,8 @@ struct Uniforms
 	/**
 	 * u_params.x - u_ambientPass
 	 * u_params.y - u_lightningPass
-	 * u_params.z - u_alpha
-	 * u_params.w - u_lightCount
+	 * u_params.z - u_texelHalf
+	 * u_params.w - unused
 
 	 * u_svparams.x - u_useStencilTex
 	 * u_svparams.y - u_dfail
@@ -1259,7 +1222,7 @@ struct Model
 			{
 				bgfx::setTexture(0, u_texColor, m_texture);
 			}
-			bgfx::setTexture(7, u_texStencil, s_stencilRt);
+			bgfx::setTexture(7, u_texStencil, s_stencilFb);
 
 			// Apply render state
 			::setRenderState(_renderState);
@@ -1289,7 +1252,7 @@ struct Instance
 		memcpy(s_uniforms.m_color, m_color, 3*sizeof(float) );
 
 		float mtx[16];
-		mtxScaleRotateTranslate(mtx
+		bx::mtxSRT(mtx
 			, m_scale[0]
 			, m_scale[1]
 			, m_scale[2]
@@ -1401,34 +1364,34 @@ void shadowVolumeLightTransform(float* __restrict _outLightPos
 	 */
 
 	float pivot[16];
-	mtxTranslate(pivot
+	bx::mtxTranslate(pivot
 		, _lightPos[0] - _translate[0]
 		, _lightPos[1] - _translate[1]
 		, _lightPos[2] - _translate[2]
 		);
 
 	float mzyx[16];
-	mtxRotateZYX(mzyx
+	bx::mtxRotateZYX(mzyx
 		, -_rotate[0]
 		, -_rotate[1]
 		, -_rotate[2]
 		);
 
 	float invScale[16];
-	mtxScale(invScale
+	bx::mtxScale(invScale
 		, 1.0f / _scale[0]
 		, 1.0f / _scale[1]
 		, 1.0f / _scale[2]
 		);
 
 	float tmp0[16];
-	mtxMul(tmp0, pivot, mzyx);
+	bx::mtxMul(tmp0, pivot, mzyx);
 
 	float mtx[16];
-	mtxMul(mtx, tmp0, invScale);
+	bx::mtxMul(mtx, tmp0, invScale);
 
 	float origin[3] = { 0.0f, 0.0f, 0.0f };
-	vec3MulMtx(_outLightPos, origin, mtx);
+	bx::vec3MulMtx(_outLightPos, origin, mtx);
 }
 
 void shadowVolumeCreate(ShadowVolume& _shadowVolume
@@ -1493,7 +1456,7 @@ void shadowVolumeCreate(ShadowVolume& _shadowVolume
 			const Face& face = *iter;
 
 			bool frontFacing = false;
-			float f = vec3Dot(face.m_plane, _light) + face.m_plane[3];
+			float f = bx::vec3Dot(face.m_plane, _light) + face.m_plane[3];
 			if (f > 0.0f)
 			{
 				frontFacing = true;
@@ -1739,10 +1702,10 @@ void shadowVolumeCreate(ShadowVolume& _shadowVolume
 	}
 
 	bgfx::VertexDecl decl;
-	decl.begin();
-	decl.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float);
-	decl.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float);
-	decl.end();
+	decl.begin()
+		.add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float)
+		.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+		.end();
 
 	//fill the structure
 	_shadowVolume.m_numVertices = vsideI;
@@ -1800,16 +1763,16 @@ void createNearClipVolume(float* __restrict _outPlanes24f
 
 	float mtxViewInv[16];
 	float mtxViewTrans[16];
-	mtxInverse(mtxViewInv, _view);
-	mtxTranspose(mtxViewTrans, _view);
+	bx::mtxInverse(mtxViewInv, _view);
+	bx::mtxTranspose(mtxViewTrans, _view);
 
 	float lightPosV[4];
-	vec4MulMtx(lightPosV, _lightPos, _view);
+	bx::vec4MulMtx(lightPosV, _lightPos, _view);
 
 	const float delta = 0.1f;
 
 	float nearNormal[4] = { 0.0f, 0.0f, 1.0f, _near };
-	float d = vec3Dot(lightPosV, nearNormal) + lightPosV[3] * nearNormal[3];
+	float d = bx::vec3Dot(lightPosV, nearNormal) + lightPosV[3] * nearNormal[3];
 
 	// Light is:
 	//  1.0f - in front of near plane
@@ -1831,10 +1794,10 @@ void createNearClipVolume(float* __restrict _outPlanes24f
 	};
 
 	float corners[4][3];
-	vec3MulMtx(corners[0], cornersV[0], mtxViewInv);
-	vec3MulMtx(corners[1], cornersV[1], mtxViewInv);
-	vec3MulMtx(corners[2], cornersV[2], mtxViewInv);
-	vec3MulMtx(corners[3], cornersV[3], mtxViewInv);
+	bx::vec3MulMtx(corners[0], cornersV[0], mtxViewInv);
+	bx::vec3MulMtx(corners[1], cornersV[1], mtxViewInv);
+	bx::vec3MulMtx(corners[2], cornersV[2], mtxViewInv);
+	bx::vec3MulMtx(corners[3], cornersV[3], mtxViewInv);
 
 	float planeNormals[4][3];
 	for (uint8_t ii = 0; ii < 4; ++ii)
@@ -1843,25 +1806,25 @@ void createNearClipVolume(float* __restrict _outPlanes24f
 		float* plane = volumePlanes[ii];
 
 		float planeVec[3];
-		vec3Sub(planeVec, corners[ii], corners[(ii-1)%4]);
+		bx::vec3Sub(planeVec, corners[ii], corners[(ii-1)%4]);
 
 		float light[3];
 		float tmp[3];
-		vec3Mul(tmp, corners[ii], _lightPos[3]);
-		vec3Sub(light, _lightPos, tmp);
+		bx::vec3Mul(tmp, corners[ii], _lightPos[3]);
+		bx::vec3Sub(light, _lightPos, tmp);
 
-		vec3Cross(normal, planeVec, light);
+		bx::vec3Cross(normal, planeVec, light);
 
 		normal[0] *= lightSide;
 		normal[1] *= lightSide;
 		normal[2] *= lightSide;
 
-		float lenInv = 1.0f / sqrtf(vec3Dot(normal, normal) );
+		float lenInv = 1.0f / sqrtf(bx::vec3Dot(normal, normal) );
 
 		plane[0] = normal[0] * lenInv;
 		plane[1] = normal[1] * lenInv;
 		plane[2] = normal[2] * lenInv;
-		plane[3] = -vec3Dot(normal, corners[ii]) * lenInv;
+		plane[3] = -bx::vec3Dot(normal, corners[ii]) * lenInv;
 	}
 
 	float nearPlaneV[4] =
@@ -1871,26 +1834,26 @@ void createNearClipVolume(float* __restrict _outPlanes24f
 		1.0f * lightSide,
 		_near * lightSide,
 	};
-	vec4MulMtx(volumePlanes[4], nearPlaneV, mtxViewTrans);
+	bx::vec4MulMtx(volumePlanes[4], nearPlaneV, mtxViewTrans);
 
 	float* lightPlane = volumePlanes[5];
 	float lightPlaneNormal[3] = { 0.0f, 0.0f, -_near * lightSide };
 	float tmp[3];
-	vec3MulMtx(tmp, lightPlaneNormal, mtxViewInv);
-	vec3Sub(lightPlaneNormal, tmp, _lightPos);
+	bx::vec3MulMtx(tmp, lightPlaneNormal, mtxViewInv);
+	bx::vec3Sub(lightPlaneNormal, tmp, _lightPos);
 
-	float lenInv = 1.0f / sqrtf(vec3Dot(lightPlaneNormal, lightPlaneNormal) );
+	float lenInv = 1.0f / sqrtf(bx::vec3Dot(lightPlaneNormal, lightPlaneNormal) );
 
 	lightPlane[0] = lightPlaneNormal[0] * lenInv;
 	lightPlane[1] = lightPlaneNormal[1] * lenInv;
 	lightPlane[2] = lightPlaneNormal[2] * lenInv;
-	lightPlane[3] = -vec3Dot(lightPlaneNormal, _lightPos) * lenInv;
+	lightPlane[3] = -bx::vec3Dot(lightPlaneNormal, _lightPos) * lenInv;
 }
 
 bool clipTest(const float* _planes, uint8_t _planeNum, const Mesh& _mesh, const float* _scale, const float* _translate)
 {
 	float (*volumePlanes)[4] = (float(*)[4])_planes;
-	float scale = fmaxf(fmaxf(_scale[0], _scale[1]), _scale[2]);
+	float scale = bx::fmax(bx::fmax(_scale[0], _scale[1]), _scale[2]);
 
 	const GroupArray& groups = _mesh.m_groups;
 	for (GroupArray::const_iterator it = groups.begin(), itEnd = groups.end(); it != itEnd; ++it)
@@ -1908,7 +1871,7 @@ bool clipTest(const float* _planes, uint8_t _planeNum, const Mesh& _mesh, const 
 		{
 			const float* plane = volumePlanes[ii];
 
-			float positiveSide = vec3Dot(plane, sphere.m_center) + plane[3] + sphere.m_radius;
+			float positiveSide = bx::vec3Dot(plane, sphere.m_center) + plane[3] + sphere.m_radius;
 
 			if (positiveSide < 0.0f)
 			{
@@ -1947,23 +1910,21 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	default:
 	case bgfx::RendererType::Direct3D9:
 		s_shaderPath = "shaders/dx9/";
-		s_flipV = true;
+		s_texelHalf = 0.5f;
 		break;
 
 	case bgfx::RendererType::Direct3D11:
 		s_shaderPath = "shaders/dx11/";
-		s_flipV = true;
 		break;
 
 	case bgfx::RendererType::OpenGL:
 		s_shaderPath = "shaders/glsl/";
-		s_flipV = false;
+		s_flipV = true;
 		break;
 
-	case bgfx::RendererType::OpenGLES2:
-	case bgfx::RendererType::OpenGLES3:
+	case bgfx::RendererType::OpenGLES:
 		s_shaderPath = "shaders/gles/";
-		s_flipV = false;
+		s_flipV = true;
 		break;
 	}
 
@@ -1974,14 +1935,17 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	size_t ignore = fread(data, 1, size, file);
 	BX_UNUSED(ignore);
 	fclose(file);
-	imguiCreate(data, size);
+
+	imguiCreate(data);
+
+	free(data);
 
 	bgfx::VertexDecl PosNormalTexcoordDecl;
-	PosNormalTexcoordDecl.begin();
-	PosNormalTexcoordDecl.add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float);
-	PosNormalTexcoordDecl.add(bgfx::Attrib::Normal,    4, bgfx::AttribType::Uint8, true, true);
-	PosNormalTexcoordDecl.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float);
-	PosNormalTexcoordDecl.end();
+	PosNormalTexcoordDecl.begin()
+		.add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float)
+		.add(bgfx::Attrib::Normal,    4, bgfx::AttribType::Uint8, true, true)
+		.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+		.end();
 
 	s_uniforms.init();
 	s_uniforms.submitConstUniforms();
@@ -1997,7 +1961,12 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	mem = loadTexture("fieldstone-rgba.dds");
 	bgfx::TextureHandle fieldstoneTex = bgfx::createTexture(mem);
 
-	s_stencilRt  = bgfx::createRenderTarget(viewState.m_width, viewState.m_height, BGFX_RENDER_TARGET_COLOR_RGBA8 | BGFX_RENDER_TARGET_DEPTH_D16);
+	bgfx::TextureHandle fbtextures[] =
+	{
+		bgfx::createTexture2D(viewState.m_width, viewState.m_height, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_U_CLAMP|BGFX_TEXTURE_V_CLAMP|BGFX_TEXTURE_RT),
+		bgfx::createTexture2D(viewState.m_width, viewState.m_height, 1, bgfx::TextureFormat::D16, BGFX_TEXTURE_RT_BUFFER_ONLY),
+	};
+	s_stencilFb  = bgfx::createFrameBuffer(BX_COUNTOF(fbtextures), fbtextures, true);
 
 	u_texColor   = bgfx::createUniform("u_texColor",   bgfx::UniformType::Uniform1iv);
 	u_texStencil = bgfx::createUniform("u_texStencil", bgfx::UniformType::Uniform1iv);
@@ -2126,7 +2095,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	bool settings_updateLights       = true;
 	bool settings_updateScene        = true;
 	bool settings_mixedSvImpl        = true;
-	bool settings_useStencilTexture  = true;
+	bool settings_useStencilTexture  = false;
 	bool settings_drawShadowVolumes  = false;
 	float settings_numLights         = 1.0f;
 	float settings_instanceCount     = 9.0f;
@@ -2164,32 +2133,37 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	MeshChoice currentMesh = BunnyLowPoly;
 	Scene currentScene = Scene0;
 
+	// Set view and projection matrices.
+	const float fov = 60.0f;
+	const float aspect = float(viewState.m_width)/float(viewState.m_height);
+	const float nearPlane = 1.0f;
+	const float farPlane = 1000.0f;
+	bx::mtxProj(viewState.m_proj, fov, aspect, nearPlane, farPlane);
+
+	float initialPos[3] = { 3.0f, 20.0f, -58.0f };
+	cameraCreate();
+	cameraSetPosition(initialPos);
+	cameraSetVerticalAngle(-0.25f);
+	cameraGetViewMtx(viewState.m_view);
+
 	entry::MouseState mouseState;
 	while (!entry::processEvents(viewState.m_width, viewState.m_height, debug, reset, &mouseState) )
 	{
-		//respond properly on resize
+		// Respond properly on resize.
 		if (oldWidth != viewState.m_width
 		||  oldHeight != viewState.m_height)
 		{
 			oldWidth = viewState.m_width;
 			oldHeight = viewState.m_height;
 
-			bgfx::destroyRenderTarget(s_stencilRt);
+			bgfx::destroyFrameBuffer(s_stencilFb);
 
-			s_stencilRt = bgfx::createRenderTarget(viewState.m_width, viewState.m_height, BGFX_RENDER_TARGET_COLOR_RGBA8 | BGFX_RENDER_TARGET_DEPTH_D16);
+			fbtextures[0] = bgfx::createTexture2D(viewState.m_width, viewState.m_height, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_U_CLAMP|BGFX_TEXTURE_V_CLAMP|BGFX_TEXTURE_RT);
+			fbtextures[1] = bgfx::createTexture2D(viewState.m_width, viewState.m_height, 1, bgfx::TextureFormat::D16, BGFX_TEXTURE_RT_BUFFER_ONLY);
+			s_stencilFb = bgfx::createFrameBuffer(BX_COUNTOF(fbtextures), fbtextures, true);
 		}
 
-		//set view and projection matrices
-		const float fov       = 60.0f;
-		const float aspect    = float(viewState.m_width)/float(viewState.m_height);
-		const float nearPlane = 1.0f;
-		const float farPlane  = 1000.0f;
-		mtxProj(viewState.m_proj, fov, aspect, nearPlane, farPlane);
-		float at[3] = { 3.0f, 5.0f, 0.0f };
-		float eye[3] = { 3.0f, 20.0f, -58.0f };
-		mtxLookAt(viewState.m_view, eye, at);
-
-		//time
+		// Time.
 		int64_t now = bx::getHPCounter();
 		static int64_t last = now;
 		const int64_t frameTime = now - last;
@@ -2199,6 +2173,10 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		float time = (float)( (now - timeOffset)/double(bx::getHPFrequency() ) );
 		const float deltaTime = float(frameTime/freq);
 		s_uniforms.m_time = time;
+
+		// Update camera.
+		cameraUpdate(deltaTime, mouseState.m_mx, mouseState.m_my, !!mouseState.m_buttons[entry::MouseButton::Right]);
+		cameraGetViewMtx(viewState.m_view);
 
 		imguiBeginFrame(mouseState.m_mx
 			, mouseState.m_my
@@ -2221,7 +2199,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 			currentScene = Scene1;
 		}
 
-		imguiSlider("Lights", &settings_numLights, 1.0f, float(MAX_LIGHTS_COUNT), 1.0f);
+		imguiSlider("Lights", settings_numLights, 1.0f, float(MAX_LIGHTS_COUNT), 1.0f);
 
 		if (imguiCheck("Update lights", settings_updateLights) )
 		{
@@ -2287,7 +2265,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 		if (Scene1 == currentScene)
 		{
-			imguiSlider("Instance count", &settings_instanceCount, 1.0f, float(MAX_INSTANCE_COUNT), 1.0f);
+			imguiSlider("Instance count", settings_instanceCount, 1.0f, float(MAX_INSTANCE_COUNT), 1.0f);
 		}
 
 		imguiLabel("CPU Time: %7.1f [ms]", double(profTime)*toMs);
@@ -2320,7 +2298,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		//update settings
 		s_uniforms.m_params.m_ambientPass     = 1.0f;
 		s_uniforms.m_params.m_lightningPass   = 1.0f;
-		s_uniforms.m_params.m_lightCount      = settings_numLights;
+		s_uniforms.m_params.m_texelHalf       = s_texelHalf;
 		s_uniforms.m_svparams.m_useStencilTex = float(settings_useStencilTexture);
 		s_uniforms.submitPerFrameUniforms();
 
@@ -2636,7 +2614,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		if (settings_useStencilTexture)
 		{
 			bgfx::setViewClear(VIEWID_RANGE1_RT_PASS1, BGFX_CLEAR_DEPTH_BIT, 0x00000000, 1.0f, 0);
-			bgfx::setViewRenderTarget(VIEWID_RANGE1_RT_PASS1, s_stencilRt);
+			bgfx::setViewFrameBuffer(VIEWID_RANGE1_RT_PASS1, s_stencilFb);
 
 			const RenderState& renderState = s_renderStates[RenderState::ShadowVolume_UsingStencilTexture_BuildDepth];
 
@@ -2668,7 +2646,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 			if (settings_useStencilTexture)
 			{
-				bgfx::setViewRenderTarget(viewId, s_stencilRt);
+				bgfx::setViewFrameBuffer(viewId, s_stencilFb);
 
 				bgfx::setViewClear(viewId
 						, BGFX_CLEAR_COLOR_BIT
@@ -2679,8 +2657,8 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 			}
 			else
 			{
-				const bgfx::RenderTargetHandle invalidRt = BGFX_INVALID_HANDLE;
-				bgfx::setViewRenderTarget(viewId, invalidRt);
+				const bgfx::FrameBufferHandle invalid = BGFX_INVALID_HANDLE;
+				bgfx::setViewFrameBuffer(viewId, invalid);
 
 				bgfx::setViewClear(viewId
 						, BGFX_CLEAR_STENCIL_BIT
@@ -2731,7 +2709,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 				// Compute transform for shadow volume.
 				float shadowVolumeMtx[16];
-				mtxScaleRotateTranslate(shadowVolumeMtx
+				bx::mtxSRT(shadowVolumeMtx
 						, instance.m_scale[0]
 						, instance.m_scale[1]
 						, instance.m_scale[2]
@@ -2922,7 +2900,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 	bgfx::destroyUniform(u_texColor);
 	bgfx::destroyUniform(u_texStencil);
-	bgfx::destroyRenderTarget(s_stencilRt);
+	bgfx::destroyFrameBuffer(s_stencilFb);
 
 	bgfx::destroyTexture(figureTex);
 	bgfx::destroyTexture(fieldstoneTex);
@@ -2945,6 +2923,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	bgfx::destroyProgram(programFrontTex1);
 	bgfx::destroyProgram(programFrontTex2);
 
+	cameraDestroy();
 	imguiDestroy();
 
 	// Shutdown bgfx.

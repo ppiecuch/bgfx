@@ -1,5 +1,5 @@
 --
--- Copyright 2010-2013 Branimir Karadzic. All rights reserved.
+-- Copyright 2010-2014 Branimir Karadzic. All rights reserved.
 -- License: http://www.opensource.org/licenses/BSD-2-Clause
 --
 
@@ -11,6 +11,7 @@ project "geometryc"
 		BX_DIR .. "include",
 		BGFX_DIR .. "include",
 		BGFX_DIR .. "3rdparty/forsyth-too",
+		BGFX_DIR .. "examples/common",
 	}
 
 	files {
@@ -19,6 +20,7 @@ project "geometryc"
 		BGFX_DIR .. "src/vertexdecl.**",
 		BGFX_DIR .. "tools/geometryc/**.cpp",
 		BGFX_DIR .. "tools/geometryc/**.h",
+		BGFX_DIR .. "examples/common/bounds.**",
 	}
 
 	configuration { "osx" }

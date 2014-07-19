@@ -1,17 +1,20 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
 #include "bgfx_p.h"
 
-#if BX_PLATFORM_IOS && (BGFX_CONFIG_RENDERER_OPENGLES2|BGFX_CONFIG_RENDERER_OPENGLES3|BGFX_CONFIG_RENDERER_OPENGL)
+#if BX_PLATFORM_IOS && (BGFX_CONFIG_RENDERER_OPENGLES|BGFX_CONFIG_RENDERER_OPENGL)
 #	include <UIKit/UIKit.h>
 #	include <QuartzCore/CAEAGLLayer.h>
 #	include "renderer_gl.h"
 
 namespace bgfx
 {
+#	define GL_IMPORT(_optional, _proto, _func, _import) _proto _func = NULL
+#	include "glimports.h"
+
 	void GlContext::create(uint32_t _width, uint32_t _height)
 	{
 		BX_UNUSED(_width, _height);
@@ -46,11 +49,12 @@ namespace bgfx
 		GL_CHECK(glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_HEIGHT, &height) );
 		BX_TRACE("Screen size: %d x %d", width, height);
 
-		GL_CHECK(glGenRenderbuffers(1, &m_depthRbo) );
-		GL_CHECK(glBindRenderbuffer(GL_RENDERBUFFER, m_depthRbo) );
-		GL_CHECK(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height) );
-		GL_CHECK(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthRbo) );
-
+		GL_CHECK(glGenRenderbuffers(1, &m_depthStencilRbo) );
+		GL_CHECK(glBindRenderbuffer(GL_RENDERBUFFER, m_depthStencilRbo) );
+		GL_CHECK(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8_OES, width, height) ); // from OES_packed_depth_stencil
+		GL_CHECK(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilRbo) );
+		GL_CHECK(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_depthStencilRbo) );
+        
 		BX_CHECK(GL_FRAMEBUFFER_COMPLETE ==  glCheckFramebufferStatus(GL_FRAMEBUFFER)
 			, "glCheckFramebufferStatus failed 0x%08x"
 			, glCheckFramebufferStatus(GL_FRAMEBUFFER)
@@ -71,10 +75,10 @@ namespace bgfx
 			m_colorRbo = 0;
 		}
 
-		if (0 != m_depthRbo)
+		if (0 != m_depthStencilRbo)
 		{
-			GL_CHECK(glDeleteRenderbuffers(1, &m_depthRbo) );
-			m_depthRbo = 0;
+			GL_CHECK(glDeleteRenderbuffers(1, &m_depthStencilRbo) );
+			m_depthStencilRbo = 0;
 		}
 
 		EAGLContext* context = (EAGLContext*)m_context;

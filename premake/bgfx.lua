@@ -1,5 +1,5 @@
 --
--- Copyright 2010-2013 Branimir Karadzic. All rights reserved.
+-- Copyright 2010-2014 Branimir Karadzic. All rights reserved.
 -- License: http://www.opensource.org/licenses/BSD-2-Clause
 --
 
@@ -33,7 +33,64 @@ project "bgfx"
 	configuration { "vs* or linux or mingw or osx or ios*" }
 		includedirs {
 			--nacl has GLES2 headers modified...
-			BGFX_DIR .. "3rdparty/glext",
+			BGFX_DIR .. "3rdparty/khronos",
+		}
+
+	configuration {}
+
+	includedirs {
+		BGFX_DIR .. "include",
+	}
+
+	files {
+		BGFX_DIR .. "include/**.h",
+		BGFX_DIR .. "src/**.cpp",
+		BGFX_DIR .. "src/**.h",
+	}
+
+	excludes {
+		BGFX_DIR .. "src/**.bin.h",
+	}
+
+	copyLib()
+
+project "bgfx-shared-lib"
+	uuid "09986168-e9d9-11e3-9c8e-f2aef940a72a"
+	kind "SharedLib"
+
+	includedirs {
+		BGFX_DIR .. "3rdparty/bx/include",
+	}
+
+	defines {
+		"BGFX_SHARED_LIB_BUILD=1",
+--		"BGFX_CONFIG_RENDERER_OPENGL=1",
+	}
+
+	configuration { "Debug" }
+		defines {
+			"BGFX_CONFIG_DEBUG=1",
+		}
+
+	configuration { "windows" }
+		includedirs {
+			"$(DXSDK_DIR)/include",
+		}
+
+	configuration { "osx or ios*" }
+		files {
+			BGFX_DIR .. "src/**.mm",
+		}
+
+	configuration { "osx" }
+		links {
+			"Cocoa.framework",
+		}
+
+	configuration { "vs* or linux or mingw or osx or ios*" }
+		includedirs {
+			--nacl has GLES2 headers modified...
+			BGFX_DIR .. "3rdparty/khronos",
 		}
 
 	configuration {}

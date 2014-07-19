@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Dario Manesku. All rights reserved.
+ * Copyright 2013-2014 Dario Manesku. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
@@ -11,8 +11,9 @@
 #include <bgfx.h>
 #include <bx/timer.h>
 #include <bx/readerwriter.h>
+#include <bx/fpumath.h>
 #include "entry/entry.h"
-#include "fpumath.h"
+#include "camera.h"
 #include "imgui/imgui.h"
 
 #define RENDER_VIEWID_RANGE1_PASS_0   1 
@@ -195,52 +196,14 @@ static bgfx::ProgramHandle loadProgram(const char* _vsName, const char* _fsName)
 
 	// Load vertex shader.
 	mem = loadShader(_vsName);
-	bgfx::VertexShaderHandle vsh = bgfx::createVertexShader(mem);
+	bgfx::ShaderHandle vsh = bgfx::createShader(mem);
 
 	// Load fragment shader.
 	mem = loadShader(_fsName);
-	bgfx::FragmentShaderHandle fsh = bgfx::createFragmentShader(mem);
+	bgfx::ShaderHandle fsh = bgfx::createShader(mem);
 
 	// Create program from shaders.
-	bgfx::ProgramHandle program = bgfx::createProgram(vsh, fsh);
-
-	// We can destroy vertex and fragment shader here since
-	// their reference is kept inside bgfx after calling createProgram.
-	// Vertex and fragment shader will be destroyed once program is
-	// destroyed.
-	bgfx::destroyVertexShader(vsh);
-	bgfx::destroyFragmentShader(fsh);
-
-	return program;
-}
-
-void mtxScaleRotateTranslate(float* _result
-							 , const float _scaleX
-							 , const float _scaleY
-							 , const float _scaleZ
-							 , const float _rotX
-							 , const float _rotY
-							 , const float _rotZ
-							 , const float _translateX
-							 , const float _translateY
-							 , const float _translateZ
-							 )
-{
-	float mtxRotateTranslate[16];
-	float mtxScale[16];
-
-	mtxRotateXYZ(mtxRotateTranslate, _rotX, _rotY, _rotZ);
-	mtxRotateTranslate[12] = _translateX;
-	mtxRotateTranslate[13] = _translateY;
-	mtxRotateTranslate[14] = _translateZ;
-
-	memset(mtxScale, 0, sizeof(float)*16);
-	mtxScale[0]  = _scaleX;
-	mtxScale[5]  = _scaleY;
-	mtxScale[10] = _scaleZ;
-	mtxScale[15] = 1.0f;
-
-	mtxMul(_result, mtxScale, mtxRotateTranslate);
+	return bgfx::createProgram(vsh, fsh, true /* destroy shaders when program is destroyed */);
 }
 
 void mtxReflected(float*__restrict _result
@@ -248,7 +211,7 @@ void mtxReflected(float*__restrict _result
 				  , const float* __restrict _n  /* normal */
 				  )
 {
-	float dot = vec3Dot(_p, _n);
+	float dot = bx::vec3Dot(_p, _n);
 
 	_result[ 0] =  1.0f -  2.0f * _n[0] * _n[0]; //1-2Nx^2
 	_result[ 1] = -2.0f * _n[0] * _n[1];         //-2*Nx*Ny
@@ -933,8 +896,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		s_flipV = true;
 		break;
 
-	case bgfx::RendererType::OpenGLES2:
-	case bgfx::RendererType::OpenGLES3:
+	case bgfx::RendererType::OpenGLES:
 		s_shaderPath = "shaders/gles/";
 		s_flipV = true;
 		break;
@@ -946,7 +908,10 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	size_t ignore = fread(data, 1, size, file);
 	BX_UNUSED(ignore);
 	fclose(file);
-	imguiCreate(data, size);
+
+	imguiCreate(data);
+
+	free(data);
 
 	bgfx::VertexDecl PosNormalTexcoordDecl;
 	PosNormalTexcoordDecl.begin();
@@ -1010,6 +975,16 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	}
 	memcpy(s_uniforms.m_lightRgbInnerR, lightRgbInnerR, MAX_NUM_LIGHTS * 4*sizeof(float));
 
+	// Set view and projection matrices.
+	const float aspect = float(viewState.m_width)/float(viewState.m_height);
+	bx::mtxProj(viewState.m_proj, 60.0f, aspect, 0.1f, 100.0f);
+
+	float initialPos[3] = { 0.0f, 18.0f, -40.0f };
+	cameraCreate();
+	cameraSetPosition(initialPos);
+	cameraSetVerticalAngle(-0.35f);
+	cameraGetViewMtx(viewState.m_view);
+
 	int64_t timeOffset = bx::getHPCounter();
 
 	enum Scene
@@ -1058,10 +1033,10 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		}
 
 		imguiSeparatorLine();
-		imguiSlider("Lights", &settings_numLights, 1.0f, float(MAX_NUM_LIGHTS), 1.0f);
+		imguiSlider("Lights", settings_numLights, 1.0f, float(MAX_NUM_LIGHTS), 1.0f);
 		if (scene == StencilReflectionScene)
 		{
-			imguiSlider("Reflection value", &settings_reflectionValue, 0.0f, 1.0f, 0.01f);
+			imguiSlider("Reflection value", settings_reflectionValue, 0.0f, 1.0f, 0.01f);
 		}
 
 		if (imguiCheck("Update lights", settings_updateLights) )
@@ -1103,12 +1078,9 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		bgfx::dbgTextPrintf(0, 2, 0x6f, "Description: Stencil reflections and shadows.");
 		bgfx::dbgTextPrintf(0, 3, 0x0f, "Frame: % 7.3f[ms]", double(frameTime)*toMs);
 
-		// Set view and projection matrices.
-		const float aspect = float(viewState.m_width)/float(viewState.m_height);
-		mtxProj(viewState.m_proj, 60.0f, aspect, 0.1f, 100.0f);
-		float at[3] = { 0.0f, 5.0f, 0.0f };
-		float eye[3] = { 0.0f, 18.0f, -40.0f };
-		mtxLookAt(viewState.m_view, eye, at);
+		// Update camera.
+		cameraUpdate(deltaTime, mouseState.m_mx, mouseState.m_my, !!mouseState.m_buttons[entry::MouseButton::Right]);
+		cameraGetViewMtx(viewState.m_view);
 
 		static float lightTimeAccumulator = 0.0f;
 		if (settings_updateLights)
@@ -1135,7 +1107,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 		// Floor position.
 		float floorMtx[16];
-		mtxScaleRotateTranslate(floorMtx
+		bx::mtxSRT(floorMtx
 			, 20.0f  //scaleX
 			, 20.0f  //scaleY
 			, 20.0f  //scaleZ
@@ -1149,7 +1121,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 		// Bunny position.
 		float bunnyMtx[16];
-		mtxScaleRotateTranslate(bunnyMtx
+		bx::mtxSRT(bunnyMtx
 			, 5.0f
 			, 5.0f
 			, 5.0f
@@ -1174,7 +1146,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		float columnMtx[4][16];
 		for (uint8_t ii = 0; ii < 4; ++ii)
 		{
-			mtxScaleRotateTranslate(columnMtx[ii]
+			bx::mtxSRT(columnMtx[ii]
 				, 1.0f
 				, 1.0f
 				, 1.0f
@@ -1191,7 +1163,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		float cubeMtx[numCubes][16];
 		for (uint16_t ii = 0; ii < numCubes; ++ii)
 		{
-			mtxScaleRotateTranslate(cubeMtx[ii]
+			bx::mtxSRT(cubeMtx[ii]
 				, 1.0f
 				, 1.0f
 				, 1.0f
@@ -1245,14 +1217,14 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 				float reflectedLights[MAX_NUM_LIGHTS][4];
 				for (uint8_t ii = 0; ii < numLights; ++ii)
 				{
-					vec3MulMtx(reflectedLights[ii], lightPosRadius[ii], reflectMtx);
+					bx::vec3MulMtx(reflectedLights[ii], lightPosRadius[ii], reflectMtx);
 					reflectedLights[ii][3] = lightPosRadius[ii][3];
 				}
 				memcpy(s_uniforms.m_lightPosRadius, reflectedLights, numLights * 4*sizeof(float));
 
 				// Reflect and submit bunny.
 				float mtxReflectedBunny[16];
-				mtxMul(mtxReflectedBunny, bunnyMtx, reflectMtx);
+				bx::mtxMul(mtxReflectedBunny, bunnyMtx, reflectMtx);
 				bunnyMesh.submit(RENDER_VIEWID_RANGE1_PASS_1
 					, mtxReflectedBunny
 					, programColorLightning
@@ -1263,7 +1235,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 				float mtxReflectedColumn[16];
 				for (uint8_t ii = 0; ii < 4; ++ii)
 				{
-					mtxMul(mtxReflectedColumn, columnMtx[ii], reflectMtx);
+					bx::mtxMul(mtxReflectedColumn, columnMtx[ii], reflectMtx);
 					columnMesh.submit(RENDER_VIEWID_RANGE1_PASS_1
 						, mtxReflectedColumn
 						, programColorLightning
@@ -1342,7 +1314,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 				float plane_pos[3] = { 0.0f, 0.0f, 0.0f };
 				float normal[3] = { 0.0f, 1.0f, 0.0f };
 				memcpy(ground, normal, sizeof(float) * 3);
-				ground[3] = -vec3Dot(plane_pos, normal) - 0.01f; // - 0.01 against z-fighting
+				ground[3] = -bx::vec3Dot(plane_pos, normal) - 0.01f; // - 0.01 against z-fighting
 
 				for (uint8_t ii = 0, viewId = RENDER_VIEWID_RANGE5_PASS_6; ii < numLights; ++ii, ++viewId)
 				{
@@ -1363,7 +1335,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 					// Submit bunny's shadow.
 					float mtxShadowedBunny[16];
-					mtxMul(mtxShadowedBunny, bunnyMtx, shadowMtx);
+					bx::mtxMul(mtxShadowedBunny, bunnyMtx, shadowMtx);
 					bunnyMesh.submit(viewId
 						, mtxShadowedBunny
 						, programColorBlack
@@ -1374,7 +1346,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 					float mtxShadowedCube[16];
 					for (uint8_t jj = 0; jj < numCubes; ++jj)
 					{
-						mtxMul(mtxShadowedCube, cubeMtx[jj], shadowMtx);
+						bx::mtxMul(mtxShadowedCube, cubeMtx[jj], shadowMtx);
 						cubeMesh.submit(viewId
 							, mtxShadowedCube
 							, programColorBlack
@@ -1442,7 +1414,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 		// Draw floor bottom.
 		float floorBottomMtx[16];
-		mtxScaleRotateTranslate(floorBottomMtx
+		bx::mtxSRT(floorBottomMtx
 			, 20.0f  //scaleX
 			, 20.0f  //scaleY
 			, 20.0f  //scaleZ
@@ -1496,6 +1468,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 	s_uniforms.destroy();
 
+	cameraDestroy();
 	imguiDestroy();
 
 	// Shutdown bgfx.

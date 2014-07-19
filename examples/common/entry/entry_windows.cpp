@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
@@ -160,11 +160,11 @@ namespace entry
 			wnd.cbSize = sizeof(wnd);
 			wnd.lpfnWndProc = DefWindowProc;
 			wnd.hInstance = instance;
-			wnd.hIcon = LoadIcon(instance, IDI_APPLICATION);
-			wnd.hCursor = LoadCursor(instance, IDC_ARROW);
+			wnd.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+			wnd.hCursor = LoadCursor(NULL, IDC_ARROW);
 			wnd.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
 			wnd.lpszClassName = "bgfx_letterbox";
-			wnd.hIconSm = LoadIcon(instance, IDI_APPLICATION);
+			wnd.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
 			RegisterClassExA(&wnd);
 
 			memset(&wnd, 0, sizeof(wnd) );
@@ -172,10 +172,10 @@ namespace entry
 			wnd.style = CS_HREDRAW | CS_VREDRAW;
 			wnd.lpfnWndProc = wndProc;
 			wnd.hInstance = instance;
-			wnd.hIcon = LoadIcon(instance, IDI_APPLICATION);
-			wnd.hCursor = LoadCursor(instance, IDC_ARROW);
+			wnd.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+			wnd.hCursor = LoadCursor(NULL, IDC_ARROW);
 			wnd.lpszClassName = "bgfx";
-			wnd.hIconSm = LoadIcon(instance, IDI_APPLICATION);
+			wnd.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
 			RegisterClassExA(&wnd);
 
 			HWND hwnd = CreateWindowA("bgfx_letterbox"
@@ -417,7 +417,7 @@ namespace entry
 						Key::Enum key = translateKey(_wparam);
 
 						if (Key::Print == key
-						&&  0x3 == (_lparam>>30) )
+						&&  0x3 == ( (uint32_t)(_lparam)>>30) )
 						{
 							// VK_SNAPSHOT doesn't generate keydown event. Fire on down event when previous
 							// key state bit is set to 1 and transition state bit is set to 1.

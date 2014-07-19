@@ -1,17 +1,10 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
 #include "common.h"
-
-#include <bgfx.h>
-#include <bx/timer.h>
-#include "entry/entry.h"
-#include "fpumath.h"
-
-#include <stdio.h>
-#include <string.h>
+#include "bgfx_utils.h"
 
 struct PosColorTexCoord0Vertex
 {
@@ -21,97 +14,30 @@ struct PosColorTexCoord0Vertex
 	uint32_t m_abgr;
 	float m_u;
 	float m_v;
+
+	static void init()
+	{
+		ms_decl
+			.begin()
+			.add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float)
+			.add(bgfx::Attrib::Color0,    4, bgfx::AttribType::Uint8, true)
+			.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+			.end();
+	}
+
+	static bgfx::VertexDecl ms_decl;
 };
 
-static bgfx::VertexDecl s_PosColorTexCoord0Decl;
+bgfx::VertexDecl PosColorTexCoord0Vertex::ms_decl;
 
-static const char* s_shaderPath = NULL;
 static bool s_flipV = false;
-
-static void shaderFilePath(char* _out, const char* _name)
-{
-	strcpy(_out, s_shaderPath);
-	strcat(_out, _name);
-	strcat(_out, ".bin");
-}
-
-long int fsize(FILE* _file)
-{
-	long int pos = ftell(_file);
-	fseek(_file, 0L, SEEK_END);
-	long int size = ftell(_file);
-	fseek(_file, pos, SEEK_SET);
-	return size;
-}
-
-static const bgfx::Memory* load(const char* _filePath)
-{
-	FILE* file = fopen(_filePath, "rb");
-	if (NULL != file)
-	{
-		uint32_t size = (uint32_t)fsize(file);
-		const bgfx::Memory* mem = bgfx::alloc(size+1);
-		size_t ignore = fread(mem->data, 1, size, file);
-		BX_UNUSED(ignore);
-		fclose(file);
-		mem->data[mem->size-1] = '\0';
-		return mem;
-	}
-
-	return NULL;
-}
-
-static const bgfx::Memory* loadShader(const char* _name)
-{
-	char filePath[512];
-	shaderFilePath(filePath, _name);
-	return load(filePath);
-}
-
-static bgfx::ProgramHandle loadProgram(const char* _vsName, const char* _fsName)
-{
-	const bgfx::Memory* mem;
-
-	// Load vertex shader.
-	mem = loadShader(_vsName);
-	bgfx::VertexShaderHandle vsh = bgfx::createVertexShader(mem);
-
-	// Load fragment shader.
-	mem = loadShader(_fsName);
-	bgfx::FragmentShaderHandle fsh = bgfx::createFragmentShader(mem);
-
-	// Create program from shaders.
-	bgfx::ProgramHandle program = bgfx::createProgram(vsh, fsh);
-
-	// We can destroy vertex and fragment shader here since
-	// their reference is kept inside bgfx after calling createProgram.
-	// Vertex and fragment shader will be destroyed once program is
-	// destroyed.
-	bgfx::destroyVertexShader(vsh);
-	bgfx::destroyFragmentShader(fsh);
-
-	return program;
-}
-
-bool allocTransientBuffers(bgfx::TransientVertexBuffer* _tvb, const bgfx::VertexDecl& _decl, uint16_t _numVertices, bgfx::TransientIndexBuffer* _tib, uint16_t _numIndices)
-{
-	if (bgfx::checkAvailTransientVertexBuffer(_numVertices, _decl)
-	&&  bgfx::checkAvailTransientIndexBuffer(_numIndices) )
-	{
-		bgfx::allocTransientVertexBuffer(_tvb, _numVertices, _decl);
-		bgfx::allocTransientIndexBuffer(_tib, _numIndices);
-		return true;
-	}
-
-	return false;
-}
 
 void renderScreenSpaceQuad(uint32_t _view, bgfx::ProgramHandle _program, float _x, float _y, float _width, float _height)
 {
 	bgfx::TransientVertexBuffer tvb;
 	bgfx::TransientIndexBuffer tib;
 
-	if (allocTransientBuffers(&tvb, s_PosColorTexCoord0Decl, 4, &tib, 6) )
+	if (bgfx::allocTransientBuffers(&tvb, PosColorTexCoord0Vertex::ms_decl, 4, &tib, 6) )
 	{
 		PosColorTexCoord0Vertex* vertex = (PosColorTexCoord0Vertex*)tvb.data;
 
@@ -198,37 +124,22 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	switch (bgfx::getRendererType() )
 	{
 	default:
-	case bgfx::RendererType::Direct3D9:
-		s_shaderPath = "shaders/dx9/";
-		break;
-
-	case bgfx::RendererType::Direct3D11:
-		s_shaderPath = "shaders/dx11/";
 		break;
 
 	case bgfx::RendererType::OpenGL:
-		s_shaderPath = "shaders/glsl/";
-		s_flipV = true;
-		break;
-
-	case bgfx::RendererType::OpenGLES2:
-	case bgfx::RendererType::OpenGLES3:
-		s_shaderPath = "shaders/gles/";
+	case bgfx::RendererType::OpenGLES:
 		s_flipV = true;
 		break;
 	}
 
 	// Create vertex stream declaration.
-	s_PosColorTexCoord0Decl.begin();
-	s_PosColorTexCoord0Decl.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float);
-	s_PosColorTexCoord0Decl.add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true);
-	s_PosColorTexCoord0Decl.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float);
-	s_PosColorTexCoord0Decl.end();  
+	PosColorTexCoord0Vertex::init();
 
-	bgfx::UniformHandle u_time = bgfx::createUniform("u_time", bgfx::UniformType::Uniform1f);
-	bgfx::UniformHandle u_mtx = bgfx::createUniform("u_mtx", bgfx::UniformType::Uniform4x4fv);
+	bgfx::UniformHandle u_time     = bgfx::createUniform("u_time",     bgfx::UniformType::Uniform1f);
+	bgfx::UniformHandle u_mtx      = bgfx::createUniform("u_mtx",      bgfx::UniformType::Uniform4x4fv);
 	bgfx::UniformHandle u_lightDir = bgfx::createUniform("u_lightDir", bgfx::UniformType::Uniform3fv);
 
+	// Create program from shaders.
 	bgfx::ProgramHandle raymarching = loadProgram("vs_raymarching", "fs_raymarching");
 
 	int64_t timeOffset = bx::getHPCounter();
@@ -263,14 +174,14 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		
 		float view[16];
 		float proj[16];
-		mtxLookAt(view, eye, at);
-		mtxProj(proj, 60.0f, float(width)/float(height), 0.1f, 100.0f);
+		bx::mtxLookAt(view, eye, at);
+		bx::mtxProj(proj, 60.0f, float(width)/float(height), 0.1f, 100.0f);
 
 		// Set view and projection matrix for view 1.
 		bgfx::setViewTransform(0, view, proj);
 
 		float ortho[16];
-		mtxOrtho(ortho, 0.0f, 1280.0f, 720.0f, 0.0f, 0.0f, 100.0f);
+		bx::mtxOrtho(ortho, 0.0f, 1280.0f, 720.0f, 0.0f, 0.0f, 100.0f);
 
 		// Set view and projection matrix for view 0.
 		bgfx::setViewTransform(1, NULL, ortho);
@@ -278,28 +189,28 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		float time = (float)( (bx::getHPCounter()-timeOffset)/double(bx::getHPFrequency() ) );
 
 		float vp[16];
-		mtxMul(vp, view, proj);
+		bx::mtxMul(vp, view, proj);
 
 		float mtx[16];
-		mtxRotateXY(mtx
+		bx::mtxRotateXY(mtx
 			, time
 			, time*0.37f
 			); 
 
 		float mtxInv[16];
-		mtxInverse(mtxInv, mtx);
+		bx::mtxInverse(mtxInv, mtx);
 		float lightDirModel[4] = { -0.4f, -0.5f, -1.0f, 0.0f };
 		float lightDirModelN[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-		vec3Norm(lightDirModelN, lightDirModel);
+		bx::vec3Norm(lightDirModelN, lightDirModel);
 		float lightDir[4];
-		vec4MulMtx(lightDir, lightDirModelN, mtxInv);
+		bx::vec4MulMtx(lightDir, lightDirModelN, mtxInv);
 		bgfx::setUniform(u_lightDir, lightDir);
 
 		float mvp[16];
-		mtxMul(mvp, mtx, vp);
+		bx::mtxMul(mvp, mtx, vp);
 
 		float invMvp[16];
-		mtxInverse(invMvp, mvp);
+		bx::mtxInverse(invMvp, mvp);
 		bgfx::setUniform(u_mtx, invMvp);
 
 		bgfx::setUniform(u_time, &time);

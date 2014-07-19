@@ -1,18 +1,17 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
 #ifndef BGFX_RENDERER_GL_H_HEADER_GUARD
 #define BGFX_RENDERER_GL_H_HEADER_GUARD
 
-#define BGFX_USE_EGL 0
-#define BGFX_USE_WGL 0
-#define BGFX_USE_NSGL 0
+#define BGFX_USE_EGL (BGFX_CONFIG_RENDERER_OPENGLES && (BX_PLATFORM_ANDROID || BX_PLATFORM_EMSCRIPTEN || BX_PLATFORM_QNX || BX_PLATFORM_WINDOWS) )
+#define BGFX_USE_WGL (BGFX_CONFIG_RENDERER_OPENGL && BX_PLATFORM_WINDOWS)
+#define BGFX_USE_GL_DYNAMIC_LIB (BX_PLATFORM_LINUX || BX_PLATFORM_OSX || BX_PLATFORM_WINDOWS)
 
 #if BGFX_CONFIG_RENDERER_OPENGL
 #	if BGFX_CONFIG_RENDERER_OPENGL >= 31
-#		define GLCOREARB_PROTOTYPES
 #		include <gl/glcorearb.h>
 #		if BX_PLATFORM_OSX
 #			define GL_ARB_shader_objects // OSX collsion with GLhandleARB in gltypes.h
@@ -40,30 +39,12 @@
 #		include <gl/glext.h>
 #	endif // BGFX_CONFIG_RENDERER_OPENGL >= 31
 
-#	if BX_PLATFORM_WINDOWS
-#		undef BGFX_USE_WGL
-#		define BGFX_USE_WGL 1
-#	endif // BX_PLATFORM_
-
-#elif BGFX_CONFIG_RENDERER_OPENGLES2 || BGFX_CONFIG_RENDERER_OPENGLES3
-#	if BGFX_CONFIG_RENDERER_OPENGLES2
+#elif BGFX_CONFIG_RENDERER_OPENGLES
+typedef double GLdouble;
+#	if BGFX_CONFIG_RENDERER_OPENGLES < 30
 #		if BX_PLATFORM_IOS
 #			include <OpenGLES/ES2/gl.h>
 #			include <OpenGLES/ES2/glext.h>
-
-typedef void (GL_APIENTRYP PFNGLBINDVERTEXARRAYOESPROC) (GLuint array);
-typedef void (GL_APIENTRYP PFNGLDELETEVERTEXARRAYSOESPROC) (GLsizei n, const GLuint *arrays);
-typedef void (GL_APIENTRYP PFNGLGENVERTEXARRAYSOESPROC) (GLsizei n, GLuint *arrays);
-typedef GLboolean (GL_APIENTRYP PFNGLISVERTEXARRAYOESPROC) (GLuint array);
-typedef void (GL_APIENTRYP PFNGLGETPROGRAMBINARYOESPROC) (GLuint program, GLsizei bufSize, GLsizei *length, GLenum *binaryFormat, GLvoid *binary);
-typedef void (GL_APIENTRYP PFNGLPROGRAMBINARYOESPROC) (GLuint program, GLenum binaryFormat, const GLvoid *binary, GLint length);
-typedef void (GL_APIENTRYP PFNGLTEXIMAGE3DOESPROC) (GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLenum format, GLenum type, const GLvoid* pixels);
-typedef void (GL_APIENTRYP PFNGLTEXSUBIMAGE3DOESPROC) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLenum type, const GLvoid* pixels);
-typedef void (GL_APIENTRYP PFNGLCOMPRESSEDTEXIMAGE3DOESPROC) (GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const GLvoid* data);
-typedef void (GL_APIENTRYP PFNGLCOMPRESSEDTEXSUBIMAGE3DOESPROC) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const GLvoid* data);
-typedef void (GL_APIENTRYP PFLGLDRAWARRAYSINSTANCEDANGLEPROC) (GLenum mode, GLint first, GLsizei count, GLsizei primcount);
-typedef void (GL_APIENTRYP PFLGLDRAWELEMENTSINSTANCEDANGLEPROC) (GLenum mode, GLsizei count, GLenum type, const void *indices, GLsizei primcount);
-typedef void (GL_APIENTRYP PFLGLVERTEXATTRIBDIVISORANGLEPROC) (GLuint index, GLuint divisor);
 //#define GL_UNSIGNED_INT_10_10_10_2_OES                          0x8DF6
 #define GL_UNSIGNED_INT_2_10_10_10_REV_EXT                      0x8368
 #define GL_TEXTURE_3D_OES                                       0x806F
@@ -75,21 +56,11 @@ typedef void (GL_APIENTRYP PFLGLVERTEXATTRIBDIVISORANGLEPROC) (GLuint index, GLu
 #			include <GLES2/gl2.h>
 #			include <GLES2/gl2ext.h>
 #		endif // BX_PLATFORM_
-#		define glProgramBinary glProgramBinaryOES
-#		define glGetProgramBinary glGetProgramBinaryOES
-#		define glTexImage3D glTexImage3DOES
-#		define glTexSubImage3D glTexSubImage3DOES
-#		define glCompressedTexImage3D glCompressedTexImage3DOES
-#		define glCompressedTexSubImage3D glCompressedTexSubImage3DOES
-#		define glBindVertexArray glBindVertexArrayOES
-#		define glDeleteVertexArrays glDeleteVertexArraysOES
-#		define glGenVertexArrays glGenVertexArraysOES
+typedef int64_t  GLint64;
+typedef uint64_t GLuint64;
 #		define GL_PROGRAM_BINARY_LENGTH GL_PROGRAM_BINARY_LENGTH_OES
 #		define GL_HALF_FLOAT GL_HALF_FLOAT_OES
-#		define GL_RGBA8 GL_RGBA //GL_RGBA8_OES
-#		define GL_RGB10_A2 GL_RGB10_A2_EXT
-#		define GL_R16F GL_R16F_EXT
-#		define GL_R32F GL_R32F_EXT
+#		define GL_RGBA8 GL_RGBA8_OES
 #		define GL_UNSIGNED_INT_2_10_10_10_REV GL_UNSIGNED_INT_2_10_10_10_REV_EXT
 #		define GL_TEXTURE_3D GL_TEXTURE_3D_OES
 #		define GL_SAMPLER_3D GL_SAMPLER_3D_OES
@@ -100,23 +71,19 @@ typedef void (GL_APIENTRYP PFLGLVERTEXATTRIBDIVISORANGLEPROC) (GLuint index, GLu
 #		define GL_DEPTH24_STENCIL8 GL_DEPTH24_STENCIL8_OES
 #		define GL_DEPTH_COMPONENT32 GL_DEPTH_COMPONENT32_OES
 #		define GL_UNSIGNED_INT_24_8 GL_UNSIGNED_INT_24_8_OES
-#	elif BGFX_CONFIG_RENDERER_OPENGLES3
+#	elif BGFX_CONFIG_RENDERER_OPENGLES >= 30
 #		include <GLES3/gl3platform.h>
 #		include <GLES3/gl3.h>
 #		include <GLES3/gl3ext.h>
 #	endif // BGFX_CONFIG_RENDERER_
 
-#	if BX_PLATFORM_ANDROID || BX_PLATFORM_EMSCRIPTEN || BX_PLATFORM_WINDOWS || BX_PLATFORM_QNX
-#		undef BGFX_USE_EGL
-#		define BGFX_USE_EGL 1
+#	if BGFX_USE_EGL
 #		include "glcontext_egl.h"
-#	endif // BX_PLATFORM_
+#	endif // BGFX_USE_EGL
 
 #	if BX_PLATFORM_EMSCRIPTEN
 #		include <emscripten/emscripten.h>
 #	endif // BX_PLATFORM_EMSCRIPTEN
-
-typedef void (*PFNGLGETTRANSLATEDSHADERSOURCEANGLEPROC)(GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *source);
 
 #endif // BGFX_CONFIG_RENDERER_OPENGL
 
@@ -124,21 +91,49 @@ typedef void (*PFNGLGETTRANSLATEDSHADERSOURCEANGLEPROC)(GLuint shader, GLsizei b
 #	define GL_LUMINANCE 0x1909
 #endif // GL_LUMINANCE
 
-#ifndef GL_BGRA_EXT
-#	define GL_BGRA_EXT 0x80E1
-#endif // GL_BGRA_EXT
+#ifndef GL_BGRA
+#	define GL_BGRA 0x80E1
+#endif // GL_BGRA
 
-#ifndef GL_R16F_EXT
-#	define GL_R16F_EXT 0x822D
-#endif // GL_R16F_EXT
+#ifndef GL_R8
+#	define GL_R8 0x8229
+#endif // GL_R8
 
-#ifndef GL_R32F_EXT
-#	define GL_R32F_EXT 0x822E
-#endif // GL_R32F_EXT
+#ifndef GL_R16
+#	define GL_R16 0x822A
+#endif // GL_R16
 
-#ifndef GL_RGB10_A2_EXT
-#	define GL_RGB10_A2_EXT 0x8059
-#endif // GL_RGB10_A2_EXT
+#ifndef GL_R16F
+#	define GL_R16F 0x822D
+#endif // GL_R16F
+
+#ifndef GL_R32F
+#	define GL_R32F 0x822E
+#endif // GL_R32F
+
+#ifndef GL_RED
+#	define GL_RED 0x1903
+#endif // GL_RED
+
+#ifndef GL_RED_INTEGER
+#	define GL_RED_INTEGER 0x8D94
+#endif // GL_RED_INTEGER
+
+#ifndef GL_GREEN
+#	define GL_GREEN 0x1904
+#endif // GL_GREEN
+
+#ifndef GL_BLUE
+#	define GL_BLUE 0x1905
+#endif // GL_BLUE
+
+#ifndef GL_RGBA_INTEGER
+#	define GL_RGBA_INTEGER 0x8D99
+#endif // GL_RGBA_INTEGER
+
+#ifndef GL_RGB10_A2
+#	define GL_RGB10_A2 0x8059
+#endif // GL_RGB10_A2
 
 #ifndef GL_RGBA16
 #	define GL_RGBA16 0x805B
@@ -147,6 +142,18 @@ typedef void (*PFNGLGETTRANSLATEDSHADERSOURCEANGLEPROC)(GLuint shader, GLsizei b
 #ifndef GL_RGBA16F
 #	define GL_RGBA16F 0x881A
 #endif // GL_RGBA16F
+
+#ifndef GL_R16UI
+#	define GL_R16UI 0x8234
+#endif // GL_R16UI
+
+#ifndef GL_RGBA16UI
+#	define GL_RGBA16UI 0x8D76
+#endif // GL_RGBA16UI
+
+#ifndef GL_COMPRESSED_RGB_S3TC_DXT1_EXT
+#	define GL_COMPRESSED_RGB_S3TC_DXT1_EXT 0x83F0
+#endif // GL_COMPRESSED_RGB_S3TC_DXT1_EXT
 
 #ifndef GL_COMPRESSED_RGBA_S3TC_DXT1_EXT
 #	define GL_COMPRESSED_RGBA_S3TC_DXT1_EXT 0x83F1
@@ -168,13 +175,13 @@ typedef void (*PFNGLGETTRANSLATEDSHADERSOURCEANGLEPROC)(GLuint shader, GLsizei b
 #	define GL_COMPRESSED_LUMINANCE_ALPHA_LATC2_EXT 0x8C72
 #endif // GL_COMPRESSED_LUMINANCE_ALPHA_LATC2_EXT
 
-#ifndef GL_COMPRESSED_RED_RGTC1_EXT
-#	define GL_COMPRESSED_RED_RGTC1_EXT 0x8DBB
-#endif // GL_COMPRESSED_RED_RGTC1_EXT
+#ifndef GL_COMPRESSED_RED_RGTC1
+#	define GL_COMPRESSED_RED_RGTC1 0x8DBB
+#endif // GL_COMPRESSED_RED_RGTC1
 
-#ifndef GL_COMPRESSED_RED_GREEN_RGTC2_EXT
-#	define GL_COMPRESSED_RED_GREEN_RGTC2_EXT 0x8DBD
-#endif // GL_COMPRESSED_RED_GREEN_RGTC2_EXT
+#ifndef GL_COMPRESSED_RG_RGTC2
+#	define GL_COMPRESSED_RG_RGTC2 0x8DBD
+#endif // GL_COMPRESSED_RG_RGTC2
 
 #ifndef GL_ETC1_RGB8_OES
 #	define GL_ETC1_RGB8_OES 0x8D64
@@ -228,6 +235,34 @@ typedef void (*PFNGLGETTRANSLATEDSHADERSOURCEANGLEPROC)(GLuint shader, GLsizei b
 #	define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT 0x84FF
 #endif // GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT
 
+#ifndef GL_TEXTURE_SWIZZLE_RGBA
+#	define GL_TEXTURE_SWIZZLE_RGBA 0x8E46
+#endif // GL_TEXTURE_SWIZZLE_RGBA
+
+#ifndef GL_MAX_SAMPLES
+#	define GL_MAX_SAMPLES 0x8D57
+#endif // GL_MAX_SAMPLES
+
+#ifndef GL_MAX_COLOR_ATTACHMENTS
+#	define GL_MAX_COLOR_ATTACHMENTS 0x8CDF
+#endif // GL_MAX_COLOR_ATTACHMENTS
+
+#ifndef GL_QUERY_RESULT
+#	define GL_QUERY_RESULT 0x8866
+#endif // GL_QUERY_RESULT
+
+#ifndef GL_READ_FRAMEBUFFER
+#	define GL_READ_FRAMEBUFFER 0x8CA8
+#endif /// GL_READ_FRAMEBUFFER
+
+#ifndef GL_DRAW_FRAMEBUFFER
+#	define GL_DRAW_FRAMEBUFFER 0x8CA9
+#endif // GL_DRAW_FRAMEBUFFER
+
+#ifndef GL_TIME_ELAPSED
+#	define GL_TIME_ELAPSED 0x88BF
+#endif // GL_TIME_ELAPSED
+
 #ifndef GL_VBO_FREE_MEMORY_ATI
 #	define GL_VBO_FREE_MEMORY_ATI 0x87FB
 #endif // GL_VBO_FREE_MEMORY_ATI
@@ -265,6 +300,10 @@ typedef void (*PFNGLGETTRANSLATEDSHADERSOURCEANGLEPROC)(GLuint shader, GLsizei b
 #	define GL_UNPACK_ROW_LENGTH 0x0CF2
 #endif // GL_UNPACK_ROW_LENGTH
 
+#ifndef GL_DEPTH_STENCIL
+#	define GL_DEPTH_STENCIL 0x84F9
+#endif // GL_DEPTH_STENCIL
+
 #ifndef GL_DEPTH_COMPONENT32
 #	define GL_DEPTH_COMPONENT32 0x81A7
 #endif // GL_DEPTH_COMPONENT32
@@ -277,6 +316,30 @@ typedef void (*PFNGLGETTRANSLATEDSHADERSOURCEANGLEPROC)(GLuint shader, GLsizei b
 #	define GL_DEPTH_STENCIL_ATTACHMENT 0x821A
 #endif // GL_DEPTH_STENCIL_ATTACHMENT
 
+#ifndef GL_TEXTURE_COMPARE_MODE
+#	define GL_TEXTURE_COMPARE_MODE 0x884C
+#endif // GL_TEXTURE_COMPARE_MODE
+
+#ifndef GL_TEXTURE_COMPARE_FUNC
+#	define GL_TEXTURE_COMPARE_FUNC 0x884D
+#endif // GL_TEXTURE_COMPARE_FUNC
+
+#ifndef GL_COMPARE_REF_TO_TEXTURE
+#	define GL_COMPARE_REF_TO_TEXTURE 0x884E
+#endif // GL_COMPARE_REF_TO_TEXTURE
+
+#ifndef GL_SAMPLER_2D_SHADOW
+#	define GL_SAMPLER_2D_SHADOW 0x8B62
+#endif // GL_SAMPLER_2D_SHADOW
+
+#ifndef GL_TEXTURE_MAX_LEVEL
+#	define GL_TEXTURE_MAX_LEVEL 0x813D
+#endif // GL_TEXTURE_MAX_LEVEL
+
+#ifndef GL_COMPUTE_SHADER
+#	define GL_COMPUTE_SHADER 0x91B9
+#endif // GL_COMPUTE_SHADER
+
 #if BX_PLATFORM_NACL
 #	include "glcontext_ppapi.h"
 #elif BX_PLATFORM_WINDOWS
@@ -288,10 +351,6 @@ typedef void (*PFNGLGETTRANSLATEDSHADERSOURCEANGLEPROC)(GLuint shader, GLsizei b
 #elif BX_PLATFORM_IOS
 #	include "glcontext_eagl.h"
 #endif // BX_PLATFORM_
-
-#if BGFX_CONFIG_DEBUG_GREMEDY && (BX_PLATFORM_WINDOWS || BX_PLATFORM_LINUX)
-#	include <gl/GRemedyGLExtensions.h>
-#endif // BGFX_CONFIG_DEBUG_GREMEDY && (BX_PLATFORM_WINDOWS || BX_PLATFORM_LINUX)
 
 #if BGFX_USE_WGL
 #	include "glcontext_wgl.h"
@@ -309,46 +368,36 @@ typedef void (*PFNGLGETTRANSLATEDSHADERSOURCEANGLEPROC)(GLuint shader, GLsizei b
 #	define glClearDepth glClearDepthf
 #endif // !BGFX_CONFIG_RENDERER_OPENGL
 
-namespace bgfx
-{
-	// Both GL_ARB_instanced_arrays and GL_ANGLE_instanced_arrays use the same function signature.
-	typedef void (GL_APIENTRYP PFNGLVERTEXATTRIBDIVISORBGFXPROC)(GLuint _index, GLuint _divisor);
-	typedef void (GL_APIENTRYP PFNGLDRAWARRAYSINSTANCEDBGFXPROC)(GLenum _mode, GLint _first, GLsizei _count, GLsizei _primcount);
-	typedef void (GL_APIENTRYP PFNGLDRAWELEMENTSINSTANCEDBGFXPROC)(GLenum _mode, GLsizei _count, GLenum _type, const GLvoid* _indices, GLsizei _primcount);
+namespace bgfx 
+{ 
+	class ConstantBuffer;
+	void dumpExtensions(const char* _extensions);
 
-#	define _GL_CHECK(_call) \
-				do { \
+	const char* glEnumName(GLenum _enum);
+
+#define _GL_CHECK(_check, _call) \
+				BX_MACRO_BLOCK_BEGIN \
 					/*BX_TRACE(#_call);*/ \
 					_call; \
 					GLenum err = glGetError(); \
-					BX_CHECK(0 == err, #_call "; glError 0x%x %d", err, err); \
-				} while (0)
+					_check(0 == err, #_call "; GL error 0x%x: %s", err, glEnumName(err) ); \
+					BX_UNUSED(err); \
+				BX_MACRO_BLOCK_END
+
+#define IGNORE_GL_ERROR_CHECK(...) BX_NOOP()
 
 #if BGFX_CONFIG_DEBUG
-#	define GL_CHECK(_call) _GL_CHECK(_call)
+#	define GL_CHECK(_call)   _GL_CHECK(BX_CHECK, _call)
+#	define GL_CHECK_I(_call) _GL_CHECK(IGNORE_GL_ERROR_CHECK, _call)
 #else
-#	define GL_CHECK(_call) _call
+#	define GL_CHECK(_call)   _call
+#	define GL_CHECK_I(_call) _call
 #endif // BGFX_CONFIG_DEBUG
 
-#if BGFX_CONFIG_DEBUG_GREMEDY
-#	define _GREMEDY_SETMARKER(_string) glStringMarkerGREMEDY(0, _string)
-#	define _GREMEDY_FRAMETERMINATOR() glFrameTerminatorGREMEDY()
-#else
-#	define _GREMEDY_SETMARKER(_string) do { BX_UNUSED(_string); } while(0)
-#	define _GREMEDY_FRAMETERMINATOR() do {} while(0)
-#endif // BGFX_CONFIG_DEBUG_GREMEDY
-
-#define GREMEDY_SETMARKER(_string) _GREMEDY_SETMARKER(_string)
-#define GREMEDY_FRAMETERMINATOR() _GREMEDY_FRAMETERMINATOR()
-
+#define GL_IMPORT_TYPEDEFS 1
 #define GL_IMPORT(_optional, _proto, _func, _import) extern _proto _func
 #include "glimports.h"
-#undef GL_IMPORT
 
-	void dumpExtensions(const char* _extensions);
-
-	class ConstantBuffer;
-	
 	class VaoStateCache
 	{
 	public:
@@ -425,7 +474,6 @@ namespace bgfx
 		VaoSet m_vaoSet;
 	};
 
-#if !BGFX_CONFIG_RENDERER_OPENGLES2
 	class SamplerStateCache
 	{
 	public:
@@ -475,9 +523,8 @@ namespace bgfx
 		typedef stl::unordered_map<uint32_t, GLuint> HashMap;
 		HashMap m_hashMap;
 	};
-#endif // !BGFX_CONFIG_RENDERER_OPENGLES2
 
-	struct IndexBuffer
+	struct IndexBufferGL
 	{
 		void create(uint32_t _size, void* _data)
 		{
@@ -517,8 +564,8 @@ namespace bgfx
 		uint32_t m_size;
 		VaoCacheRef m_vcref;
 	};
-	
-	struct VertexBuffer
+
+	struct VertexBufferGL
 	{
 		void create(uint32_t _size, void* _data, VertexDeclHandle _declHandle)
 		{
@@ -561,10 +608,11 @@ namespace bgfx
 		VaoCacheRef m_vcref;
 	};
 
-	struct Texture
+	struct TextureGL
 	{
-		Texture()
+		TextureGL()
 			: m_id(0)
+			, m_rbo(0)
 			, m_target(GL_TEXTURE_2D)
 			, m_fmt(GL_ZERO)
 			, m_type(GL_ZERO)
@@ -574,34 +622,37 @@ namespace bgfx
 		{
 		}
 
-		void init(GLenum _target, uint8_t _format, uint8_t _numMips, uint32_t _flags);
-		void create(const Memory* _mem, uint32_t _flags);
-		void createColor(uint32_t _colorFormat, uint32_t _width, uint32_t _height, GLenum _min, GLenum _mag);
-		void createDepth(uint32_t _width, uint32_t _height);
+		bool init(GLenum _target, uint32_t _width, uint32_t _height, uint8_t _format, uint8_t _numMips, uint32_t _flags);
+		void create(const Memory* _mem, uint32_t _flags, uint8_t _skip);
 		void destroy();
 		void update(uint8_t _side, uint8_t _mip, const Rect& _rect, uint16_t _z, uint16_t _depth, uint16_t _pitch, const Memory* _mem);
 		void setSamplerState(uint32_t _flags);
 		void commit(uint32_t _stage, uint32_t _flags);
 
 		GLuint m_id;
+		GLuint m_rbo;
 		GLenum m_target;
 		GLenum m_fmt;
 		GLenum m_type;
 		uint32_t m_flags;
 		uint32_t m_currentFlags;
+		uint32_t m_width;
+		uint32_t m_height;
 		uint8_t m_numMips;
 		uint8_t m_requestedFormat;
 		uint8_t m_textureFormat;
 	};
 
-	struct Shader
+	struct ShaderGL
 	{
-		Shader()
+		ShaderGL()
 			: m_id(0)
+			, m_type(0)
+			, m_hash(0)
 		{
 		}
 
-		void create(GLenum _type, Memory* _mem);
+		void create(Memory* _mem);
 		void destroy();
 
 		GLuint m_id;
@@ -609,50 +660,39 @@ namespace bgfx
 		uint32_t m_hash;
 	};
 
-	struct RenderTarget
+	struct FrameBufferGL
 	{
-		RenderTarget()
-			: m_width(0)
-			, m_height(0)
-			, m_msaa(0)
+		FrameBufferGL()
+			: m_num(0)
 		{
 			memset(m_fbo, 0, sizeof(m_fbo) );
 		}
 
-		void create(uint16_t _width, uint16_t _height, uint32_t _flags, uint32_t _textureFlags);
+		void create(uint8_t _num, const TextureHandle* _handles);
 		void destroy();
 		void resolve();
 
-		GLsizei m_width;
-		GLsizei m_height;
-		uint32_t m_msaa;
-		Texture m_color;
-		Texture m_depth;
+		uint8_t m_num;
 		GLuint m_fbo[2];
-		GLuint m_colorRbo;
-		GLuint m_depthRbo;
+		uint32_t m_width;
+		uint32_t m_height;
 	};
 
-	struct Program
+	struct ProgramGL
 	{
-		Program()
+		ProgramGL()
 			: m_id(0)
 			, m_constantBuffer(NULL)
 			, m_numPredefined(0)
 		{
 		}
 
-		void create(const Shader& _vsh, const Shader& _fsh);
+		void create(const ShaderGL& _vsh, const ShaderGL& _fsh);
 		void destroy();
  		void init();
  		void bindAttributes(const VertexDecl& _vertexDecl, uint32_t _baseVertex = 0) const;
 		void bindInstanceData(uint32_t _stride, uint32_t _baseVertex = 0) const;
 
-		void commit()
-		{
-			m_constantBuffer->commit();
-		}
- 
 		void add(uint32_t _hash)
 		{
 			m_vcref.add(_hash);
@@ -673,8 +713,7 @@ namespace bgfx
 		VaoCacheRef m_vcref;
 	};
 
-#if BGFX_CONFIG_RENDERER_OPENGL
-	struct Queries
+	struct QueriesGL
 	{
 		void create()
 		{
@@ -705,7 +744,6 @@ namespace bgfx
 
 		GLuint m_queries[64];
 	};
-#endif // BGFX_CONFIG_RENDERER_OPENGL
 
 } // namespace bgfx
 

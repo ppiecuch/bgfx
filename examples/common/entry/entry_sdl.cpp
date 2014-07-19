@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
@@ -186,15 +186,16 @@ namespace entry
 				case SDL_MOUSEMOTION:
 					{
 						const SDL_MouseMotionEvent& mev = event.motion;
-						int32_t mx = mev.xrel;
-						int32_t my = mev.yrel;
-
-						m_eventQueue.postMouseEvent(mx, my);
+						m_eventQueue.postMouseEvent(mev.x, mev.y);
 					}
 					break;
 
 				case SDL_MOUSEBUTTONDOWN:
 				case SDL_MOUSEBUTTONUP:
+					{
+						const SDL_MouseButtonEvent& mev = event.button;
+						m_eventQueue.postMouseEvent(mev.x, mev.y, MouseButton::Left, mev.type == SDL_MOUSEBUTTONDOWN);
+					}
 					break;
 
 				case SDL_KEYDOWN:
@@ -231,7 +232,6 @@ namespace entry
 							break;
 
 						case SDL_WINDOWEVENT_CLOSE:
-							DBG("SDL_WINDOWEVENT_CLOSE");
 							m_eventQueue.postExitEvent();
 							exit = true;
 							break;
@@ -269,6 +269,7 @@ namespace entry
 
 		void setMousePos(int32_t _mx, int32_t _my)
 		{
+			BX_UNUSED(_mx, _my);
 		}
 
 		void setMouseLock(bool _lock)
@@ -336,8 +337,8 @@ namespace entry
 		SDL_Event event;
 		SDL_UserEvent& uev = event.user;
 		uev.type = SDL_USER_SET_WINDOW_SIZE;
-		uev.data1 = (void*)_width;
-		uev.data2 = (void*)_height;
+		uev.data1 = reinterpret_cast<void*>(_width);
+		uev.data2 = reinterpret_cast<void*>(_height);
 		SDL_PushEvent(&event);
 	}
 
@@ -371,6 +372,7 @@ namespace entry
 
 int main(int _argc, const char* _argv[])
 {
+	BX_UNUSED(_argc, _argv);
 	using namespace entry;
 	s_ctx.run();
 	return 0;

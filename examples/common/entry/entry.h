@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
@@ -9,6 +9,10 @@
 #include "dbg.h"
 
 #include <bx/bx.h>
+
+namespace bx { struct FileReaderI; struct FileWriterI; }
+
+extern "C" int _main_(int _argc, char** _argv);
 
 namespace entry
 {
@@ -141,6 +145,9 @@ namespace entry
 	};
 
 	bool processEvents(uint32_t& _width, uint32_t& _height, uint32_t& _debug, uint32_t& _reset, MouseState* _mouse = NULL);
+
+	bx::FileReaderI* getFileReader();
+	bx::FileWriterI* getFileWriter();
 
 } // namespace entry
 

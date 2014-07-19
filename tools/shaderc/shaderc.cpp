@@ -1,13 +1,41 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
-#include <bx/bx.h>
+#define _BX_TRACE(_format, ...) \
+				BX_MACRO_BLOCK_BEGIN \
+					if (g_verbose) \
+					{ \
+						fprintf(stderr, BX_FILE_LINE_LITERAL "" _format "\n", ##__VA_ARGS__); \
+					} \
+				BX_MACRO_BLOCK_END
 
-#ifndef SHADERC_DEBUG
-#	define SHADERC_DEBUG 0
-#endif // SHADERC_DEBUG
+#define _BX_WARN(_condition, _format, ...) \
+				BX_MACRO_BLOCK_BEGIN \
+					if (!(_condition) ) \
+					{ \
+						BX_TRACE("WARN " _format, ##__VA_ARGS__); \
+					} \
+				BX_MACRO_BLOCK_END
+
+#define _BX_CHECK(_condition, _format, ...) \
+				BX_MACRO_BLOCK_BEGIN \
+					if (!(_condition) ) \
+					{ \
+						BX_TRACE("CHECK " _format, ##__VA_ARGS__); \
+						bx::debugBreak(); \
+					} \
+				BX_MACRO_BLOCK_END
+
+#define BX_TRACE _BX_TRACE
+#define BX_WARN  _BX_WARN
+#define BX_CHECK _BX_CHECK
+
+bool g_verbose = false;
+
+#include <bx/bx.h>
+#include <bx/debug.h>
 
 #define NOMINMAX
 #include <alloca.h>
@@ -30,12 +58,9 @@ extern "C"
 #include <fpp.h>
 } // extern "C"
 
-#if SHADERC_DEBUG
-#	define BX_TRACE(_format, ...) fprintf(stderr, "" _format "\n", ##__VA_ARGS__)
-#endif // DEBUG
-
-#define BGFX_CHUNK_MAGIC_VSH BX_MAKEFOURCC('V', 'S', 'H', 0x1)
-#define BGFX_CHUNK_MAGIC_FSH BX_MAKEFOURCC('F', 'S', 'H', 0x1)
+#define BGFX_CHUNK_MAGIC_CSH BX_MAKEFOURCC('C', 'S', 'H', 0x0)
+#define BGFX_CHUNK_MAGIC_VSH BX_MAKEFOURCC('V', 'S', 'H', 0x2)
+#define BGFX_CHUNK_MAGIC_FSH BX_MAKEFOURCC('F', 'S', 'H', 0x2)
 
 #include <bx/commandline.h>
 #include <bx/endian.h>
@@ -86,6 +111,47 @@ struct Attrib
 	};
 };
 
+static const char* s_ARB_shader_texture_lod[] =
+{
+	"texture2DLod",
+	"texture2DProjLod",
+	"texture3DLod",
+	"texture3DProjLod",
+	"textureCubeLod",
+	"shadow2DLod",
+	"shadow2DProjLod",
+	NULL
+	// "texture1DLod",
+	// "texture1DProjLod",
+	// "shadow1DLod",
+	// "shadow1DProjLod",
+};
+
+static const char* s_EXT_shadow_samplers[] =
+{
+	"shadow2D",
+	"shadow2DProj",
+	"sampler2DShadow",
+	NULL
+};
+
+static const char* s_OES_standard_derivatives[] =
+{
+	"dFdx",
+	"dFdy",
+	"fwidth",
+	NULL
+};
+
+static const char* s_OES_texture_3D[] =
+{
+	"texture3D",
+	"texture3DProj",
+	"texture3DLod",
+	"texture3DProjLod",
+	NULL
+};
+
 struct RemapInputSemantic
 {
 	Attrib::Enum m_attr;
@@ -128,7 +194,7 @@ const RemapInputSemantic& findInputSemantic(const char* _name, uint8_t _index)
 	return s_remapInputSemantic[Attrib::Count];
 }
 
-struct ConstantType
+struct UniformType
 {
 	enum Enum
 	{
@@ -144,72 +210,108 @@ struct ConstantType
 		Uniform3x3fv,
 		Uniform4x4fv,
 
-		Count,
+		Count
 	};
 };
 
 #define BGFX_UNIFORM_FRAGMENTBIT UINT8_C(0x10)
 
-const char* s_constantTypeName[ConstantType::Count] =
+const char* s_uniformTypeName[UniformType::Count] =
 {
 	"int",
 	"float",
 	NULL,
 	"int",
 	"float",
-	"float2",
-	"float3",
-	"float4",
-	"float3x3",
-	"float4x4",
+	"vec2",
+	"vec3",
+	"vec4",
+	"mat3",
+	"mat4",
 };
+
+UniformType::Enum nameToUniformTypeEnum(const char* _name)
+{
+	for (uint32_t ii = 0; ii < UniformType::Count; ++ii)
+	{
+		if (NULL != s_uniformTypeName[ii]
+		&&  0 == strcmp(_name, s_uniformTypeName[ii]) )
+		{
+			return UniformType::Enum(ii);
+		}
+	}
+
+	return UniformType::Count;
+}
 
 struct Uniform
 {
 	std::string name;
-	ConstantType::Enum type;
+	UniformType::Enum type;
 	uint8_t num;
 	uint16_t regIndex;
 	uint16_t regCount;
 };
 typedef std::vector<Uniform> UniformArray;
 
-#if BX_PLATFORM_WINDOWS
-struct ConstRemapDx9
+const char* interpolationDx11(const char* _glsl)
 {
-	ConstantType::Enum id;
+	if (0 == strcmp(_glsl, "smooth") )
+	{
+		return "linear";
+	}
+	else if (0 == strcmp(_glsl, "flat") )
+	{
+		return "nointerpolation";
+	}
+
+	return _glsl; // noperspective
+}
+
+#if BX_PLATFORM_WINDOWS
+struct UniformRemapDx9
+{
+	UniformType::Enum id;
 	D3DXPARAMETER_CLASS paramClass;
 	D3DXPARAMETER_TYPE paramType;
-	uint32_t paramBytes;
+	uint8_t columns;
+	uint8_t rows;
 };
 
-static const ConstRemapDx9 s_constRemapDx9[7] =
+static const UniformRemapDx9 s_constRemapDx9[7] =
 {
-	{ ConstantType::Uniform1iv,   D3DXPC_SCALAR,         D3DXPT_INT,    4 },
-	{ ConstantType::Uniform1fv,   D3DXPC_SCALAR,         D3DXPT_FLOAT,  4 },
-	{ ConstantType::Uniform2fv,   D3DXPC_VECTOR,         D3DXPT_FLOAT,  8 },
-	{ ConstantType::Uniform3fv,   D3DXPC_VECTOR,         D3DXPT_FLOAT, 12 },
-	{ ConstantType::Uniform4fv,   D3DXPC_VECTOR,         D3DXPT_FLOAT, 16 },
-	{ ConstantType::Uniform3x3fv, D3DXPC_MATRIX_COLUMNS, D3DXPT_FLOAT, 36 },
-	{ ConstantType::Uniform4x4fv, D3DXPC_MATRIX_COLUMNS, D3DXPT_FLOAT, 64 },
+	{ UniformType::Uniform1iv,   D3DXPC_SCALAR,         D3DXPT_INT,   0, 0 },
+	{ UniformType::Uniform1fv,   D3DXPC_SCALAR,         D3DXPT_FLOAT, 0, 0 },
+	{ UniformType::Uniform2fv,   D3DXPC_VECTOR,         D3DXPT_FLOAT, 0, 0 },
+	{ UniformType::Uniform3fv,   D3DXPC_VECTOR,         D3DXPT_FLOAT, 0, 0 },
+	{ UniformType::Uniform4fv,   D3DXPC_VECTOR,         D3DXPT_FLOAT, 0, 0 },
+	{ UniformType::Uniform3x3fv, D3DXPC_MATRIX_COLUMNS, D3DXPT_FLOAT, 3, 3 },
+	{ UniformType::Uniform4x4fv, D3DXPC_MATRIX_COLUMNS, D3DXPT_FLOAT, 4, 4 },
 };
 
-ConstantType::Enum findConstantTypeDx9(const D3DXCONSTANT_DESC& constDesc)
+UniformType::Enum findUniformTypeDx9(const D3DXCONSTANT_DESC& constDesc)
 {
-	uint32_t count = sizeof(s_constRemapDx9)/sizeof(ConstRemapDx9);
-	for (uint32_t ii = 0; ii < count; ++ii)
+	for (uint32_t ii = 0; ii < BX_COUNTOF(s_constRemapDx9); ++ii)
 	{
-		const ConstRemapDx9& remap = s_constRemapDx9[ii];
+		const UniformRemapDx9& remap = s_constRemapDx9[ii];
 
 		if (remap.paramClass == constDesc.Class
-		&&  remap.paramType == constDesc.Type
-		&&  (constDesc.Bytes%remap.paramBytes) == 0)
+		&&  remap.paramType  == constDesc.Type)
 		{
-			return remap.id;
+			if (D3DXPC_MATRIX_COLUMNS != constDesc.Class)
+			{
+				return remap.id;
+			}
+
+			if (remap.columns == constDesc.Columns
+			&&  remap.rows    == constDesc.Rows)
+			{
+				return remap.id;
+			}
 		}
 	}
 
-	return ConstantType::Count;
+	return UniformType::Count;
 }
 
 static uint32_t s_optimizationLevelDx9[4] =
@@ -220,41 +322,49 @@ static uint32_t s_optimizationLevelDx9[4] =
 	D3DXSHADER_OPTIMIZATION_LEVEL3,
 };
 
-struct ConstRemapDx11
+struct UniformRemapDx11
 {
-	ConstantType::Enum id;
+	UniformType::Enum id;
 	D3D_SHADER_VARIABLE_CLASS paramClass;
 	D3D_SHADER_VARIABLE_TYPE paramType;
-	uint32_t paramBytes;
+	uint8_t columns;
+	uint8_t rows;
 };
 
-static const ConstRemapDx11 s_constRemapDx11[7] =
+static const UniformRemapDx11 s_constRemapDx11[7] =
 {
-	{ ConstantType::Uniform1iv,   D3D_SVC_SCALAR,         D3D_SVT_INT,    4 },
-	{ ConstantType::Uniform1fv,   D3D_SVC_SCALAR,         D3D_SVT_FLOAT,  4 },
-	{ ConstantType::Uniform2fv,   D3D_SVC_VECTOR,         D3D_SVT_FLOAT,  8 },
-	{ ConstantType::Uniform3fv,   D3D_SVC_VECTOR,         D3D_SVT_FLOAT, 12 },
-	{ ConstantType::Uniform4fv,   D3D_SVC_VECTOR,         D3D_SVT_FLOAT, 16 },
-	{ ConstantType::Uniform3x3fv, D3D_SVC_MATRIX_COLUMNS, D3D_SVT_FLOAT, 36 },
-	{ ConstantType::Uniform4x4fv, D3D_SVC_MATRIX_COLUMNS, D3D_SVT_FLOAT, 64 },
+	{ UniformType::Uniform1iv,   D3D_SVC_SCALAR,         D3D_SVT_INT,   0, 0 },
+	{ UniformType::Uniform1fv,   D3D_SVC_SCALAR,         D3D_SVT_FLOAT, 0, 0 },
+	{ UniformType::Uniform2fv,   D3D_SVC_VECTOR,         D3D_SVT_FLOAT, 0, 0 },
+	{ UniformType::Uniform3fv,   D3D_SVC_VECTOR,         D3D_SVT_FLOAT, 0, 0 },
+	{ UniformType::Uniform4fv,   D3D_SVC_VECTOR,         D3D_SVT_FLOAT, 0, 0 },
+	{ UniformType::Uniform3x3fv, D3D_SVC_MATRIX_COLUMNS, D3D_SVT_FLOAT, 3, 3 },
+	{ UniformType::Uniform4x4fv, D3D_SVC_MATRIX_COLUMNS, D3D_SVT_FLOAT, 4, 4 },
 };
 
-ConstantType::Enum findConstantTypeDx11(const D3D11_SHADER_TYPE_DESC& constDesc, uint32_t _size)
+UniformType::Enum findUniformTypeDx11(const D3D11_SHADER_TYPE_DESC& constDesc)
 {
-	uint32_t count = sizeof(s_constRemapDx11)/sizeof(ConstRemapDx9);
-	for (uint32_t ii = 0; ii < count; ++ii)
+	for (uint32_t ii = 0; ii < BX_COUNTOF(s_constRemapDx11); ++ii)
 	{
-		const ConstRemapDx11& remap = s_constRemapDx11[ii];
+		const UniformRemapDx11& remap = s_constRemapDx11[ii];
 
 		if (remap.paramClass == constDesc.Class
-		&&  remap.paramType == constDesc.Type
-		&&  (_size%remap.paramBytes) == 0)
+		&&  remap.paramType == constDesc.Type)
 		{
-			return remap.id;
+			if (D3D_SVC_MATRIX_COLUMNS != constDesc.Class)
+			{
+				return remap.id;
+			}
+
+			if (remap.columns == constDesc.Columns
+			&&  remap.rows    == constDesc.Rows)
+			{
+				return remap.id;
+			}
 		}
 	}
 
-	return ConstantType::Count;
+	return UniformType::Count;
 }
 
 static uint32_t s_optimizationLevelDx11[4] =
@@ -392,6 +502,8 @@ private:
 
 struct Varying
 {
+	std::string m_precision;
+	std::string m_interpolation;
 	std::string m_name;
 	std::string m_type;
 	std::string m_init;
@@ -444,6 +556,25 @@ void strins(char* _str, const char* _insert)
 	memcpy(_str, _insert, len);
 }
 
+void strreplace(char* _str, const char* _find, const char* _replace)
+{
+	const size_t len = strlen(_find);
+
+	char* replace = (char*)alloca(len+1);
+	bx::strlcpy(replace, _replace, len+1);
+	for (uint32_t ii = strlen(replace); ii < len; ++ii)
+	{
+		replace[ii] = ' ';
+	}
+	replace[len] = '\0';
+
+	BX_CHECK(len >= strlen(_replace), "");
+	for (char* ptr = strstr(_str, _find); NULL != ptr; ptr = strstr(ptr + len, _find) )
+	{
+		memcpy(ptr, replace, len);
+	}
+}
+
 class LineReader
 {
 public:
@@ -471,7 +602,6 @@ public:
 		return m_str[m_pos] == '\0';
 	}
 
-private:
 	void skipLine()
 	{
 		const char* str = &m_str[m_pos];
@@ -484,14 +614,21 @@ private:
 	uint32_t m_size;
 };
 
-void printCode(const char* _code)
+void printCode(const char* _code, int32_t _line = 0, int32_t _start = 0, int32_t _end = INT32_MAX)
 {
 	fprintf(stderr, "Code:\n---\n");
 
 	LineReader lr(_code);
-	for (uint32_t line =  1; !lr.isEof(); ++line)
+	for (int32_t line = 1; !lr.isEof() && line < _end; ++line)
 	{
-		fprintf(stderr, "%3d: %s", line, lr.getLine().c_str() );
+		if (line >= _start)
+		{
+			fprintf(stderr, "%s%3d: %s", _line == line ? ">>> " : "    ", line, lr.getLine().c_str() );
+		}
+		else
+		{
+			lr.skipLine();
+		}
 	}
 
 	fprintf(stderr, "---\n");
@@ -507,37 +644,199 @@ void writeFile(const char* _filePath, const void* _data, int32_t _size)
 	}
 }
 
-bool compileGLSLShader(bx::CommandLine& _cmdLine, const std::string& _code, bx::WriterI* _writer)
+bool compileGLSLShader(bx::CommandLine& _cmdLine, uint32_t _gles, const std::string& _code, bx::WriterI* _writer)
 {
-	const glslopt_shader_type type = tolower(_cmdLine.findOption('\0', "type")[0]) == 'f' ? kGlslOptShaderFragment : kGlslOptShaderVertex;
+	char ch = tolower(_cmdLine.findOption('\0', "type")[0]);
+	const glslopt_shader_type type = ch == 'f'
+		? kGlslOptShaderFragment 
+		: (ch == 'c' ? kGlslOptShaderCompute : kGlslOptShaderVertex);
 
-	glslopt_ctx* ctx = glslopt_initialize(false);
-
-	glslopt_shader* shader = glslopt_optimize(ctx, type, _code.c_str(), 0); 
-
-	if( !glslopt_get_status(shader) )
+	glslopt_target target = kGlslTargetOpenGL;
+	switch (_gles)
 	{
-		printCode(_code.c_str() );
-		fprintf(stderr, "Error: %s\n", glslopt_get_log(shader) );
+		case 2:
+			target = kGlslTargetOpenGLES20;
+			break;
+
+		case 3:
+			target = kGlslTargetOpenGLES30;
+			break;
+
+		default:
+			target = kGlslTargetOpenGL;
+			break;
+	}
+
+	glslopt_ctx* ctx = glslopt_initialize(target);
+
+	glslopt_shader* shader = glslopt_optimize(ctx, type, _code.c_str(), 0);
+
+	if (!glslopt_get_status(shader) )
+	{
+		const char* log = glslopt_get_log(shader);
+		int32_t source = 0;
+		int32_t line = 0;
+		int32_t column = 0;
+		int32_t start = 0;
+		int32_t end = INT32_MAX;
+
+		if (3 == sscanf(log, "%u:%u(%u):", &source, &line, &column)
+		&&  0 != line)
+		{
+			start = bx::uint32_imax(1, line-10);
+			end = start + 20;
+		}
+
+		printCode(_code.c_str(), line, start, end);
+		fprintf(stderr, "Error: %s\n", log);
 		glslopt_cleanup(ctx);
 		return false;
 	}
 
 	const char* optimizedShader = glslopt_get_output(shader);
 
-	const char* profile = _cmdLine.findOption('p', "profile");
-	if (NULL == profile)
+	// Trim all directives.
+	while ('#' == *optimizedShader)
 	{
-		writef(_writer, "#ifdef GL_ES\n");
-		writef(_writer, "precision highp float;\n");
-		writef(_writer, "#endif // GL_ES\n\n");
-	}
-	else
-	{
-//		writef(_writer, "#version %s\n\n", profile);
+		optimizedShader = bx::strnl(optimizedShader);
 	}
 
-	bx::write(_writer, optimizedShader, (int32_t)strlen(optimizedShader) );
+	if (0 != _gles)
+	{
+		char* shader = const_cast<char*>(optimizedShader);
+		strreplace(shader, "gl_FragDepthEXT", "gl_FragDepth");
+
+		strreplace(shader, "texture2DLodEXT", "texture2DLod");
+		strreplace(shader, "texture2DProjLodEXT", "texture2DProjLod");
+		strreplace(shader, "textureCubeLodEXT", "textureCubeLod");
+		strreplace(shader, "texture2DGradEXT", "texture2DGrad");
+		strreplace(shader, "texture2DProjGradEXT", "texture2DProjGrad");
+		strreplace(shader, "textureCubeGradEXT", "textureCubeGrad");
+ 
+		strreplace(shader, "shadow2DEXT", "shadow2D");
+		strreplace(shader, "shadow2DProjEXT", "shadow2DProj");
+	}
+
+	UniformArray uniforms;
+
+	{
+		const char* parse = optimizedShader;
+
+		while (NULL != parse
+		   &&  *parse != '\0')
+		{
+			parse = bx::strws(parse);
+			const char* eol = strchr(parse, ';');
+			if (NULL != eol)
+			{
+				const char* qualifier = parse;
+				parse = bx::strws(bx::strword(parse) );
+
+				if (0 == strncmp(qualifier, "attribute", 9)
+				||  0 == strncmp(qualifier, "varying", 7) )
+				{
+					// skip attributes and varyings.
+					parse = eol + 1;
+					continue;
+				}
+
+				if (0 != strncmp(qualifier, "uniform", 7) )
+				{
+					// end if there is no uniform keyword.
+					parse = NULL;
+					continue;
+				}
+
+				const char* precision = NULL;
+				const char* type = parse;
+
+				if (0 == strncmp(type, "lowp", 4)
+				||  0 == strncmp(type, "mediump", 7)
+				||  0 == strncmp(type, "highp", 5) )
+				{
+					precision = type;
+					type = parse = bx::strws(bx::strword(parse) );
+				}
+
+				BX_UNUSED(precision);
+
+				char uniformType[256];
+				parse = bx::strword(parse);
+
+				if (0 == strncmp(type, "sampler", 7) )
+				{
+					strcpy(uniformType, "int");
+				}
+				else
+				{
+					bx::strlcpy(uniformType, type, parse-type+1);
+				}
+
+				const char* name = parse = bx::strws(parse);
+
+				char uniformName[256];
+				uint8_t num = 1;
+				const char* array = bx::strnstr(name, "[", eol-parse);
+				if (NULL != array)
+				{
+					bx::strlcpy(uniformName, name, array-name+1);
+
+					char arraySize[32];
+					const char* end = bx::strnstr(array, "]", eol-array);
+					bx::strlcpy(arraySize, array+1, end-array);
+					num = atoi(arraySize);
+				}
+				else
+				{
+					bx::strlcpy(uniformName, name, eol-name+1);
+				}
+
+				Uniform un;
+				un.type = nameToUniformTypeEnum(uniformType);
+
+				if (UniformType::Count != un.type)
+				{
+					BX_TRACE("name: %s (type %d, num %d)", uniformName, un.type, num);
+
+					un.name = uniformName;
+					un.num = num;
+					un.regIndex = 0;
+					un.regCount = num;
+					uniforms.push_back(un);
+				}
+
+				parse = eol + 1;
+			}
+		}
+	}
+
+	uint16_t count = (uint16_t)uniforms.size();
+	bx::write(_writer, count);
+
+	for (UniformArray::const_iterator it = uniforms.begin(); it != uniforms.end(); ++it)
+	{
+		const Uniform& un = *it;
+		uint8_t nameSize = (uint8_t)un.name.size();
+		bx::write(_writer, nameSize);
+		bx::write(_writer, un.name.c_str(), nameSize);
+		uint8_t type = un.type;
+		bx::write(_writer, type);
+		bx::write(_writer, un.num);
+		bx::write(_writer, un.regIndex);
+		bx::write(_writer, un.regCount);
+
+		BX_TRACE("%s, %s, %d, %d, %d"
+			, un.name.c_str()
+			, s_uniformTypeName[un.type]
+			, un.num
+			, un.regIndex
+			, un.regCount
+			);
+	}
+
+	uint32_t shaderSize = (uint32_t)strlen(optimizedShader);
+	bx::write(_writer, shaderSize);
+	bx::write(_writer, optimizedShader, shaderSize);
 	uint8_t nul = 0;
 	bx::write(_writer, nul);
 
@@ -549,6 +848,8 @@ bool compileGLSLShader(bx::CommandLine& _cmdLine, const std::string& _code, bx::
 bool compileHLSLShaderDx9(bx::CommandLine& _cmdLine, const std::string& _code, bx::WriterI* _writer)
 {
 #if BX_PLATFORM_WINDOWS
+	BX_TRACE("DX9");
+
 	const char* profile = _cmdLine.findOption('p', "profile");
 	if (NULL == profile)
 	{
@@ -626,8 +927,24 @@ bool compileHLSLShaderDx9(bx::CommandLine& _cmdLine, const std::string& _code, b
 	if (FAILED(hr)
 	|| (werror && NULL != errorMsg) )
 	{
-		printCode(_code.c_str() );
-		fprintf(stderr, "Error: 0x%08x %s\n", (uint32_t)hr, (const char*)errorMsg->GetBufferPointer() );
+		const char* log = (const char*)errorMsg->GetBufferPointer();
+
+		char source[1024];
+		int32_t line = 0;
+		int32_t column = 0;
+		int32_t start = 0;
+		int32_t end = INT32_MAX;
+
+		if (3 == sscanf(log, "%[^(](%u,%u):", source, &line, &column)
+		&&  0 != line)
+		{
+			start = bx::uint32_imax(1, line-10);
+			end = start + 20;
+		}
+
+		printCode(_code.c_str(), line, start, end);
+		fprintf(stderr, "Error: 0x%08x %s\n", (uint32_t)hr, log);
+		errorMsg->Release();
 		return false;
 	}
 
@@ -639,7 +956,7 @@ bool compileHLSLShaderDx9(bx::CommandLine& _cmdLine, const std::string& _code, b
 		return false;
 	}
 
-	BX_TRACE("Creator: %s 0x%08x", desc.Creator, desc.Version);
+	BX_TRACE("Creator: %s 0x%08x", desc.Creator, (uint32_t /*mingw warning*/)desc.Version);
 	BX_TRACE("Num constants: %d", desc.Constants);
 	BX_TRACE("#   cl ty RxC   S  By Name");
 
@@ -665,8 +982,8 @@ bool compileHLSLShaderDx9(bx::CommandLine& _cmdLine, const std::string& _code, b
 			, constDesc.RegisterCount
 			);
 
-		ConstantType::Enum type = findConstantTypeDx9(constDesc);
-		if (ConstantType::Count != type)
+		UniformType::Enum type = findUniformTypeDx9(constDesc);
+		if (UniformType::Count != type)
 		{
 			Uniform un;
 			un.name = '$' == constDesc.Name[0] ? constDesc.Name+1 : constDesc.Name;
@@ -696,7 +1013,7 @@ bool compileHLSLShaderDx9(bx::CommandLine& _cmdLine, const std::string& _code, b
 
 		BX_TRACE("%s, %s, %d, %d, %d"
 			, un.name.c_str()
-			, s_constantTypeName[un.type]
+			, s_uniformTypeName[un.type]
 			, un.num
 			, un.regIndex
 			, un.regCount
@@ -754,6 +1071,8 @@ bool compileHLSLShaderDx9(bx::CommandLine& _cmdLine, const std::string& _code, b
 bool compileHLSLShaderDx11(bx::CommandLine& _cmdLine, const std::string& _code, bx::WriterI* _writer)
 {
 #if BX_PLATFORM_WINDOWS
+	BX_TRACE("DX11");
+
 	const char* profile = _cmdLine.findOption('p', "profile");
 	if (NULL == profile)
 	{
@@ -822,8 +1141,22 @@ bool compileHLSLShaderDx11(bx::CommandLine& _cmdLine, const std::string& _code, 
 	if (FAILED(hr)
 	|| (werror && NULL != errorMsg) )
 	{
-		printCode(_code.c_str() );
-		fprintf(stderr, BX_FILE_LINE_LITERAL "Error: 0x%08x %s\n", (uint32_t)hr, (char*)errorMsg->GetBufferPointer() );
+		const char* log = (char*)errorMsg->GetBufferPointer();
+
+		int32_t line = 0;
+		int32_t column = 0;
+		int32_t start = 0;
+		int32_t end = INT32_MAX;
+
+		if (2 == sscanf(log, "(%u,%u):", &line, &column)
+		&&  0 != line)
+		{
+			start = bx::uint32_imax(1, line-10);
+			end = start + 20;
+		}
+
+		printCode(_code.c_str(), line, start, end);
+		fprintf(stderr, "Error: 0x%08x %s\n", (uint32_t)hr, log);
 		errorMsg->Release();
 		return false;
 	}
@@ -838,7 +1171,7 @@ bool compileHLSLShaderDx11(bx::CommandLine& _cmdLine, const std::string& _code, 
 		);
 	if (FAILED(hr) )
 	{
-		fprintf(stderr, BX_FILE_LINE_LITERAL "Error: 0x%08x\n", (uint32_t)hr);
+		fprintf(stderr, "Error: 0x%08x\n", (uint32_t)hr);
 		return false;
 	}
 
@@ -877,8 +1210,6 @@ bool compileHLSLShaderDx11(bx::CommandLine& _cmdLine, const std::string& _code, 
 			attrMask[ris.m_attr] = 0xff;
 		}
 	}
-
-	bx::write(_writer, attrMask, sizeof(attrMask) );
 
 	BX_TRACE("Output:");
 	for (uint32_t ii = 0; ii < desc.OutputParameters; ++ii)
@@ -919,9 +1250,9 @@ bool compileHLSLShaderDx11(bx::CommandLine& _cmdLine, const std::string& _code, 
 					hr = type->GetDesc(&constDesc);
 					if (SUCCEEDED(hr) )
 					{
-						ConstantType::Enum type = findConstantTypeDx11(constDesc, varDesc.Size);
+						UniformType::Enum type = findUniformTypeDx11(constDesc);
 
-						if (ConstantType::Count != type
+						if (UniformType::Count != type
 						&&  0 != (varDesc.uFlags & D3D_SVF_USED) )
 						{
 							Uniform un;
@@ -939,6 +1270,10 @@ bool compileHLSLShaderDx11(bx::CommandLine& _cmdLine, const std::string& _code, 
 								, varDesc.uFlags
 								, type
 								);
+						}
+						else
+						{
+							BX_TRACE("\t%s, unknown type", varDesc.Name);
 						}
 					}
 				}
@@ -969,8 +1304,6 @@ bool compileHLSLShaderDx11(bx::CommandLine& _cmdLine, const std::string& _code, 
 	uint16_t count = (uint16_t)uniforms.size();
 	bx::write(_writer, count);
 
-	bx::write(_writer, size);
-
 	uint32_t fragmentBit = profile[0] == 'p' ? BGFX_UNIFORM_FRAGMENTBIT : 0;
 	for (UniformArray::const_iterator it = uniforms.begin(); it != uniforms.end(); ++it)
 	{
@@ -986,7 +1319,7 @@ bool compileHLSLShaderDx11(bx::CommandLine& _cmdLine, const std::string& _code, 
 
 		BX_TRACE("%s, %s, %d, %d, %d"
 			, un.name.c_str()
-			, s_constantTypeName[un.type]
+			, s_uniformTypeName[un.type]
 			, un.num
 			, un.regIndex
 			, un.regCount
@@ -998,6 +1331,9 @@ bool compileHLSLShaderDx11(bx::CommandLine& _cmdLine, const std::string& _code, 
 	bx::write(_writer, code->GetBufferPointer(), shaderSize);
 	uint8_t nul = 0;
 	bx::write(_writer, nul);
+
+	bx::write(_writer, attrMask, sizeof(attrMask) );
+	bx::write(_writer, size);
 
 	if (_cmdLine.hasArg('\0', "disasm") )
 	{
@@ -1041,7 +1377,7 @@ bool compileHLSLShaderDx11(bx::CommandLine& _cmdLine, const std::string& _code, 
 
 struct Preprocessor
 {
-	Preprocessor(const char* _filePath, const char* _includeDir = NULL)
+	Preprocessor(const char* _filePath, bool _gles, const char* _includeDir = NULL)
 		: m_tagptr(m_tags)
 		, m_scratchPos(0)
 		, m_fgetsPos(0)
@@ -1083,7 +1419,10 @@ struct Preprocessor
 			addInclude(_includeDir);
 		}
 
-		m_default = "#define lowp\n#define mediump\n#define highp\n";
+		if (!_gles)
+		{
+			m_default = "#define lowp\n#define mediump\n#define highp\n";
+		}
 	}
 
 	void setDefine(const char* _define)
@@ -1145,6 +1484,7 @@ struct Preprocessor
 	{
 		m_fgetsPos = 0;
 
+		m_preprocessed.clear();
 		m_input = m_default;
 		m_input += "\n\n";
 
@@ -1279,6 +1619,25 @@ uint32_t parseInOut(InOut& _inout, const char* _str, const char* _eol)
 	return hash;
 }
 
+void addFragData(Preprocessor& _preprocessor, char* _data, uint32_t _idx, bool _comma)
+{
+	char find[32];
+	bx::snprintf(find, sizeof(find), "gl_FragData[%d]", _idx);
+
+	char replace[32];
+	bx::snprintf(replace, sizeof(replace), "gl_FragData_%d_", _idx);
+
+	strreplace(_data, find, replace);
+
+	_preprocessor.writef(
+		" \\\n\t%sout vec4 gl_FragData_%d_ : SV_TARGET%d"
+		, _comma ? ", " : "  "
+		, _idx
+		, _idx
+		);
+
+}
+
 // c - compute
 // d - domain
 // f - fragment
@@ -1306,7 +1665,7 @@ void help(const char* _error = NULL)
 
 	fprintf(stderr
 		, "shaderc, bgfx shader compiler tool\n"
-		  "Copyright 2011-2013 Branimir Karadzic. All rights reserved.\n"
+		  "Copyright 2011-2014 Branimir Karadzic. All rights reserved.\n"
 		  "License: http://www.opensource.org/licenses/BSD-2-Clause\n\n"
 		);
 
@@ -1322,13 +1681,17 @@ void help(const char* _error = NULL)
 		  "      --depends <file path>     Generate makefile style depends file.\n"
 		  "      --platform <platform>     Target platform.\n"
 		  "           android\n"
+		  "           asm.js\n"
 		  "           ios\n"
 		  "           linux\n"
 		  "           nacl\n"
 		  "           osx\n"
 		  "           windows\n"
+		  "      --preprocess              Preprocess only.\n"
+		  "      --raw                     Do not process shader. No preprocessor, and no glsl-optimizer (GLSL only).\n"
 		  "      --type <type>             Shader type (vertex, fragment)\n"
 		  "      --varyingdef <file path>  Path to varying.def.sc file.\n"
+		  "      --verbose                 Verbose.\n"
 
 		  "\n"
 		  "Options (DX9 and DX11 only):\n"
@@ -1354,6 +1717,8 @@ int main(int _argc, const char* _argv[])
 		help();
 		return EXIT_FAILURE;
 	}
+
+	g_verbose = cmdLine.hasArg("verbose");
 
 	const char* filePath = cmdLine.findOption('f');
 	if (NULL == filePath)
@@ -1383,6 +1748,9 @@ int main(int _argc, const char* _argv[])
 		return EXIT_FAILURE;
 	}
 
+	bool raw = cmdLine.hasArg('\0', "raw");
+
+	uint32_t gles = 0;
 	uint32_t hlsl = 2;
 	const char* profile = cmdLine.findOption('p', "profile");
 	if (NULL != profile)
@@ -1399,6 +1767,10 @@ int main(int _argc, const char* _argv[])
 		{
 			hlsl = 5;
 		}
+	}
+	else
+	{
+		gles = 2;
 	}
 
 	const char* bin2c = NULL;
@@ -1432,7 +1804,7 @@ int main(int _argc, const char* _argv[])
 	bool preprocessOnly = cmdLine.hasArg("preprocess");
 	const char* includeDir = cmdLine.findOption('i');
 
-	Preprocessor preprocessor(filePath, includeDir);
+	Preprocessor preprocessor(filePath, 0 != gles, includeDir);
 
 	std::string dir;
 	{
@@ -1446,14 +1818,17 @@ int main(int _argc, const char* _argv[])
 	}
 
 	preprocessor.setDefaultDefine("BX_PLATFORM_ANDROID");
+	preprocessor.setDefaultDefine("BX_PLATFORM_EMSCRIPTEN");
 	preprocessor.setDefaultDefine("BX_PLATFORM_IOS");
 	preprocessor.setDefaultDefine("BX_PLATFORM_LINUX");
 	preprocessor.setDefaultDefine("BX_PLATFORM_NACL");
 	preprocessor.setDefaultDefine("BX_PLATFORM_OSX");
 	preprocessor.setDefaultDefine("BX_PLATFORM_WINDOWS");
 	preprocessor.setDefaultDefine("BX_PLATFORM_XBOX360");
+//	preprocessor.setDefaultDefine("BGFX_SHADER_LANGUAGE_ESSL");
 	preprocessor.setDefaultDefine("BGFX_SHADER_LANGUAGE_GLSL");
 	preprocessor.setDefaultDefine("BGFX_SHADER_LANGUAGE_HLSL");
+	preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_COMPUTE");
 	preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_FRAGMENT");
 	preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_VERTEX");
 
@@ -1462,6 +1837,12 @@ int main(int _argc, const char* _argv[])
 	if (0 == bx::stricmp(platform, "android") )
 	{
 		preprocessor.setDefine("BX_PLATFORM_ANDROID=1");
+		preprocessor.setDefine("BGFX_SHADER_LANGUAGE_GLSL=1");
+		glsl = true;
+	}
+	else if (0 == bx::stricmp(platform, "asm.js") )
+	{
+		preprocessor.setDefine("BX_PLATFORM_EMSCRIPTEN=1");
 		preprocessor.setDefine("BGFX_SHADER_LANGUAGE_GLSL=1");
 		glsl = true;
 	}
@@ -1509,12 +1890,15 @@ int main(int _argc, const char* _argv[])
 
 	preprocessor.setDefine("M_PI=3.1415926535897932384626433832795");
 
-	bool fragment = false;
-	switch (tolower(type[0]) )
+	char shaderType = tolower(type[0]);
+	switch (shaderType)
 	{
+	case 'c':
+		preprocessor.setDefine("BGFX_SHADER_TYPE_COMPUTE=1");
+		break;
+
 	case 'f':
 		preprocessor.setDefine("BGFX_SHADER_TYPE_FRAGMENT=1");
-		fragment = true;
 		break;
 
 	case 'v':
@@ -1525,6 +1909,8 @@ int main(int _argc, const char* _argv[])
 		fprintf(stderr, "Unknown type: %s?!", type);
 		return EXIT_FAILURE;
 	}
+
+	bool compiled = false;
 
 	FILE* file = fopen(filePath, "r");
 	if (NULL != file)
@@ -1548,12 +1934,31 @@ int main(int _argc, const char* _argv[])
 			const char* eol = strchr(parse, ';');
 			if (NULL != eol)
 			{
+				const char* precision = NULL;
+				const char* interpolation = NULL;
 				const char* type = parse;
-				const char* name = parse = bx::strws(bx::strword(parse) );
-				const char* column = parse = bx::strws(bx::strword(parse) );
-				const char* semantics = parse = bx::strws(bx::strnws(parse) );
-				const char* assign = parse = bx::strws(bx::strword(parse) );
-				const char* init = parse = bx::strws(bx::strnws(parse) );
+
+				if (0 == strncmp(type, "lowp", 4)
+				||  0 == strncmp(type, "mediump", 7)
+				||  0 == strncmp(type, "highp", 5) )
+				{
+					precision = type;
+					type = parse = bx::strws(bx::strword(parse) );
+				}
+
+				if (0 == strncmp(type, "flat", 4)
+				||  0 == strncmp(type, "smooth", 6)
+				||  0 == strncmp(type, "noperspective", 13) )
+				{
+					interpolation = type;
+					type = parse = bx::strws(bx::strword(parse) );
+				}
+
+				const char* name      = parse = bx::strws(bx::strword(parse) );
+				const char* column    = parse = bx::strws(bx::strword(parse) );
+				const char* semantics = parse = bx::strws(bx::strnws (parse) );
+				const char* assign    = parse = bx::strws(bx::strword(parse) );
+				const char* init      = parse = bx::strws(bx::strnws (parse) );
 
 				if (type < eol
 				&&  name < eol
@@ -1562,6 +1967,16 @@ int main(int _argc, const char* _argv[])
 				&&  semantics < eol)
 				{
 					Varying var;
+					if (NULL != precision)
+					{
+						var.m_precision.assign(precision, bx::strword(precision)-precision);
+					}
+
+					if (NULL != interpolation)
+					{
+						var.m_interpolation.assign(interpolation, bx::strword(interpolation)-interpolation);
+					}
+
 					var.m_type.assign(type, bx::strword(type)-type);
 					var.m_name.assign(name, bx::strword(name)-name);
 					var.m_semantics.assign(semantics, bx::strword(semantics)-semantics);
@@ -1580,35 +1995,33 @@ int main(int _argc, const char* _argv[])
 			}
 		}
 
-		const size_t padding = 16;
-		uint32_t size = (uint32_t)fsize(file);
-		char* data = new char[size+padding+1];
-		size = (uint32_t)fread(data, 1, size, file);
-		// Compiler generates "error X3000: syntax error: unexpected end of file"
-		// if input doesn't have empty line at EOF.
-		data[size] = '\n';
-		memset(&data[size+1], 0, padding);
-		fclose(file);
+BX_TRACE("1");
 
-		char* entry = strstr(data, "void main()");
-		if (NULL == entry)
-		{
-			fprintf(stderr, "Shader entry point 'void main()' is not found.\n");
-		}
-		else
-		{
-			InOut shaderInputs;
-			InOut shaderOutputs;
-			uint32_t inputHash = 0;
-			uint32_t outputHash = 0;
+		InOut shaderInputs;
+		InOut shaderOutputs;
+		uint32_t inputHash = 0;
+		uint32_t outputHash = 0;
 
-			const char* input = data;
+		char* data;
+		char* input;
+		{
+			const size_t padding = 16;
+			uint32_t size = (uint32_t)fsize(file);
+			data = new char[size+padding+1];
+			size = (uint32_t)fread(data, 1, size, file);
+			// Compiler generates "error X3000: syntax error: unexpected end of file"
+			// if input doesn't have empty line at EOF.
+			data[size] = '\n';
+			memset(&data[size+1], 0, padding);
+			fclose(file);
+
+			input = data;
 			while (input[0] == '$')
 			{
 				const char* str = input+1;
 				const char* eol = bx::streol(str);
 				const char* nl = bx::strnl(eol);
-				input = nl;
+				input = const_cast<char*>(nl);
 
 				if (0 == strncmp(str, "input", 5) )
 				{
@@ -1624,80 +2037,122 @@ int main(int _argc, const char* _argv[])
 					eol = NULL != comment && comment < eol ? comment : eol;
 					outputHash = parseInOut(shaderOutputs, str, eol);
 				}
+				else if (0 == strncmp(str, "raw", 3) )
+				{
+					raw = true;
+					str += 3;
+				}
 			}
 
-			if (glsl)
+			if (!raw)
 			{
-				preprocessor.writef(
-					"#define ivec2 vec2\n"
-					"#define ivec3 vec3\n"
-					"#define ivec4 vec4\n"
-					);
+				// To avoid commented code being recognized as used feature,
+				// first preprocess pass is used to strip all comments before
+				// substituting code.
+				preprocessor.run(input);
+				delete [] data;
 
+				size = preprocessor.m_preprocessed.size();
+				data = new char[size+padding+1];
+				memcpy(data, preprocessor.m_preprocessed.c_str(), size);
+				memset(&data[size], 0, padding+1);
+				input = data;
+			}
+		}
 
-				for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
+BX_TRACE("2");
+
+		if (raw)
+		{
+			{
+				bx::CrtFileWriter* writer = NULL;
+
+				if (NULL != bin2c)
 				{
-					VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
-					if (varyingIt != varyingMap.end() )
+					writer = new Bin2cWriter(bin2c);
+				}
+				else
+				{
+					writer = new bx::CrtFileWriter;
+				}
+
+				if (0 != writer->open(outFilePath) )
+				{
+					fprintf(stderr, "Unable to open output file '%s'.", outFilePath);
+					return EXIT_FAILURE;
+				}
+
+				uint32_t inputHash = 0;
+				uint32_t outputHash = 0;
+
+				if ('f' == shaderType)
+				{
+					bx::write(writer, BGFX_CHUNK_MAGIC_FSH);
+					bx::write(writer, inputHash);
+				}
+				else if ('v' == shaderType)
+				{
+					bx::write(writer, BGFX_CHUNK_MAGIC_VSH);
+					bx::write(writer, outputHash);
+				}
+				else
+				{
+					bx::write(writer, BGFX_CHUNK_MAGIC_CSH);
+					bx::write(writer, outputHash);
+				}
+
+				if (glsl)
+				{
+					bx::write(writer, uint16_t(0) );
+
+					uint32_t shaderSize = (uint32_t)strlen(input);
+					bx::write(writer, shaderSize);
+					bx::write(writer, input, shaderSize);
+					bx::write(writer, uint8_t(0) );
+
+					compiled = true;
+				}
+				else
+				{
+					if (hlsl > 3)
 					{
-						const Varying& var = varyingIt->second;
-						const char* name = var.m_name.c_str();
-						if (0 == strncmp(name, "a_", 2)
-						||  0 == strncmp(name, "i_", 2) )
-						{
-							preprocessor.writef("attribute %s %s;\n", var.m_type.c_str(), name);
-						}
-						else
-						{
-							preprocessor.writef("varying %s %s;\n", var.m_type.c_str(), name);
-						}
+						compiled = compileHLSLShaderDx11(cmdLine, preprocessor.m_preprocessed, writer);
+					}
+					else
+					{
+						compiled = compileHLSLShaderDx9(cmdLine, preprocessor.m_preprocessed, writer);
 					}
 				}
 
-				for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
-				{
-					VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
-					if (varyingIt != varyingMap.end() )
-					{
-						const Varying& var = varyingIt->second;
-						preprocessor.writef("varying %s %s;\n", var.m_type.c_str(), var.m_name.c_str() );
-					}
-				}
+				writer->close();
+				delete writer;
+			}
+		}
+		else
+		{
+			char* entry = strstr(input, "void main()");
+			if (NULL == entry)
+			{
+				fprintf(stderr, "Shader entry point 'void main()' is not found.\n");
 			}
 			else
 			{
-				preprocessor.writef(
-					"#define lowp\n"
-					"#define mediump\n"
-					"#define highp\n"
-					"#define ivec2 int2\n"
-					"#define ivec3 int3\n"
-					"#define ivec4 int4\n"
-					"#define vec2 float2\n"
-					"#define vec3 float3\n"
-					"#define vec4 float4\n"
-					"#define mat2 float2x2\n"
-					"#define mat3 float3x3\n"
-					"#define mat4 float4x4\n"
-					);
-
-				entry[4] = '_';
-
-				if (fragment)
+				if (glsl)
 				{
-					bool hasFragCoord   = NULL != strstr(data, "gl_FragCoord") || hlsl > 3;
-					bool hasFragDepth   = NULL != strstr(data, "gl_FragDepth");
-					bool hasFrontFacing = NULL != strstr(data, "gl_FrontFacing");
+					preprocessor.writef(
+						"#define ivec2 vec2\n"
+						"#define ivec3 vec3\n"
+						"#define ivec4 vec4\n"
+						);
 
-					preprocessor.writef("#define void_main()");
-					preprocessor.writef(" \\\n\tvoid main(");
-
-					uint32_t arg = 0;
-
-					if (hasFragCoord)
+					if (0 == gles)
 					{
-						preprocessor.writef(" \\\n\tvec4 gl_FragCoord : SV_POSITION");
-						++arg;
+						// bgfx shadow2D/Proj behave like EXT_shadow_samplers
+						// not as GLSL language 1.2 specs shadow2D/Proj.
+						preprocessor.writef(
+							"#define shadow2D(_sampler, _coord) bgfxShadow2D(_sampler, _coord).x\n"
+							"#define shadow2DProj(_sampler, _coord) bgfxShadow2DProj(_sampler, _coord).x\n"
+							);
 					}
 
 					for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
@@ -1706,217 +2161,411 @@ int main(int _argc, const char* _argv[])
 						if (varyingIt != varyingMap.end() )
 						{
 							const Varying& var = varyingIt->second;
-							preprocessor.writef(" \\\n\t%s%s %s : %s", arg++ > 0 ? ", " : "  ", var.m_type.c_str(), var.m_name.c_str(), var.m_semantics.c_str() );
+							const char* name = var.m_name.c_str();
+
+							if (0 == strncmp(name, "a_", 2)
+							||  0 == strncmp(name, "i_", 2) )
+							{
+								preprocessor.writef("attribute %s %s %s %s;\n"
+										, var.m_precision.c_str()
+										, var.m_interpolation.c_str()
+										, var.m_type.c_str()
+										, name
+										);
+							}
+							else
+							{
+								preprocessor.writef("%s varying %s %s %s;\n"
+										, var.m_interpolation.c_str()
+										, var.m_precision.c_str()
+										, var.m_type.c_str()
+										, name
+										);
+							}
 						}
 					}
 
-					preprocessor.writef(
-						" \\\n\t%sout vec4 gl_FragColor : SV_TARGET"
-						, arg++ > 0 ? ", " : "  "
-						);
-
-					if (hasFragDepth)
+					for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
 					{
-						preprocessor.writef(
-							" \\\n\t%sout float gl_FragDepth : SV_DEPTH"
-							, arg++ > 0 ? ", " : "  "
-							);
-					}
-
-					if (hasFrontFacing)
-					{
-						preprocessor.writef(
-							" \\\n\t%sfloat __vface : VFACE"
-							, arg++ > 0 ? ", " : "  "
-							);
-					}
-
-					preprocessor.writef(
-						" \\\n\t)\n"
-						);
-
-					if (hasFrontFacing)
-					{
-						preprocessor.writef(
-							"#define gl_FrontFacing (__vface <= 0.0)\n"
-							);
+						VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+						if (varyingIt != varyingMap.end() )
+						{
+							const Varying& var = varyingIt->second;
+							preprocessor.writef("%s varying %s %s;\n"
+								, var.m_interpolation.c_str()
+								, var.m_type.c_str()
+								, var.m_name.c_str()
+								);
+						}
 					}
 				}
 				else
 				{
-					const char* brace = strstr(entry, "{");
-					if (NULL != brace)
-					{
-						const char* end = bx::strmb(brace, '{', '}');
-						if (NULL != end)
-						{
-							strins(const_cast<char*>(end), "__RETURN__;\n");
-						}
-					}
-
 					preprocessor.writef(
-						"struct Output\n"
-						"{\n"
-						"\tvec4 gl_Position : SV_POSITION;\n"
-						"#define gl_Position _varying_.gl_Position\n"
-						);
-					for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
-					{
-						VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
-						if (varyingIt != varyingMap.end() )
-						{
-							const Varying& var = varyingIt->second;
-							preprocessor.writef("\t%s %s : %s;\n", var.m_type.c_str(), var.m_name.c_str(), var.m_semantics.c_str() );
-							preprocessor.writef("#define %s _varying_.%s\n", var.m_name.c_str(), var.m_name.c_str() );
-						}
-					}
-					preprocessor.writef(
-						"};\n"
+						"#define lowp\n"
+						"#define mediump\n"
+						"#define highp\n"
+						"#define ivec2 int2\n"
+						"#define ivec3 int3\n"
+						"#define ivec4 int4\n"
+						"#define vec2 float2\n"
+						"#define vec3 float3\n"
+						"#define vec4 float4\n"
+						"#define mat2 float2x2\n"
+						"#define mat3 float3x3\n"
+						"#define mat4 float4x4\n"
 						);
 
-					preprocessor.writef("#define void_main() \\\n");
-					preprocessor.writef("Output main(");
-					bool first = true;
-					for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
+					if (hlsl < 4)
 					{
-						VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
-						if (varyingIt != varyingMap.end() )
-						{
-							const Varying& var = varyingIt->second;
-							preprocessor.writef("%s%s %s : %s\\\n", first ? "" : "\t, ", var.m_type.c_str(), var.m_name.c_str(), var.m_semantics.c_str() );
-							first = false;
-						}
-					}
-					preprocessor.writef(
-						") \\\n"
-						"{ \\\n"
-						"\tOutput _varying_;"
-						);
-
-					for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
-					{
-						VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
-						if (varyingIt != varyingMap.end() )
-						{
-							const Varying& var = varyingIt->second;
-							preprocessor.writef(" \\\n\t%s = %s;", var.m_name.c_str(), var.m_init.c_str() );
-						}
+						preprocessor.writef(
+							"#define flat\n"
+							"#define smooth\n"
+							"#define noperspective\n"
+							);
 					}
 
-					preprocessor.writef(
-						"\n#define __RETURN__ \\\n"
-						"\t} \\\n"
-						"\treturn _varying_"
-						);
+					entry[4] = '_';
+
+					if ('f' == shaderType)
+					{
+						const bool hasFragCoord   = NULL != strstr(input, "gl_FragCoord") || hlsl > 3;
+						const bool hasFragDepth   = NULL != strstr(input, "gl_FragDepth");
+						const bool hasFrontFacing = NULL != strstr(input, "gl_FrontFacing");
+						const bool hasFragData0   = NULL != strstr(input, "gl_FragData[0]");
+						const bool hasFragData1   = NULL != strstr(input, "gl_FragData[1]");
+						const bool hasFragData2   = NULL != strstr(input, "gl_FragData[2]");
+						const bool hasFragData3   = NULL != strstr(input, "gl_FragData[3]");
+
+						if (!hasFragData0
+						&&  !hasFragData1
+						&&  !hasFragData2
+						&&  !hasFragData3)
+						{
+							// GL errors when both gl_FragColor and gl_FragData is used.
+							// This will trigger the same error with HLSL compiler too.
+							preprocessor.writef("#define gl_FragColor gl_FragData_0_\n");
+						}
+
+						preprocessor.writef("#define void_main()");
+						preprocessor.writef(" \\\n\tvoid main(");
+
+						uint32_t arg = 0;
+
+						if (hasFragCoord)
+						{
+							preprocessor.writef(" \\\n\tvec4 gl_FragCoord : SV_POSITION");
+							++arg;
+						}
+
+						for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
+						{
+							VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+							if (varyingIt != varyingMap.end() )
+							{
+								const Varying& var = varyingIt->second;
+								preprocessor.writef(" \\\n\t%s%s %s %s : %s"
+									, arg++ > 0 ? ", " : "  "
+									, interpolationDx11(var.m_interpolation.c_str() )
+									, var.m_type.c_str()
+									, var.m_name.c_str()
+									, var.m_semantics.c_str()
+									);
+							}
+						}
+
+						addFragData(preprocessor, input, 0, arg++ > 0);
+
+						if (hasFragData1)
+						{
+							addFragData(preprocessor, input, 1, arg++ > 0);
+						}
+
+						if (hasFragData2)
+						{
+							addFragData(preprocessor, input, 2, arg++ > 0);
+						}
+
+						if (hasFragData3)
+						{
+							addFragData(preprocessor, input, 3, arg++ > 0);
+						}
+
+						if (hasFragDepth)
+						{
+							preprocessor.writef(
+								" \\\n\t%sout float gl_FragDepth : SV_DEPTH"
+								, arg++ > 0 ? ", " : "  "
+								);
+						}
+
+						if (hasFrontFacing)
+						{
+							preprocessor.writef(
+								" \\\n\t%sfloat __vface : VFACE"
+								, arg++ > 0 ? ", " : "  "
+								);
+						}
+
+						preprocessor.writef(
+							" \\\n\t)\n"
+							);
+
+						if (hasFrontFacing)
+						{
+							preprocessor.writef(
+								"#define gl_FrontFacing (__vface <= 0.0)\n"
+								);
+						}
+					}
+					else if ('v' == shaderType)
+					{
+						const char* brace = strstr(entry, "{");
+						if (NULL != brace)
+						{
+							const char* end = bx::strmb(brace, '{', '}');
+							if (NULL != end)
+							{
+								strins(const_cast<char*>(end), "__RETURN__;\n");
+							}
+						}
+
+						preprocessor.writef(
+							"struct Output\n"
+							"{\n"
+							"\tvec4 gl_Position : SV_POSITION;\n"
+							"#define gl_Position _varying_.gl_Position\n"
+							);
+						for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
+						{
+							VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+							if (varyingIt != varyingMap.end() )
+							{
+								const Varying& var = varyingIt->second;
+								preprocessor.writef("\t%s %s : %s;\n", var.m_type.c_str(), var.m_name.c_str(), var.m_semantics.c_str() );
+								preprocessor.writef("#define %s _varying_.%s\n", var.m_name.c_str(), var.m_name.c_str() );
+							}
+						}
+						preprocessor.writef(
+							"};\n"
+							);
+
+						preprocessor.writef("#define void_main() \\\n");
+						preprocessor.writef("Output main(");
+						bool first = true;
+						for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
+						{
+							VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+							if (varyingIt != varyingMap.end() )
+							{
+								const Varying& var = varyingIt->second;
+								preprocessor.writef("%s%s %s : %s\\\n", first ? "" : "\t, ", var.m_type.c_str(), var.m_name.c_str(), var.m_semantics.c_str() );
+								first = false;
+							}
+						}
+						preprocessor.writef(
+							") \\\n"
+							"{ \\\n"
+							"\tOutput _varying_;"
+							);
+
+						for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
+						{
+							VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+							if (varyingIt != varyingMap.end() )
+							{
+								const Varying& var = varyingIt->second;
+								preprocessor.writef(" \\\n\t%s = %s;", var.m_name.c_str(), var.m_init.c_str() );
+							}
+						}
+
+						preprocessor.writef(
+							"\n#define __RETURN__ \\\n"
+							"\t} \\\n"
+							"\treturn _varying_"
+							);
+					}
 				}
-			}
 
-			if (preprocessor.run(input) )
-			{
-				BX_TRACE("Input file: %s", filePath);
-				BX_TRACE("Output file: %s", outFilePath);
-
-				if (preprocessOnly)
+				if (preprocessor.run(input) )
 				{
-					bx::CrtFileWriter writer;
+					BX_TRACE("Input file: %s", filePath);
+					BX_TRACE("Output file: %s", outFilePath);
 
-					if (0 != writer.open(outFilePath) )
+					if (preprocessOnly)
 					{
-						fprintf(stderr, "Unable to open output file '%s'.", outFilePath);
-						return EXIT_FAILURE;
-					}
-
-					if (glsl)
-					{
-						const char* profile = cmdLine.findOption('p', "profile");
-						if (NULL == profile)
-						{
-							writef(&writer, "#ifdef GL_ES\n");
-							writef(&writer, "precision highp float;\n");
-							writef(&writer, "#endif // GL_ES\n\n");
-						}
-						else
-						{
-//							writef(&writer, "#version %s\n\n", profile);
-						}
-					}
-					writer.write(preprocessor.m_preprocessed.c_str(), (int32_t)preprocessor.m_preprocessed.size() );
-					writer.close();
-
-					return EXIT_SUCCESS;
-				}
-
-				bool compiled = false;
-
-				{
-					bx::CrtFileWriter* writer = NULL;
-
-					if (NULL != bin2c)
-					{
-						writer = new Bin2cWriter(bin2c);
-					}
-					else
-					{
-						writer = new bx::CrtFileWriter;
-					}
-
-					if (0 != writer->open(outFilePath) )
-					{
-						fprintf(stderr, "Unable to open output file '%s'.", outFilePath);
-						return EXIT_FAILURE;
-					}
-
-					if (fragment)
-					{
-						bx::write(writer, BGFX_CHUNK_MAGIC_FSH);
-						bx::write(writer, inputHash);
-					}
-					else
-					{
-						bx::write(writer, BGFX_CHUNK_MAGIC_VSH);
-						bx::write(writer, outputHash);
-					}
-
-					if (glsl)
-					{
-						compiled = compileGLSLShader(cmdLine, preprocessor.m_preprocessed, writer);
-					}
-					else
-					{
-						if (hlsl > 3)
-						{
-							compiled = compileHLSLShaderDx11(cmdLine, preprocessor.m_preprocessed, writer);
-						}
-						else
-						{
-							compiled = compileHLSLShaderDx9(cmdLine, preprocessor.m_preprocessed, writer);
-						}
-					}
-
-					writer->close();
-					delete writer;
-				}
-
-				if (compiled)
-				{
-					if (depends)
-					{
-						std::string ofp = outFilePath;
-						ofp += ".d";
 						bx::CrtFileWriter writer;
-						if (0 == writer.open(ofp.c_str() ) )
+
+						if (0 != writer.open(outFilePath) )
 						{
-							writef(&writer, "%s : %s\n", outFilePath, preprocessor.m_depends.c_str() );
-							writer.close();
+							fprintf(stderr, "Unable to open output file '%s'.", outFilePath);
+							return EXIT_FAILURE;
 						}
+
+						if (glsl)
+						{
+							const char* profile = cmdLine.findOption('p', "profile");
+							if (NULL == profile)
+							{
+								writef(&writer
+									, "#ifdef GL_ES\n"
+									  "precision highp float;\n"
+									  "#endif // GL_ES\n\n"
+									);
+							}
+						}
+						writer.write(preprocessor.m_preprocessed.c_str(), (int32_t)preprocessor.m_preprocessed.size() );
+						writer.close();
+
+						return EXIT_SUCCESS;
 					}
 
-					return EXIT_SUCCESS;
+					{
+						bx::CrtFileWriter* writer = NULL;
+
+						if (NULL != bin2c)
+						{
+							writer = new Bin2cWriter(bin2c);
+						}
+						else
+						{
+							writer = new bx::CrtFileWriter;
+						}
+
+						if (0 != writer->open(outFilePath) )
+						{
+							fprintf(stderr, "Unable to open output file '%s'.", outFilePath);
+							return EXIT_FAILURE;
+						}
+
+						if ('f' == shaderType)
+						{
+							bx::write(writer, BGFX_CHUNK_MAGIC_FSH);
+							bx::write(writer, inputHash);
+						}
+						else if ('v' == shaderType)
+						{
+							bx::write(writer, BGFX_CHUNK_MAGIC_VSH);
+							bx::write(writer, outputHash);
+						}
+						else
+						{
+							bx::write(writer, BGFX_CHUNK_MAGIC_CSH);
+							bx::write(writer, outputHash);
+						}
+
+						if (glsl)
+						{
+							std::string code;
+
+							bool hasTextureLod = NULL != bx::findIdentifierMatch(input, s_ARB_shader_texture_lod /*EXT_shader_texture_lod*/);
+
+							if (0 == gles)
+							{
+								bx::stringPrintf(code, "#version %s\n", profile);
+								int32_t version = atoi(profile);
+
+								bx::stringPrintf(code
+									, "#define bgfxShadow2D shadow2D\n"
+									  "#define bgfxShadow2DProj shadow2DProj\n"
+									);
+
+								if (hasTextureLod
+								&&  130 > version)
+								{
+									bx::stringPrintf(code
+										, "#extension GL_ARB_shader_texture_lod : enable\n"
+										);
+								}
+							}
+							else
+							{
+								// Pretend that all extensions are available.
+								// This will be stripped later.
+								if (hasTextureLod)
+								{
+									bx::stringPrintf(code
+										, "#extension GL_EXT_shader_texture_lod : enable\n"
+										  "#define texture2DLod texture2DLodEXT\n"
+										  "#define texture2DProjLod texture2DProjLodEXT\n"
+										  "#define textureCubeLod textureCubeLodEXT\n"
+//										  "#define texture2DGrad texture2DGradEXT\n"
+//										  "#define texture2DProjGrad texture2DProjGradEXT\n"
+//										  "#define textureCubeGrad textureCubeGradEXT\n"
+										);
+								}
+
+								if (NULL != bx::findIdentifierMatch(input, s_OES_standard_derivatives) )
+								{
+									bx::stringPrintf(code, "#extension GL_OES_standard_derivatives : enable\n");
+								}
+
+								if (NULL != bx::findIdentifierMatch(input, s_OES_texture_3D) )
+								{
+									bx::stringPrintf(code, "#extension GL_OES_texture_3D : enable\n");
+								}
+
+								if (NULL != bx::findIdentifierMatch(input, s_EXT_shadow_samplers) )
+								{
+									bx::stringPrintf(code
+										, "#extension GL_EXT_shadow_samplers : enable\n"
+										  "#define shadow2D shadow2DEXT\n"
+										  "#define shadow2DProj shadow2DProjEXT\n"
+										);
+								}
+
+								if (NULL != bx::findIdentifierMatch(input, "gl_FragDepth") )
+								{
+									bx::stringPrintf(code
+										, "#extension GL_EXT_frag_depth : enable\n"
+										  "#define gl_FragDepth gl_FragDepthEXT\n"
+										);
+								}
+							}
+
+							code += preprocessor.m_preprocessed;
+							compiled = compileGLSLShader(cmdLine, gles, code, writer);
+						}
+						else
+						{
+							if (hlsl > 3)
+							{
+								compiled = compileHLSLShaderDx11(cmdLine, preprocessor.m_preprocessed, writer);
+							}
+							else
+							{
+								compiled = compileHLSLShaderDx9(cmdLine, preprocessor.m_preprocessed, writer);
+							}
+						}
+
+						writer->close();
+						delete writer;
+					}
+
+					if (compiled)
+					{
+						if (depends)
+						{
+							std::string ofp = outFilePath;
+							ofp += ".d";
+							bx::CrtFileWriter writer;
+							if (0 == writer.open(ofp.c_str() ) )
+							{
+								writef(&writer, "%s : %s\n", outFilePath, preprocessor.m_depends.c_str() );
+								writer.close();
+							}
+						}
+					}
 				}
 			}
 		}
 
 		delete [] data;
+	}
+
+	if (compiled)
+	{
+		return EXIT_SUCCESS;
 	}
 
 	remove(outFilePath);

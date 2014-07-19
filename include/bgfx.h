@@ -1,6 +1,6 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
- * License: http://www.opensource.org/licenses/BSD-2-Clause
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
+ * License: https://github.com/bkaradzic/bgfx/blob/master/LICENSE
  */
 
 #ifndef BGFX_H_HEADER_GUARD
@@ -9,254 +9,7 @@
 #include <stdint.h> // uint32_t
 #include <stdlib.h> // size_t
 
-///
-#define BGFX_STATE_DEPTH_WRITE           UINT64_C(0x0000000000000001)
-
-#define BGFX_STATE_ALPHA_WRITE           UINT64_C(0x0000000000000008)
-#define BGFX_STATE_ALPHA_MASK            UINT64_C(0x000000000000000c)
-
-#define BGFX_STATE_DEPTH_TEST_LESS       UINT64_C(0x0000000000000010)
-#define BGFX_STATE_DEPTH_TEST_LEQUAL     UINT64_C(0x0000000000000020)
-#define BGFX_STATE_DEPTH_TEST_EQUAL      UINT64_C(0x0000000000000030)
-#define BGFX_STATE_DEPTH_TEST_GEQUAL     UINT64_C(0x0000000000000040)
-#define BGFX_STATE_DEPTH_TEST_GREATER    UINT64_C(0x0000000000000050)
-#define BGFX_STATE_DEPTH_TEST_NOTEQUAL   UINT64_C(0x0000000000000060)
-#define BGFX_STATE_DEPTH_TEST_NEVER      UINT64_C(0x0000000000000070)
-#define BGFX_STATE_DEPTH_TEST_ALWAYS     UINT64_C(0x0000000000000080)
-#define BGFX_STATE_DEPTH_TEST_SHIFT      4
-#define BGFX_STATE_DEPTH_TEST_MASK       UINT64_C(0x00000000000000f0)
-
-#define BGFX_STATE_BLEND_ZERO            UINT64_C(0x0000000000001000)
-#define BGFX_STATE_BLEND_ONE             UINT64_C(0x0000000000002000)
-#define BGFX_STATE_BLEND_SRC_COLOR       UINT64_C(0x0000000000003000)
-#define BGFX_STATE_BLEND_INV_SRC_COLOR   UINT64_C(0x0000000000004000)
-#define BGFX_STATE_BLEND_SRC_ALPHA       UINT64_C(0x0000000000005000)
-#define BGFX_STATE_BLEND_INV_SRC_ALPHA   UINT64_C(0x0000000000006000)
-#define BGFX_STATE_BLEND_DST_ALPHA       UINT64_C(0x0000000000007000)
-#define BGFX_STATE_BLEND_INV_DST_ALPHA   UINT64_C(0x0000000000008000)
-#define BGFX_STATE_BLEND_DST_COLOR       UINT64_C(0x0000000000009000)
-#define BGFX_STATE_BLEND_INV_DST_COLOR   UINT64_C(0x000000000000a000)
-#define BGFX_STATE_BLEND_SRC_ALPHA_SAT   UINT64_C(0x000000000000b000)
-#define BGFX_STATE_BLEND_FACTOR          UINT64_C(0x000000000000c000)
-#define BGFX_STATE_BLEND_INV_FACTOR      UINT64_C(0x000000000000d000)
-#define BGFX_STATE_BLEND_SHIFT           12
-#define BGFX_STATE_BLEND_MASK            UINT64_C(0x00000000000ff000)
-
-#define BGFX_STATE_BLEND_EQUATION_SUB    UINT64_C(0x0000000000100000)
-#define BGFX_STATE_BLEND_EQUATION_REVSUB UINT64_C(0x0000000000200000)
-#define BGFX_STATE_BLEND_EQUATION_MIN    UINT64_C(0x0000000000300000)
-#define BGFX_STATE_BLEND_EQUATION_MAX    UINT64_C(0x0000000000400000)
-#define BGFX_STATE_BLEND_EQUATION_SHIFT  20
-#define BGFX_STATE_BLEND_EQUATION_MASK   UINT64_C(0x0000000000700000)
-
-#define BGFX_STATE_CULL_CW               UINT64_C(0x0000000010000000)
-#define BGFX_STATE_CULL_CCW              UINT64_C(0x0000000020000000)
-#define BGFX_STATE_CULL_SHIFT            28
-#define BGFX_STATE_CULL_MASK             UINT64_C(0x0000000030000000)
-
-#define BGFX_STATE_RGB_WRITE             UINT64_C(0x0000000040000000)
-
-#define BGFX_STATE_ALPHA_REF_SHIFT       32
-#define BGFX_STATE_ALPHA_REF_MASK        UINT64_C(0x000000ff00000000)
-
-#define BGFX_STATE_PT_LINES              UINT64_C(0x0000010000000000)
-#define BGFX_STATE_PT_POINTS             UINT64_C(0x0000020000000000)
-#define BGFX_STATE_PT_SHIFT              40
-#define BGFX_STATE_PT_MASK               UINT64_C(0x0000030000000000)
-
-#define BGFX_STATE_POINT_SIZE_SHIFT      44
-#define BGFX_STATE_POINT_SIZE_MASK       UINT64_C(0x000ff00000000000)
-
-#define BGFX_STATE_MSAA                  UINT64_C(0x0020000000000000)
-
-#define BGFX_STATE_RESERVED_MASK         UINT64_C(0xff00000000000000)
-
-#define BGFX_STATE_NONE                  UINT64_C(0x0000000000000000)
-#define BGFX_STATE_MASK                  UINT64_C(0xffffffffffffffff)
-#define BGFX_STATE_DEFAULT (0 \
-					| BGFX_STATE_RGB_WRITE \
-					| BGFX_STATE_ALPHA_WRITE \
-					| BGFX_STATE_DEPTH_TEST_LESS \
-					| BGFX_STATE_DEPTH_WRITE \
-					| BGFX_STATE_CULL_CW \
-					| BGFX_STATE_MSAA \
-					)
-
-#define BGFX_STATE_ALPHA_REF(_ref) ( (uint64_t(_ref)<<BGFX_STATE_ALPHA_REF_SHIFT)&BGFX_STATE_ALPHA_REF_MASK)
-#define BGFX_STATE_POINT_SIZE(_size) ( (uint64_t(_size)<<BGFX_STATE_POINT_SIZE_SHIFT)&BGFX_STATE_POINT_SIZE_MASK)
-#define BGFX_STATE_BLEND_FUNC(_src, _dst) ( uint64_t(_src)|( uint64_t(_dst)<<4) )
-
-#define BGFX_STATE_BLEND_ADD         (BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,       BGFX_STATE_BLEND_ONE          ) )
-#define BGFX_STATE_BLEND_ALPHA       (BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_COLOR) )
-#define BGFX_STATE_BLEND_DARKEN      (BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,       BGFX_STATE_BLEND_ONE          ) | BGFX_STATE_BLEND_EQUATION_MIN)
-#define BGFX_STATE_BLEND_LIGHTEN     (BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,       BGFX_STATE_BLEND_ONE          ) | BGFX_STATE_BLEND_EQUATION_MAX)
-#define BGFX_STATE_BLEND_MULTIPLY    (BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_DST_COLOR, BGFX_STATE_BLEND_ZERO         ) )
-#define BGFX_STATE_BLEND_NORMAL      (BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,       BGFX_STATE_BLEND_INV_SRC_ALPHA) )
-#define BGFX_STATE_BLEND_SCREEN      (BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE,       BGFX_STATE_BLEND_INV_SRC_COLOR) )
-#define BGFX_STATE_BLEND_LINEAR_BURN (BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_DST_COLOR, BGFX_STATE_BLEND_INV_DST_COLOR) | BGFX_STATE_BLEND_EQUATION_SUB)
-
-///
-#define BGFX_STENCIL_FUNC_REF_SHIFT      0
-#define BGFX_STENCIL_FUNC_REF_MASK       UINT32_C(0x000000ff)
-#define BGFX_STENCIL_FUNC_RMASK_SHIFT    8
-#define BGFX_STENCIL_FUNC_RMASK_MASK     UINT32_C(0x0000ff00)
-
-#define BGFX_STENCIL_TEST_LESS           UINT32_C(0x00010000)
-#define BGFX_STENCIL_TEST_LEQUAL         UINT32_C(0x00020000)
-#define BGFX_STENCIL_TEST_EQUAL          UINT32_C(0x00030000)
-#define BGFX_STENCIL_TEST_GEQUAL         UINT32_C(0x00040000)
-#define BGFX_STENCIL_TEST_GREATER        UINT32_C(0x00050000)
-#define BGFX_STENCIL_TEST_NOTEQUAL       UINT32_C(0x00060000)
-#define BGFX_STENCIL_TEST_NEVER          UINT32_C(0x00070000)
-#define BGFX_STENCIL_TEST_ALWAYS         UINT32_C(0x00080000)
-#define BGFX_STENCIL_TEST_SHIFT          16
-#define BGFX_STENCIL_TEST_MASK           UINT32_C(0x000f0000)
-
-#define BGFX_STENCIL_OP_FAIL_S_ZERO      UINT32_C(0x00000000)
-#define BGFX_STENCIL_OP_FAIL_S_KEEP      UINT32_C(0x00100000)
-#define BGFX_STENCIL_OP_FAIL_S_REPLACE   UINT32_C(0x00200000)
-#define BGFX_STENCIL_OP_FAIL_S_INCR      UINT32_C(0x00300000)
-#define BGFX_STENCIL_OP_FAIL_S_INCRSAT   UINT32_C(0x00400000)
-#define BGFX_STENCIL_OP_FAIL_S_DECR      UINT32_C(0x00500000)
-#define BGFX_STENCIL_OP_FAIL_S_DECRSAT   UINT32_C(0x00600000)
-#define BGFX_STENCIL_OP_FAIL_S_INVERT    UINT32_C(0x00700000)
-#define BGFX_STENCIL_OP_FAIL_S_SHIFT     20
-#define BGFX_STENCIL_OP_FAIL_S_MASK      UINT32_C(0x00f00000)
-
-#define BGFX_STENCIL_OP_FAIL_Z_ZERO      UINT32_C(0x00000000)
-#define BGFX_STENCIL_OP_FAIL_Z_KEEP      UINT32_C(0x01000000)
-#define BGFX_STENCIL_OP_FAIL_Z_REPLACE   UINT32_C(0x02000000)
-#define BGFX_STENCIL_OP_FAIL_Z_INCR      UINT32_C(0x03000000)
-#define BGFX_STENCIL_OP_FAIL_Z_INCRSAT   UINT32_C(0x04000000)
-#define BGFX_STENCIL_OP_FAIL_Z_DECR      UINT32_C(0x05000000)
-#define BGFX_STENCIL_OP_FAIL_Z_DECRSAT   UINT32_C(0x06000000)
-#define BGFX_STENCIL_OP_FAIL_Z_INVERT    UINT32_C(0x07000000)
-#define BGFX_STENCIL_OP_FAIL_Z_SHIFT     24
-#define BGFX_STENCIL_OP_FAIL_Z_MASK      UINT32_C(0x0f000000)
-
-#define BGFX_STENCIL_OP_PASS_Z_ZERO      UINT32_C(0x00000000)
-#define BGFX_STENCIL_OP_PASS_Z_KEEP      UINT32_C(0x10000000)
-#define BGFX_STENCIL_OP_PASS_Z_REPLACE   UINT32_C(0x20000000)
-#define BGFX_STENCIL_OP_PASS_Z_INCR      UINT32_C(0x30000000)
-#define BGFX_STENCIL_OP_PASS_Z_INCRSAT   UINT32_C(0x40000000)
-#define BGFX_STENCIL_OP_PASS_Z_DECR      UINT32_C(0x50000000)
-#define BGFX_STENCIL_OP_PASS_Z_DECRSAT   UINT32_C(0x60000000)
-#define BGFX_STENCIL_OP_PASS_Z_INVERT    UINT32_C(0x70000000)
-#define BGFX_STENCIL_OP_PASS_Z_SHIFT     28
-#define BGFX_STENCIL_OP_PASS_Z_MASK      UINT32_C(0xf0000000)
-
-#define BGFX_STENCIL_NONE                UINT32_C(0x00000000)
-#define BGFX_STENCIL_MASK                UINT32_C(0xffffffff)
-#define BGFX_STENCIL_DEFAULT             UINT32_C(0x00000000)
-
-#define BGFX_STENCIL_FUNC_REF(_ref) ( (uint32_t(_ref)<<BGFX_STENCIL_FUNC_REF_SHIFT)&BGFX_STENCIL_FUNC_REF_MASK)
-#define BGFX_STENCIL_FUNC_RMASK(_mask) ( (uint32_t(_mask)<<BGFX_STENCIL_FUNC_RMASK_SHIFT)&BGFX_STENCIL_FUNC_RMASK_MASK)
-
-///
-#define BGFX_CLEAR_NONE                  UINT8_C(0x00)
-#define BGFX_CLEAR_COLOR_BIT             UINT8_C(0x01)
-#define BGFX_CLEAR_DEPTH_BIT             UINT8_C(0x02)
-#define BGFX_CLEAR_STENCIL_BIT           UINT8_C(0x04)
-
-///
-#define BGFX_DEBUG_NONE                  UINT32_C(0x00000000)
-#define BGFX_DEBUG_WIREFRAME             UINT32_C(0x00000001)
-#define BGFX_DEBUG_IFH                   UINT32_C(0x00000002)
-#define BGFX_DEBUG_STATS                 UINT32_C(0x00000004)
-#define BGFX_DEBUG_TEXT                  UINT32_C(0x00000008)
-
-///
-#define BGFX_TEXTURE_NONE                UINT32_C(0x00000000)
-#define BGFX_TEXTURE_U_MIRROR            UINT32_C(0x00000001)
-#define BGFX_TEXTURE_U_CLAMP             UINT32_C(0x00000002)
-#define BGFX_TEXTURE_U_SHIFT             0
-#define BGFX_TEXTURE_U_MASK              UINT32_C(0x00000003)
-#define BGFX_TEXTURE_V_MIRROR            UINT32_C(0x00000010)
-#define BGFX_TEXTURE_V_CLAMP             UINT32_C(0x00000020)
-#define BGFX_TEXTURE_V_SHIFT             4
-#define BGFX_TEXTURE_V_MASK              UINT32_C(0x00000030)
-#define BGFX_TEXTURE_W_MIRROR            UINT32_C(0x00000100)
-#define BGFX_TEXTURE_W_CLAMP             UINT32_C(0x00000200)
-#define BGFX_TEXTURE_W_SHIFT             8
-#define BGFX_TEXTURE_W_MASK              UINT32_C(0x00000300)
-#define BGFX_TEXTURE_MIN_POINT           UINT32_C(0x00001000)
-#define BGFX_TEXTURE_MIN_ANISOTROPIC     UINT32_C(0x00002000)
-#define BGFX_TEXTURE_MIN_SHIFT           12
-#define BGFX_TEXTURE_MIN_MASK            UINT32_C(0x00003000)
-#define BGFX_TEXTURE_MAG_POINT           UINT32_C(0x00010000)
-#define BGFX_TEXTURE_MAG_ANISOTROPIC     UINT32_C(0x00020000)
-#define BGFX_TEXTURE_MAG_SHIFT           16
-#define BGFX_TEXTURE_MAG_MASK            UINT32_C(0x00030000)
-#define BGFX_TEXTURE_MIP_POINT           UINT32_C(0x00100000)
-#define BGFX_TEXTURE_MIP_SHIFT           20
-#define BGFX_TEXTURE_MIP_MASK            UINT32_C(0x00100000)
-#define BGFX_TEXTURE_RESERVED_SHIFT      24
-#define BGFX_TEXTURE_RESERVED_MASK       UINT32_C(0xff000000)
-
-///
-#define BGFX_RENDER_TARGET_NONE          UINT32_C(0x00000000)
-#define BGFX_RENDER_TARGET_COLOR_RGBA8   UINT32_C(0x00000001)
-#define BGFX_RENDER_TARGET_COLOR_RGB10A2 UINT32_C(0x00000002)
-#define BGFX_RENDER_TARGET_COLOR_RGBA16  UINT32_C(0x00000003)
-#define BGFX_RENDER_TARGET_COLOR_RGBA16F UINT32_C(0x00000004)
-#define BGFX_RENDER_TARGET_COLOR_R16F    UINT32_C(0x00000005)
-#define BGFX_RENDER_TARGET_COLOR_R32F    UINT32_C(0x00000006)
-#define BGFX_RENDER_TARGET_COLOR_SHIFT   0
-#define BGFX_RENDER_TARGET_COLOR_MASK    UINT32_C(0x000000ff)
-
-#define BGFX_RENDER_TARGET_DEPTH_D16     UINT32_C(0x00000100)
-#define BGFX_RENDER_TARGET_DEPTH_D24     UINT32_C(0x00000200)
-#define BGFX_RENDER_TARGET_DEPTH_D24S8   UINT32_C(0x00000300)
-#define BGFX_RENDER_TARGET_DEPTH_D32     UINT32_C(0x00000400)
-#define BGFX_RENDER_TARGET_DEPTH_D16F    UINT32_C(0x00000500)
-#define BGFX_RENDER_TARGET_DEPTH_D24F    UINT32_C(0x00000600)
-#define BGFX_RENDER_TARGET_DEPTH_D32F    UINT32_C(0x00000700)
-#define BGFX_RENDER_TARGET_DEPTH_D0S8    UINT32_C(0x00000800)
-#define BGFX_RENDER_TARGET_DEPTH_SHIFT   8
-#define BGFX_RENDER_TARGET_DEPTH_MASK    UINT32_C(0x0000ff00)
-
-#define BGFX_RENDER_TARGET_MSAA_X2       UINT32_C(0x00010000)
-#define BGFX_RENDER_TARGET_MSAA_X4       UINT32_C(0x00020000)
-#define BGFX_RENDER_TARGET_MSAA_X8       UINT32_C(0x00030000)
-#define BGFX_RENDER_TARGET_MSAA_X16      UINT32_C(0x00040000)
-#define BGFX_RENDER_TARGET_MSAA_SHIFT    16
-#define BGFX_RENDER_TARGET_MSAA_MASK     UINT32_C(0x00070000)
-
-///
-#define BGFX_RESET_NONE                  UINT32_C(0x00000000)
-#define BGFX_RESET_FULLSCREEN            UINT32_C(0x00000001)
-#define BGFX_RESET_FULLSCREEN_SHIFT      0
-#define BGFX_RESET_FULLSCREEN_MASK       UINT32_C(0x00000001)
-#define BGFX_RESET_MSAA_X2               UINT32_C(0x00000010)
-#define BGFX_RESET_MSAA_X4               UINT32_C(0x00000020)
-#define BGFX_RESET_MSAA_X8               UINT32_C(0x00000030)
-#define BGFX_RESET_MSAA_X16              UINT32_C(0x00000040)
-#define BGFX_RESET_MSAA_SHIFT            4
-#define BGFX_RESET_MSAA_MASK             UINT32_C(0x00000070)
-#define BGFX_RESET_VSYNC                 UINT32_C(0x00000080)
-#define BGFX_RESET_CAPTURE               UINT32_C(0x00000100)
-
-///
-#define BGFX_CAPS_TEXTURE_FORMAT_BC1     UINT64_C(0x0000000000000001)
-#define BGFX_CAPS_TEXTURE_FORMAT_BC2     UINT64_C(0x0000000000000002)
-#define BGFX_CAPS_TEXTURE_FORMAT_BC3     UINT64_C(0x0000000000000004)
-#define BGFX_CAPS_TEXTURE_FORMAT_BC4     UINT64_C(0x0000000000000008)
-#define BGFX_CAPS_TEXTURE_FORMAT_BC5     UINT64_C(0x0000000000000010)
-#define BGFX_CAPS_TEXTURE_FORMAT_ETC1    UINT64_C(0x0000000000000020)
-#define BGFX_CAPS_TEXTURE_FORMAT_ETC2    UINT64_C(0x0000000000000040)
-#define BGFX_CAPS_TEXTURE_FORMAT_ETC2A   UINT64_C(0x0000000000000080)
-#define BGFX_CAPS_TEXTURE_FORMAT_ETC2A1  UINT64_C(0x0000000000000100)
-#define BGFX_CAPS_TEXTURE_FORMAT_PTC12   UINT64_C(0x0000000000000200)
-#define BGFX_CAPS_TEXTURE_FORMAT_PTC14   UINT64_C(0x0000000000000400)
-#define BGFX_CAPS_TEXTURE_FORMAT_PTC14A  UINT64_C(0x0000000000000800)
-#define BGFX_CAPS_TEXTURE_FORMAT_PTC12A  UINT64_C(0x0000000000001000)
-#define BGFX_CAPS_TEXTURE_FORMAT_PTC22   UINT64_C(0x0000000000002000)
-#define BGFX_CAPS_TEXTURE_FORMAT_PTC24   UINT64_C(0x0000000000004000)
-#define BGFX_CAPS_TEXTURE_3D             UINT64_C(0x0000000000010000)
-#define BGFX_CAPS_VERTEX_ATTRIB_HALF     UINT64_C(0x0000000000020000)
-#define BGFX_CAPS_INSTANCING             UINT64_C(0x0000000000040000)
-#define BGFX_CAPS_RENDERER_MULTITHREADED UINT64_C(0x0000000000080000)
-#define BGFX_CAPS_FRAGMENT_DEPTH         UINT64_C(0x0000000000100000)
+#include "bgfxdefines.h"
 
 ///
 #define BGFX_HANDLE(_name) \
@@ -278,7 +31,6 @@ namespace bgfx
 			MinimumRequiredSpecs,
 			InvalidShader,
 			UnableToInitialize,
-			UnableToCreateRenderTarget,
 			UnableToCreateTexture,
 		};
 	};
@@ -290,8 +42,7 @@ namespace bgfx
 			Null,
 			Direct3D9,
 			Direct3D11,
-			OpenGLES2,
-			OpenGLES3,
+			OpenGLES,
 			OpenGL,
 
 			Count
@@ -351,12 +102,16 @@ namespace bgfx
 			ETC2A1, // ETC2 RGB8A1
 			PTC12,  // PVRTC1 RGB 2BPP
 			PTC14,  // PVRTC1 RGB 4BPP
-			PTC14A, // PVRTC1 RGBA 4BPP
 			PTC12A, // PVRTC1 RGBA 2BPP
+			PTC14A, // PVRTC1 RGBA 4BPP
 			PTC22,  // PVRTC2 RGBA 2BPP
 			PTC24,  // PVRTC2 RGBA 4BPP
-			Unknown,
-			L8,
+
+			Unknown, // compressed formats above
+
+			R8,
+			R16,
+			R16F,
 			BGRA8,
 			RGBA16,
 			RGBA16F,
@@ -364,6 +119,17 @@ namespace bgfx
 			RGBA4,
 			RGB5A1,
 			RGB10A2,
+
+			UnknownDepth, // depth formats below
+
+			D16,
+			D24,
+			D24S8,
+			D32,
+			D16F,
+			D24F,
+			D32F,
+			D0S8,
 			
 			Count
 		};
@@ -393,15 +159,14 @@ namespace bgfx
 
 	BGFX_HANDLE(DynamicIndexBufferHandle);
 	BGFX_HANDLE(DynamicVertexBufferHandle);
-	BGFX_HANDLE(FragmentShaderHandle);
+	BGFX_HANDLE(FrameBufferHandle);
 	BGFX_HANDLE(IndexBufferHandle);
 	BGFX_HANDLE(ProgramHandle);
-	BGFX_HANDLE(RenderTargetHandle);
+	BGFX_HANDLE(ShaderHandle);
 	BGFX_HANDLE(TextureHandle);
 	BGFX_HANDLE(UniformHandle);
 	BGFX_HANDLE(VertexBufferHandle);
 	BGFX_HANDLE(VertexDeclHandle);
-	BGFX_HANDLE(VertexShaderHandle);
 
 	/// Callback interface to implement application specific behavior.
 	/// Cached items are currently used only for OpenGL binary shaders.
@@ -433,7 +198,7 @@ namespace bgfx
 		virtual void screenShot(const char* _filePath, uint32_t _width, uint32_t _height, uint32_t _pitch, const void* _data, uint32_t _size, bool _yflip) = 0;
 
 		/// Called when capture begins.
-		virtual void captureBegin(uint32_t _width, uint32_t _height, uint32_t _pitch, bgfx::TextureFormat::Enum _format, bool _yflip) = 0;
+		virtual void captureBegin(uint32_t _width, uint32_t _height, uint32_t _pitch, TextureFormat::Enum _format, bool _yflip) = 0;
 
 		/// Called when capture ends.
 		virtual void captureEnd() = 0;
@@ -458,18 +223,19 @@ namespace bgfx
 		/// Renderer backend type.
 		RendererType::Enum rendererType;
 
-		/// Supported functionality, it includes emulated functionality. 
-		/// Checking supported and not emulated will give functionality 
+		/// Supported functionality, it includes emulated functionality.
+		/// Checking supported and not emulated will give functionality
 		/// natively supported by renderer.
 		uint64_t supported;
 
-		/// Emulated functionality. For example some texture compression 
+		/// Emulated functionality. For example some texture compression
 		/// modes are not natively supported by all renderers. The library
 		/// internally decompresses texture into supported format.
 		uint64_t emulated;
 
-		uint16_t maxTextureSize; ///< Maximum texture size.		
-		uint16_t maxDrawCalls;   ///< Maximum draw calls.
+		uint16_t maxTextureSize;   ///< Maximum texture size.
+		uint16_t maxDrawCalls;     ///< Maximum draw calls.
+		uint8_t  maxFBAttachments; ///< Maximum frame buffer attachments.
 	};
 
 	struct TransientIndexBuffer
@@ -515,7 +281,7 @@ namespace bgfx
 	struct VertexDecl
 	{
 		/// Start VertexDecl.
-		void begin(RendererType::Enum _renderer = RendererType::Null);
+		VertexDecl& begin(RendererType::Enum _renderer = RendererType::Null);
 
 		/// End VertexDecl.
 		void end();
@@ -536,10 +302,10 @@ namespace bgfx
 		/// NOTE:
 		///   Must be called between begin/end.
 		///
-		void add(Attrib::Enum _attrib, uint8_t _num, AttribType::Enum _type, bool _normalized = false, bool _asInt = false);
+		VertexDecl& add(Attrib::Enum _attrib, uint8_t _num, AttribType::Enum _type, bool _normalized = false, bool _asInt = false);
 
 		/// Skip _num bytes in vertex stream.
-		void skip(uint8_t _num);
+		VertexDecl& skip(uint8_t _num);
 
 		/// Decode attribute.
 		void decode(Attrib::Enum _attrib, uint8_t& _num, AttribType::Enum& _type, bool& _normalized, bool& _asInt) const;
@@ -612,10 +378,16 @@ namespace bgfx
 	///
 	void imageRgba8Downsample2x2(uint32_t _width, uint32_t _height, uint32_t _pitch, const void* _src, void* _dst);
 
-	/// Returns renderer backend API type.
-	RendererType::Enum getRendererType();
+	/// Returns supported backend API renderers.
+	uint8_t getSupportedRenderers(RendererType::Enum _enum[RendererType::Count]);
+
+	/// Returns name of renderer.
+	const char* getRendererName(RendererType::Enum _type);
 
 	/// Initialize bgfx library.
+	///
+	/// @param _type Select rendering backend. When set to RendererType::Count
+	///   default rendering backend will be selected.
 	///
 	/// @param _callback Provide application specific callback interface.
 	///   See: CallbackI
@@ -624,7 +396,7 @@ namespace bgfx
 	///   specified, library uses default CRT allocator. The library assumes
 	///   custom allocator is thread safe.
 	///
-	void init(CallbackI* _callback = NULL, bx::ReallocatorI* _reallocator = NULL);
+	void init(RendererType::Enum _type = RendererType::Count, CallbackI* _callback = NULL, bx::ReallocatorI* _reallocator = NULL);
 
 	/// Shutdown bgfx library.
 	void shutdown();
@@ -637,16 +409,30 @@ namespace bgfx
 	/// singlethreaded renderer this call does frame rendering.
 	///
 	/// @returns Current frame number. This might be used in conjunction with
-	///   double/multi buffering data outside the library and passing it to 
+	///   double/multi buffering data outside the library and passing it to
 	///   library via makeRef calls.
 	///
 	uint32_t frame();
 
+	/// Returns current renderer backend API type.
+	///
+	/// NOTE:
+	///   Library must be initialized.
+	///
+	RendererType::Enum getRendererType();
+
 	/// Returns renderer capabilities.
+	///
+	/// NOTE:
+	///   Library must be initialized.
+	///
 	const Caps* getCaps();
 
 	/// Allocate buffer to pass to bgfx calls. Data will be freed inside bgfx.
 	const Memory* alloc(uint32_t _size);
+
+	/// Allocate buffer and copy data into it. Data will be freed inside bgfx.
+	const Memory* copy(const void* _data, uint32_t _size);
 
 	/// Make reference to data to pass to bgfx. Unlike bgfx::alloc this call
 	/// doesn't allocate memory for data. It just copies pointer to data.
@@ -677,6 +463,10 @@ namespace bgfx
 	void dbgTextPrintf(uint16_t _x, uint16_t _y, uint8_t _attr, const char* _format, ...);
 
 	/// Create static index buffer.
+	///
+	/// NOTE:
+	///   Only 16-bit index buffer is supported.
+	///
 	IndexBufferHandle createIndexBuffer(const Memory* _mem);
 
 	/// Destroy static index buffer.
@@ -700,11 +490,17 @@ namespace bgfx
 	///
 	/// @param _num Number of indices.
 	///
+	/// NOTE:
+	///   Only 16-bit index buffer is supported.
+	///
 	DynamicIndexBufferHandle createDynamicIndexBuffer(uint32_t _num);
 
 	/// Create dynamic index buffer and initialized it.
 	///
 	/// @param _mem Index buffer data.
+	///
+	/// NOTE:
+	///   Only 16-bit index buffer is supported.
 	///
 	DynamicIndexBufferHandle createDynamicIndexBuffer(const Memory* _mem);
 
@@ -778,8 +574,9 @@ namespace bgfx
 	/// @param _num Number of indices to allocate.
 	///
 	/// NOTE:
-	///   You must call setIndexBuffer after alloc in order to avoid memory
-	///   leak.
+	///   1. You must call setIndexBuffer after alloc in order to avoid memory
+	///      leak.
+	///   2. Only 16-bit index buffer is supported.
 	///
 	void allocTransientIndexBuffer(TransientIndexBuffer* _tib, uint32_t _num);
 
@@ -797,6 +594,15 @@ namespace bgfx
 	///
 	void allocTransientVertexBuffer(TransientVertexBuffer* _tvb, uint32_t _num, const VertexDecl& _decl);
 
+	/// Check for required space and allocate transient vertex and index
+	/// buffers. If both space requirements are satisfied function returns
+	/// true.
+	///
+	/// NOTE:
+	///   Only 16-bit index buffer is supported.
+	///
+	bool allocTransientBuffers(TransientVertexBuffer* _tvb, const VertexDecl& _decl, uint16_t _numVertices, TransientIndexBuffer* _tib, uint16_t _numIndices);
+
 	/// Allocate instance data buffer.
 	///
 	/// NOTE:
@@ -805,28 +611,35 @@ namespace bgfx
 	///
 	const InstanceDataBuffer* allocInstanceDataBuffer(uint32_t _num, uint16_t _stride);
 
-	/// Create vertex shader from memory buffer.
-	VertexShaderHandle createVertexShader(const Memory* _mem);
+	/// Create shader from memory buffer.
+	ShaderHandle createShader(const Memory* _mem);
 
-	/// Destroy vertex shader. Once program is created with vertex shader
-	/// it is safe to destroy vertex shader.
-	void destroyVertexShader(VertexShaderHandle _handle);
+	/// Returns num of uniforms, and uniform handles used inside shader.
+	///
+	/// @param _handle Shader handle.
+	/// @param _uniforms UniformHandle array where data will be stored.
+	/// @param _max Maximum capacity of array.
+	/// @returns Number of uniforms used by shader.
+	///
+	/// NOTE:
+	///   Only non-predefined uniforms are returned.
+	///
+	uint16_t getShaderUniforms(ShaderHandle _handle, UniformHandle* _uniforms = NULL, uint16_t _max = 0);
 
-	/// Create fragment shader from memory buffer.
-	FragmentShaderHandle createFragmentShader(const Memory* _mem);
-
-	/// Destroy fragment shader. Once program is created with fragment shader
-	/// it is safe to destroy fragment shader.
-	void destroyFragmentShader(FragmentShaderHandle _handle);
+	/// Destroy shader. Once program is created with shader it is safe to
+	/// destroy shader.
+	void destroyShader(ShaderHandle _handle);
 
 	/// Create program with vertex and fragment shaders.
 	///
 	/// @param _vsh Vertex shader.
 	/// @param _fsh Fragment shader.
+	/// @param _destroyShaders If true, shaders will be destroyed when
+	///   program is destroyed.
 	/// @returns Program handle if vertex shader output and fragment shader
 	///   input are matching, otherwise returns invalid program handle.
 	///
-	ProgramHandle createProgram(VertexShaderHandle _vsh, FragmentShaderHandle _fsh);
+	ProgramHandle createProgram(ShaderHandle _vsh, ShaderHandle _fsh, bool _destroyShaders = false);
 
 	/// Destroy program.
 	void destroyProgram(ProgramHandle _handle);
@@ -846,10 +659,11 @@ namespace bgfx
 	///   BGFX_TEXTURE_[MIN/MAG/MIP]_[POINT/ANISOTROPIC] - Point or anisotropic
 	///     sampling.
 	///
-	/// @param _info Returns parsed DDS texture information.
+	/// @param _skip Skip top level mips when parsing texture.
+	/// @param _info Returns parsed texture information.
 	/// @returns Texture handle.
 	///
-	TextureHandle createTexture(const Memory* _mem, uint32_t _flags = BGFX_TEXTURE_NONE, TextureInfo* _info = NULL);
+	TextureHandle createTexture(const Memory* _mem, uint32_t _flags = BGFX_TEXTURE_NONE, uint8_t _skip = 0, TextureInfo* _info = NULL);
 
 	/// Create 2D texture.
 	///
@@ -949,11 +763,26 @@ namespace bgfx
 	/// Destroy texture.
 	void destroyTexture(TextureHandle _handle);
 
-	/// Create render target.
-	RenderTargetHandle createRenderTarget(uint16_t _width, uint16_t _height, uint32_t _flags = BGFX_RENDER_TARGET_COLOR_RGBA8, uint32_t _textureFlags = BGFX_TEXTURE_U_CLAMP|BGFX_TEXTURE_V_CLAMP);
+	/// Create frame buffer (simple).
+	///
+	/// @param _width Texture width.
+	/// @param _height Texture height.
+	/// @param _format Texture format.
+	/// @param _textureFlags Texture flags.
+	///
+	FrameBufferHandle createFrameBuffer(uint16_t _width, uint16_t _height, TextureFormat::Enum _format, uint32_t _textureFlags = BGFX_TEXTURE_U_CLAMP|BGFX_TEXTURE_V_CLAMP);
 
-	/// Destroy render target.
-	void destroyRenderTarget(RenderTargetHandle _handle);
+	/// Create frame buffer.
+	///
+	/// @param _num Number of texture attachments.
+	/// @param _handles Texture attachments.
+	/// @param _destroyTextures If true, textures will be destroyed when 
+	///   frame buffer is destroyed.
+	///
+	FrameBufferHandle createFrameBuffer(uint8_t _num, TextureHandle* _handles, bool _destroyTextures = false);
+
+	/// Destroy frame buffer.
+	void destroyFrameBuffer(FrameBufferHandle _handle);
 
 	/// Create shader uniform parameter.
 	///
@@ -971,7 +800,15 @@ namespace bgfx
 	///
 	///   u_view mat4 - view matrix
 	///
+	///   u_invView mat4 - inverted view matrix
+	///
+	///   u_proj mat4 - projection matrix
+	///
+	///   u_invProj mat4 - inverted projection matrix
+	///
 	///   u_viewProj mat4 - concatenated view projection matrix
+	///
+	///   u_invViewProj mat4 - concatenated inverted view projection matrix
 	///
 	///   u_model mat4[BGFX_CONFIG_MAX_BONES] - array of model matrices.
 	///
@@ -1060,30 +897,30 @@ namespace bgfx
 	/// Set multiple views into sequential mode.
 	void setViewSeqMask(uint32_t _viewMask, bool _enabled);
 
-	/// Set view render target.
+	/// Set view frame buffer.
 	///
 	/// @param _id View id.
-	/// @param _handle Render target handle. Passing BGFX_INVALID_HANDLE as
-	///   render target handle will draw primitives from this view into
-	///   default backbuffer.
+	/// @param _handle Frame buffer handle. Passing BGFX_INVALID_HANDLE as
+	///   frame buffer handle will draw primitives from this view into
+	///   default back buffer.
 	///
-	void setViewRenderTarget(uint8_t _id, RenderTargetHandle _handle);
+	void setViewFrameBuffer(uint8_t _id, FrameBufferHandle _handle);
 
-	/// Set view render target for multiple views.
+	/// Set view frame buffer for multiple views.
 	///
 	/// @param _viewMask View mask.
-	/// @param _handle Render target handle. Passing BGFX_INVALID_HANDLE as
-	///   render target handle will draw primitives from this view into
-	///   default backbuffer.
+	/// @param _handle Frame buffer handle. Passing BGFX_INVALID_HANDLE as
+	///   frame buffer handle will draw primitives from this view into
+	///   default back buffer.
 	///
-	void setViewRenderTargetMask(uint32_t _viewMask, RenderTargetHandle _handle);
+	void setViewFrameBufferMask(uint32_t _viewMask, FrameBufferHandle _handle);
 
 	/// Set view view and projection matrices, all draw primitives in this
 	/// view will use these matrices.
-	void setViewTransform(uint8_t _id, const void* _view, const void* _proj, uint8_t _other = 0xff);
+	void setViewTransform(uint8_t _id, const void* _view, const void* _proj);
 
 	/// Set view view and projection matrices for multiple views.
-	void setViewTransformMask(uint32_t _viewMask, const void* _view, const void* _proj, uint8_t _other = 0xff);
+	void setViewTransformMask(uint32_t _viewMask, const void* _view, const void* _proj);
 
 	/// Sets debug marker.
 	void setMarker(const char* _marker);
@@ -1112,7 +949,7 @@ namespace bgfx
 	///   2. BGFX_STATE_BLEND_EQUATION_ADD is set when no other blend
 	///      equation is specified.
 	///
-	void setState(uint64_t _state, uint32_t _rgba = UINT32_MAX);
+	void setState(uint64_t _state, uint32_t _rgba = 0);
 
 	/// Set stencil test state.
 	///
@@ -1167,16 +1004,25 @@ namespace bgfx
 	void setIndexBuffer(DynamicIndexBufferHandle _handle, uint32_t _firstIndex = 0, uint32_t _numIndices = UINT32_MAX);
 
 	/// Set index buffer for draw primitive.
-	void setIndexBuffer(const TransientIndexBuffer* _tib, uint32_t _numIndices = UINT32_MAX);
+	void setIndexBuffer(const TransientIndexBuffer* _tib);
+
+	/// Set index buffer for draw primitive.
+	void setIndexBuffer(const TransientIndexBuffer* _tib, uint32_t _firstIndex, uint32_t _numIndices);
 
 	/// Set vertex buffer for draw primitive.
-	void setVertexBuffer(VertexBufferHandle _handle, uint32_t _numVertices = UINT32_MAX);
+	void setVertexBuffer(VertexBufferHandle _handle);
+
+	/// Set vertex buffer for draw primitive.
+	void setVertexBuffer(VertexBufferHandle _handle, uint32_t _startVertex, uint32_t _numVertices);
 
 	/// Set vertex buffer for draw primitive.
 	void setVertexBuffer(DynamicVertexBufferHandle _handle, uint32_t _numVertices = UINT32_MAX);
 
 	/// Set vertex buffer for draw primitive.
-	void setVertexBuffer(const TransientVertexBuffer* _tvb, uint32_t _numVertices = UINT32_MAX);
+	void setVertexBuffer(const TransientVertexBuffer* _tvb);
+
+	/// Set vertex buffer for draw primitive.
+	void setVertexBuffer(const TransientVertexBuffer* _tvb, uint32_t _startVertex, uint32_t _numVertices);
 
 	/// Set instance data buffer for draw primitive.
 	void setInstanceDataBuffer(const InstanceDataBuffer* _idb, uint16_t _num = UINT16_MAX);
@@ -1207,7 +1053,8 @@ namespace bgfx
 	///
 	/// @param _stage Texture unit.
 	/// @param _sampler Program sampler.
-	/// @param _handle Render target handle.
+	/// @param _handle Frame buffer handle.
+	/// @param _attachment Attachment index.
 	/// @param _flags Texture sampling mode. Default value UINT32_MAX uses
 	///   texture sampling settings from the texture.
 	///
@@ -1217,7 +1064,7 @@ namespace bgfx
 	///   BGFX_TEXTURE_[MIN/MAG/MIP]_[POINT/ANISOTROPIC] - Point or anisotropic
 	///     sampling.
 	///
-	void setTexture(uint8_t _stage, UniformHandle _sampler, RenderTargetHandle _handle, bool _depth = false, uint32_t _flags = UINT32_MAX);
+	void setTexture(uint8_t _stage, UniformHandle _sampler, FrameBufferHandle _handle, uint8_t _attachment = 0, uint32_t _flags = UINT32_MAX);
 
 	/// Submit primitive for rendering into single view.
 	///

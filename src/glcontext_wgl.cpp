@@ -1,11 +1,11 @@
 /*
- * Copyright 2011-2013 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
 #include "bgfx_p.h"
 
-#if (BGFX_CONFIG_RENDERER_OPENGLES2|BGFX_CONFIG_RENDERER_OPENGLES3|BGFX_CONFIG_RENDERER_OPENGL)
+#if (BGFX_CONFIG_RENDERER_OPENGLES|BGFX_CONFIG_RENDERER_OPENGL)
 #	include "renderer_gl.h"
 
 #	if BGFX_USE_WGL
@@ -22,8 +22,7 @@ namespace bgfx
 	PFNWGLSWAPINTERVALEXTPROC wglSwapIntervalEXT;
 
 #	define GL_IMPORT(_optional, _proto, _func, _import) _proto _func
-#		include "glimports.h"
-#	undef GL_IMPORT
+#	include "glimports.h"
 
 	static HGLRC createContext(HDC _hdc)
 	{
@@ -273,21 +272,28 @@ namespace bgfx
 
 	void GlContext::import()
 	{
-#	define GL_IMPORT(_optional, _proto, _func, _import) \
-		{ \
-			BX_TRACE("%s", #_import); \
-			_func = (_proto)wglGetProcAddress(#_import); \
-			if (_func == NULL) \
-			{ \
-				_func = (_proto)bx::dlsym(m_opengl32dll, #_import); \
-			} \
-			BGFX_FATAL(_optional || NULL != _func, Fatal::UnableToInitialize, "Failed to create OpenGL context. wglGetProcAddress(\"%s\")", #_import); \
-		}
+		BX_TRACE("Import:");
+#	define GL_EXTENSION(_optional, _proto, _func, _import) \
+				{ \
+					if (NULL == _func) \
+					{ \
+						_func = (_proto)wglGetProcAddress(#_import); \
+						if (_func == NULL) \
+						{ \
+							_func = (_proto)bx::dlsym(m_opengl32dll, #_import); \
+							BX_TRACE("    %p " #_func " (" #_import ")", _func); \
+						} \
+						else \
+						{ \
+							BX_TRACE("wgl %p " #_func " (" #_import ")", _func); \
+						} \
+						BGFX_FATAL(BX_IGNORE_C4127(_optional) || NULL != _func, Fatal::UnableToInitialize, "Failed to create OpenGL context. wglGetProcAddress(\"%s\")", #_import); \
+					} \
+				}
 #	include "glimports.h"
-#	undef GL_IMPORT
 	}
 
 } // namespace bgfx
 
 #	endif // BGFX_USE_WGL
-#endif // (BGFX_CONFIG_RENDERER_OPENGLES2|BGFX_CONFIG_RENDERER_OPENGLES3|BGFX_CONFIG_RENDERER_OPENGL)
+#endif // (BGFX_CONFIG_RENDERER_OPENGLES|BGFX_CONFIG_RENDERER_OPENGL)
