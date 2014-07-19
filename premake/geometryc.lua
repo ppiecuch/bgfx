@@ -26,4 +26,9 @@ project "geometryc"
 			"Cocoa.framework",
 		}
 
+	configuration { "ios*" }
+		linkoptions {
+			"-framework Foundation",
+		}
+
 	strip()

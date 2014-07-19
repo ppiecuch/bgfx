@@ -8,7 +8,7 @@
 
 #include <string>
 #include <vector>
-#ifdef __APPLE__
+#if defined __clang_major__ && __clang_major__ < 5
 # include <tr1/unordered_map>
 #else
 # include <unordered_map>
