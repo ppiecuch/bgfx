@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
@@ -70,7 +70,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 	// Set view 0 clear state.
 	bgfx::setViewClear(0
-		, BGFX_CLEAR_COLOR_BIT|BGFX_CLEAR_DEPTH_BIT
+		, BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH
 		, 0x303030ff
 		, 1.0f
 		, 0
@@ -130,16 +130,39 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		}
 		else
 		{
-			float at[3] = { 0.0f, 0.0f, 0.0f };
+			float at[3]  = { 0.0f, 0.0f,   0.0f };
 			float eye[3] = { 0.0f, 0.0f, -35.0f };
 			
-			float view[16];
-			float proj[16];
-			bx::mtxLookAt(view, eye, at);
-			bx::mtxProj(proj, 60.0f, float(width)/float(height), 0.1f, 100.0f);
-
 			// Set view and projection matrix for view 0.
-			bgfx::setViewTransform(0, view, proj);
+			const bgfx::HMD* hmd = bgfx::getHMD();
+			if (NULL != hmd)
+			{
+				float view[16];
+				bx::mtxQuatTranslationHMD(view, hmd->eye[0].rotation, eye);
+
+				float proj[16];
+				bx::mtxProj(proj, hmd->eye[0].fov, 0.1f, 100.0f);
+
+				bgfx::setViewTransform(0, view, proj);
+
+				// Set view 0 default viewport.
+				//
+				// Use HMD's width/height since HMD's internal frame buffer size
+				// might be much larger than window size.
+				bgfx::setViewRect(0, 0, 0, hmd->width, hmd->height);
+			}
+			else
+			{
+				float view[16];
+				bx::mtxLookAt(view, eye, at);
+
+				float proj[16];
+				bx::mtxProj(proj, 60.0f, float(width)/float(height), 0.1f, 100.0f);
+				bgfx::setViewTransform(0, view, proj);
+
+				// Set view 0 default viewport.
+				bgfx::setViewRect(0, 0, 0, width, height);
+			}
 
 			const uint16_t instanceStride = 80;
 			const bgfx::InstanceDataBuffer* idb = bgfx::allocInstanceDataBuffer(121, instanceStride);

@@ -226,8 +226,10 @@ int catenate(struct Global *global, ReturnCode *ret)
       *ret=macroid(global, &c);           /* Scan next token      */
       if(*ret)
         return(FALSE);
-    } else
+    } /* BK - BUG? Parses token into global->tokenbuf but never uses it.
+      else
       lookid(global, c);
+      */
     switch(type[c]) {                   /* What was it?         */
     case LET:                           /* An identifier, ...   */
       if ((int)strlen(token1) + (int)strlen(global->tokenbuf) >= NWORK) {
@@ -479,8 +481,8 @@ char *savestring(struct Global *global, char *text)
   /*
    * Store a string into free memory.
    */
-
   char *result;
+  (void)global; // BK - not used but causes warning.
   result = malloc(strlen(text) + 1);
   strcpy(result, text);
   return (result);

@@ -33,6 +33,15 @@
  * MSVC hacks.
  */
 #if defined(_MSC_VER)
+
+// BK - STFU!
+#  pragma warning(disable:4244) // warning C4244: 'function' : conversion from 'intmax_t' to 'int', possible loss of data
+#  pragma warning(disable:4267) // warning C4267: '=' : conversion from 'size_t' to 'unsigned int', possible loss of data
+#  pragma warning(disable:4351) // warning C4351: new behavior: elements of array '`anonymous-namespace'::per_vertex_accumulator::fields' will be default initialized
+#  pragma warning(disable:4345) // warning C4345: behavior change: an object of POD type constructed with an initializer of the form () will be default-initialized
+#  pragma warning(disable:4715) // warning C4715: 'write_mask_to_swizzle' : not all control paths return a value
+#  pragma warning(disable:4800) // warning C4800: 'unsigned int' : forcing value to bool 'true' or 'false' (performance warning)
+
    /*
     * Visual Studio 2012 will complain if we define the `inline` keyword, but
     * actually it only supports the keyword on C++.
@@ -55,6 +64,22 @@
 #  include <crtdefs.h>
 #  undef _CRTRESTRICT
 #  define _CRTRESTRICT
+#else
+// BK - STFU!
+#  pragma GCC diagnostic ignored "-Wunknown-pragmas" // for clang to disable GCC pragmas
+#  pragma GCC diagnostic ignored "-Wpragmas"         // for GCC to disable clang pragmas
+#  pragma GCC diagnostic ignored "-Wformat="
+#  pragma GCC diagnostic ignored "-Wformat-extra-args"
+#  pragma GCC diagnostic ignored "-Wignored-qualifiers"
+#  pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#  pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#  pragma GCC diagnostic ignored "-Wreorder"
+#  pragma GCC diagnostic ignored "-Woverloaded-virtual"
+#  pragma GCC diagnostic ignored "-Wsign-compare"
+#  pragma GCC diagnostic ignored "-Wunneeded-internal-declaration"
+#  pragma GCC diagnostic ignored "-Wunused-parameter"
+#  pragma GCC diagnostic ignored "-Wunused-private-field"
+#  pragma GCC diagnostic ignored "-Wunused-variable"
 #endif
 
 
@@ -76,7 +101,7 @@
 #    define inline __inline
 #  elif defined(__SUNPRO_C) && defined(__C99FEATURES__)
      /* C99 supports inline keyword */
-#  elif (__STDC_VERSION__ >= 199901L)
+#  elif defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
      /* C99 supports inline keyword */
 #  else
 #    define inline
@@ -91,7 +116,7 @@
  * - http://cellperformance.beyond3d.com/articles/2006/05/demystifying-the-restrict-keyword.html
  */
 #ifndef restrict
-#  if (__STDC_VERSION__ >= 199901L)
+#  if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
      /* C99 */
 #  elif defined(__SUNPRO_C) && defined(__C99FEATURES__)
      /* C99 */
@@ -109,18 +134,18 @@
  * C99 __func__ macro
  */
 #ifndef __func__
-#  if (__STDC_VERSION__ >= 199901L)
+#  if defined(_MSC_VER)
+#    if _MSC_VER >= 1300
+#      define __func__ __FUNCTION__
+#    else
+#      define __func__ "<unknown>"
+#    endif
+#  elif defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
      /* C99 */
 #  elif defined(__SUNPRO_C) && defined(__C99FEATURES__)
      /* C99 */
 #  elif defined(__GNUC__)
 #    if __GNUC__ >= 2
-#      define __func__ __FUNCTION__
-#    else
-#      define __func__ "<unknown>"
-#    endif
-#  elif defined(_MSC_VER)
-#    if _MSC_VER >= 1300
 #      define __func__ __FUNCTION__
 #    else
 #      define __func__ "<unknown>"

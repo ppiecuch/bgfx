@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
@@ -10,7 +10,7 @@
 #	include <QuartzCore/CAEAGLLayer.h>
 #	include "renderer_gl.h"
 
-namespace bgfx
+namespace bgfx { namespace gl
 {
 #	define GL_IMPORT(_optional, _proto, _func, _import) _proto _func = NULL
 #	include "glimports.h"
@@ -91,17 +91,38 @@ namespace bgfx
 		BX_TRACE("resize context");
 	}
 
-	void GlContext::swap()
+	bool GlContext::isSwapChainSupported()
 	{
+		return false;
+	}
+
+	SwapChainGL* GlContext::createSwapChain(void* /*_nwh*/)
+	{
+		BX_CHECK(false, "Shouldn't be called!");
+		return NULL;
+	}
+
+	void GlContext::destroySwapChain(SwapChainGL*  /*_swapChain*/)
+	{
+		BX_CHECK(false, "Shouldn't be called!");
+	}
+
+	void GlContext::swap(SwapChainGL* _swapChain)
+	{
+		BX_CHECK(NULL == _swapChain, "Shouldn't be called!"); BX_UNUSED(_swapChain);
 		GL_CHECK(glBindRenderbuffer(GL_RENDERBUFFER, m_colorRbo) );
 		EAGLContext* context = (EAGLContext*)m_context;
 		[context presentRenderbuffer:GL_RENDERBUFFER];
+	}
+
+	void GlContext::makeCurrent(SwapChainGL* /*_swapChain*/)
+	{
 	}
 
 	void GlContext::import()
 	{
 	}
 
-} // namespace bgfx
+} /* namespace gl */ } // namespace bgfx
 
 #endif // BX_PLATFORM_IOS && (BGFX_CONFIG_RENDERER_OPENGLES2|BGFX_CONFIG_RENDERER_OPENGLES3|BGFX_CONFIG_RENDERER_OPENGL)

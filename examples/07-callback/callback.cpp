@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
@@ -64,7 +64,7 @@ static const uint16_t s_cubeIndices[36] =
 void saveTga(const char* _filePath, uint32_t _width, uint32_t _height, uint32_t _srcPitch, const void* _src, bool _grayscale, bool _yflip)
 {
 	FILE* file = fopen(_filePath, "wb");
-	if ( NULL != file )
+	if (NULL != file)
 	{
 		uint8_t type = _grayscale ? 3 : 2;
 		uint8_t bpp = _grayscale ? 8 : 32;
@@ -72,14 +72,14 @@ void saveTga(const char* _filePath, uint32_t _width, uint32_t _height, uint32_t 
 		putc(0, file);
 		putc(0, file);
 		putc(type, file);
-		putc(0, file); 
-		putc(0, file);
-		putc(0, file); 
 		putc(0, file);
 		putc(0, file);
-		putc(0, file); 
 		putc(0, file);
-		putc(0, file); 
+		putc(0, file);
+		putc(0, file);
+		putc(0, file);
+		putc(0, file);
+		putc(0, file);
 		putc(0, file);
 		putc(_width&0xff, file);
 		putc( (_width>>8)&0xff, file);
@@ -385,7 +385,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 	// Set view 0 clear state.
 	bgfx::setViewClear(0
-		, BGFX_CLEAR_COLOR_BIT|BGFX_CLEAR_DEPTH_BIT
+		, BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH
 		, 0x303030ff
 		, 1.0f
 		, 0

@@ -8,17 +8,16 @@
 
 #include <string>
 #include <vector>
-#ifdef __ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__
-# include <tr1/unordered_map>
-#else
-# include <unordered_map>
-#endif
 #include <map>
+#include <tinystl/allocator.h>
+#include <tinystl/unordered_map.h>
+namespace stl = tinystl;
 
 namespace std { namespace tr1 {} }
 using namespace std::tr1;
 
 #include "common.h"
+#include "bgfx_utils.h"
 
 #include <bgfx.h>
 #include <bx/timer.h>
@@ -73,11 +72,24 @@ struct PosNormalTexcoordVertex
 	uint32_t m_normal;
 	float    m_u;
 	float    m_v;
+
+	static void init()
+	{
+		ms_decl
+			.begin()
+			.add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float)
+			.add(bgfx::Attrib::Normal,    4, bgfx::AttribType::Uint8, true, true)
+			.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+			.end();
+	}
+
+	static bgfx::VertexDecl ms_decl;
 };
 
+bgfx::VertexDecl PosNormalTexcoordVertex::ms_decl;
+
 static const float s_texcoord = 50.0f;
-static const uint32_t s_numHPlaneVertices = 4;
-static PosNormalTexcoordVertex s_hplaneVertices[s_numHPlaneVertices] =
+static PosNormalTexcoordVertex s_hplaneVertices[] =
 {
 	{ -1.0f, 0.0f,  1.0f, packF4u(0.0f, 1.0f, 0.0f), s_texcoord, s_texcoord },
 	{  1.0f, 0.0f,  1.0f, packF4u(0.0f, 1.0f, 0.0f), s_texcoord, 0.0f       },
@@ -85,8 +97,7 @@ static PosNormalTexcoordVertex s_hplaneVertices[s_numHPlaneVertices] =
 	{  1.0f, 0.0f, -1.0f, packF4u(0.0f, 1.0f, 0.0f), 0.0f,       0.0f       },
 };
 
-static const uint32_t s_numVPlaneVertices = 4;
-static PosNormalTexcoordVertex s_vplaneVertices[s_numVPlaneVertices] =
+static PosNormalTexcoordVertex s_vplaneVertices[] =
 {
 	{ -1.0f,  1.0f, 0.0f, packF4u(0.0f, 0.0f, -1.0f), 1.0f, 1.0f },
 	{  1.0f,  1.0f, 0.0f, packF4u(0.0f, 0.0f, -1.0f), 1.0f, 0.0f },
@@ -94,15 +105,13 @@ static PosNormalTexcoordVertex s_vplaneVertices[s_numVPlaneVertices] =
 	{  1.0f, -1.0f, 0.0f, packF4u(0.0f, 0.0f, -1.0f), 0.0f, 0.0f },
 };
 
-static const uint32_t s_numPlaneIndices = 6;
-static const uint16_t s_planeIndices[s_numPlaneIndices] =
+static const uint16_t s_planeIndices[] =
 {
 	0, 1, 2,
 	1, 3, 2,
 };
 
-static const char* s_shaderPath = NULL;
-static bool s_flipV = false;
+static bool s_oglNdc = false;
 static float s_texelHalf = 0.0f;
 
 static uint32_t s_viewMask = 0;
@@ -111,73 +120,37 @@ static bgfx::UniformHandle u_texColor;
 static bgfx::UniformHandle u_texStencil;
 static bgfx::FrameBufferHandle s_stencilFb;
 
-inline uint32_t uint32_max(uint32_t _a, uint32_t _b)
+void setViewClearMask(uint32_t _viewMask, uint8_t _flags, uint32_t _rgba, float _depth, uint8_t _stencil)
 {
-	return _a > _b ? _a : _b;
-}
-
-static void shaderFilePath(char* _out, const char* _name)
-{
-	strcpy(_out, s_shaderPath);
-	strcat(_out, _name);
-	strcat(_out, ".bin");
-}
-
-long int fsize(FILE* _file)
-{
-	long int pos = ftell(_file);
-	fseek(_file, 0L, SEEK_END);
-	long int size = ftell(_file);
-	fseek(_file, pos, SEEK_SET);
-	return size;
-}
-
-static const bgfx::Memory* load(const char* _filePath)
-{
-	FILE* file = fopen(_filePath, "rb");
-	if (NULL != file)
+	for (uint32_t view = 0, viewMask = _viewMask, ntz = bx::uint32_cnttz(_viewMask); 0 != viewMask; viewMask >>= 1, view += 1, ntz = bx::uint32_cnttz(viewMask) )
 	{
-		uint32_t size = (uint32_t)fsize(file);
-		const bgfx::Memory* mem = bgfx::alloc(size+1);
-		size_t ignore = fread(mem->data, 1, size, file);
-		BX_UNUSED(ignore);
-		fclose(file);
-		mem->data[mem->size-1] = '\0';
-		return mem;
+		viewMask >>= ntz;
+		view += ntz;
+
+		bgfx::setViewClear( (uint8_t)view, _flags, _rgba, _depth, _stencil);
 	}
-
-	return NULL;
 }
 
-static const bgfx::Memory* loadShader(const char* _name)
+void setViewTransformMask(uint32_t _viewMask, const void* _view, const void* _proj)
 {
-	char filePath[512];
-	shaderFilePath(filePath, _name);
-	return load(filePath);
+	for (uint32_t view = 0, viewMask = _viewMask, ntz = bx::uint32_cnttz(_viewMask); 0 != viewMask; viewMask >>= 1, view += 1, ntz = bx::uint32_cnttz(viewMask) )
+	{
+		viewMask >>= ntz;
+		view += ntz;
+
+		bgfx::setViewTransform( (uint8_t)view, _view, _proj);
+	}
 }
 
-static const bgfx::Memory* loadTexture(const char* _name)
+void setViewRectMask(uint32_t _viewMask, uint16_t _x, uint16_t _y, uint16_t _width, uint16_t _height)
 {
-	char filePath[512];
-	strcpy(filePath, "textures/");
-	strcat(filePath, _name);
-	return load(filePath);
-}
+	for (uint32_t view = 0, viewMask = _viewMask, ntz = bx::uint32_cnttz(_viewMask); 0 != viewMask; viewMask >>= 1, view += 1, ntz = bx::uint32_cnttz(viewMask) )
+	{
+		viewMask >>= ntz;
+		view += ntz;
 
-static bgfx::ProgramHandle loadProgram(const char* _vsName, const char* _fsName)
-{
-	const bgfx::Memory* mem;
-
-	// Load vertex shader.
-	mem = loadShader(_vsName);
-	bgfx::ShaderHandle vsh = bgfx::createShader(mem);
-
-	// Load fragment shader.
-	mem = loadShader(_fsName);
-	bgfx::ShaderHandle fsh = bgfx::createShader(mem);
-
-	// Create program from shaders.
-	return bgfx::createProgram(vsh, fsh, true /* destroy shaders when program is destroyed */);
+		bgfx::setViewRect( (uint8_t)view, _x, _y, _width, _height);
+	}
 }
 
 void mtxBillboard(float* __restrict _result
@@ -262,8 +235,6 @@ struct Uniforms
 
 		m_time = 0.0f;
 
-		m_flipV = float(s_flipV) * 2.0f - 1.0f;
-
 		m_lightPosRadius[0] = 0.0f;
 		m_lightPosRadius[1] = 0.0f;
 		m_lightPosRadius[2] = 0.0f;
@@ -287,7 +258,6 @@ struct Uniforms
 		u_fog                           = bgfx::createUniform("u_fog",                           bgfx::UniformType::Uniform4fv);
 		u_color                         = bgfx::createUniform("u_color",                         bgfx::UniformType::Uniform4fv);
 		u_time                          = bgfx::createUniform("u_time",                          bgfx::UniformType::Uniform1f );
-		u_flipV                         = bgfx::createUniform("u_flipV",                         bgfx::UniformType::Uniform1f );
 		u_lightPosRadius                = bgfx::createUniform("u_lightPosRadius",                bgfx::UniformType::Uniform4fv);
 		u_lightRgbInnerR                = bgfx::createUniform("u_lightRgbInnerR",                bgfx::UniformType::Uniform4fv);
 		u_virtualLightPos_extrusionDist = bgfx::createUniform("u_virtualLightPos_extrusionDist", bgfx::UniformType::Uniform4fv);
@@ -300,7 +270,6 @@ struct Uniforms
 		bgfx::setUniform(u_diffuse,            &m_diffuse);
 		bgfx::setUniform(u_specular_shininess, &m_specular_shininess);
 		bgfx::setUniform(u_fog,                &m_fog);
-		bgfx::setUniform(u_flipV,              &m_flipV);
 	}
 
 	//call this once per frame
@@ -330,7 +299,6 @@ struct Uniforms
 		bgfx::destroyUniform(u_fog);
 		bgfx::destroyUniform(u_color);
 		bgfx::destroyUniform(u_time);
-		bgfx::destroyUniform(u_flipV);
 		bgfx::destroyUniform(u_lightPosRadius);
 		bgfx::destroyUniform(u_lightRgbInnerR);
 		bgfx::destroyUniform(u_virtualLightPos_extrusionDist);
@@ -360,7 +328,6 @@ struct Uniforms
 	float m_fog[4];
 	float m_color[4];
 	float m_time;
-	float m_flipV;
 	float m_lightPosRadius[4];
 	float m_lightRgbInnerR[4];
 	float m_virtualLightPos_extrusionDist[4];
@@ -385,7 +352,6 @@ struct Uniforms
 	bgfx::UniformHandle u_fog;
 	bgfx::UniformHandle u_color;
 	bgfx::UniformHandle u_time;
-	bgfx::UniformHandle u_flipV;
 	bgfx::UniformHandle u_lightPosRadius;
 	bgfx::UniformHandle u_lightRgbInnerR;
 	bgfx::UniformHandle u_virtualLightPos_extrusionDist;
@@ -618,14 +584,6 @@ void submit(uint8_t _id, int32_t _depth = 0)
 	s_viewMask |= 1 << _id;
 }
 
-void submitMask(uint32_t _viewMask, int32_t _depth = 0)
-{
-	bgfx::submitMask(_viewMask, _depth);
-
-	// Keep track of submited view ids.
-	s_viewMask |= _viewMask;
-}
-
 struct Aabb
 {
 	float m_min[3];
@@ -696,7 +654,7 @@ struct HalfEdges
 	{
 		m_data = (HalfEdge*)malloc(2 * _numIndices * sizeof(HalfEdge) );
 
-		std::unordered_map<uint16_t, std::vector<uint16_t> > edges;
+		stl::unordered_map<uint16_t, std::vector<uint16_t> > edges;
 		for (uint32_t ii = 0; ii < _numIndices; ii+=3)
 		{
 			uint16_t idx0 = _indices[ii];
@@ -1032,6 +990,11 @@ struct Group
 
 typedef std::vector<Group> GroupArray;
 
+namespace bgfx
+{
+	int32_t read(bx::ReaderI* _reader, bgfx::VertexDecl& _decl);
+}
+
 struct Mesh
 {
 	void load(const void* _vertices, uint32_t _numVertices, const bgfx::VertexDecl _decl, const uint16_t* _indices, uint32_t _numIndices)
@@ -1065,8 +1028,8 @@ struct Mesh
 
 	void load(const char* _filePath)
 	{
-#define BGFX_CHUNK_MAGIC_VB BX_MAKEFOURCC('V', 'B', ' ', 0x0)
-#define BGFX_CHUNK_MAGIC_IB BX_MAKEFOURCC('I', 'B', ' ', 0x0)
+#define BGFX_CHUNK_MAGIC_VB  BX_MAKEFOURCC('V', 'B', ' ', 0x1)
+#define BGFX_CHUNK_MAGIC_IB  BX_MAKEFOURCC('I', 'B', ' ', 0x0)
 #define BGFX_CHUNK_MAGIC_PRI BX_MAKEFOURCC('P', 'R', 'I', 0x0)
 
 		bx::CrtFileReader reader;
@@ -1085,7 +1048,7 @@ struct Mesh
 					bx::read(&reader, group.m_aabb);
 					bx::read(&reader, group.m_obb);
 
-					bx::read(&reader, m_decl);
+					bgfx::read(&reader, m_decl);
 					uint16_t stride = m_decl.getStride();
 
 					bx::read(&reader, group.m_numVertices);
@@ -1149,6 +1112,7 @@ struct Mesh
 
 			default:
 				DBG("%08x at %d", chunk, reader.seek() );
+				abort();
 				break;
 			}
 		}
@@ -1603,7 +1567,7 @@ void shadowVolumeCreate(ShadowVolume& _shadowVolume
 			const float4_t onei = float4_isplat(1);
 			const float4_t tmp4 = float4_isub(tmp3, onei);
 
-			BX_ALIGN_STRUCT_16(int32_t res[4]);
+			BX_ALIGN_DECL_16(int32_t res[4]);
 			float4_st(&res, tmp4);
 
 			for (uint16_t jj = 0; jj < 2; ++jj)
@@ -1780,7 +1744,7 @@ void createNearClipVolume(float* __restrict _outPlanes24f
 	// -1.0f - behind near plane
 	float lightSide = float( (d > delta) - (d < -delta) );
 
-	float t = tanf(_fovy*( (float)M_PI/180.0f)*0.5f) * _near;
+	float t = tanf(bx::toRad(_fovy)*0.5f) * _near;
 	float b = -t;
 	float r = t * _aspect;
 	float l = -r;
@@ -1907,59 +1871,30 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	// for each renderer.
 	switch (bgfx::getRendererType() )
 	{
-	default:
 	case bgfx::RendererType::Direct3D9:
-		s_shaderPath = "shaders/dx9/";
 		s_texelHalf = 0.5f;
 		break;
 
-	case bgfx::RendererType::Direct3D11:
-		s_shaderPath = "shaders/dx11/";
-		break;
-
 	case bgfx::RendererType::OpenGL:
-		s_shaderPath = "shaders/glsl/";
-		s_flipV = true;
+	case bgfx::RendererType::OpenGLES:
+		s_oglNdc = true;
 		break;
 
-	case bgfx::RendererType::OpenGLES:
-		s_shaderPath = "shaders/gles/";
-		s_flipV = true;
+	default:
 		break;
 	}
 
 	// Imgui
-	FILE* file = fopen("font/droidsans.ttf", "rb");
-	uint32_t size = (uint32_t)fsize(file);
-	void* data = malloc(size);
-	size_t ignore = fread(data, 1, size, file);
-	BX_UNUSED(ignore);
-	fclose(file);
+	imguiCreate();
 
-	imguiCreate(data);
-
-	free(data);
-
-	bgfx::VertexDecl PosNormalTexcoordDecl;
-	PosNormalTexcoordDecl.begin()
-		.add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float)
-		.add(bgfx::Attrib::Normal,    4, bgfx::AttribType::Uint8, true, true)
-		.add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
-		.end();
+	PosNormalTexcoordVertex::init();
 
 	s_uniforms.init();
 	s_uniforms.submitConstUniforms();
 
-	const bgfx::Memory* mem;
-
-	mem = loadTexture("figure-rgba.dds");
-	bgfx::TextureHandle figureTex = bgfx::createTexture(mem);
-
-	mem = loadTexture("flare.dds");
-	bgfx::TextureHandle flareTex = bgfx::createTexture(mem);
-
-	mem = loadTexture("fieldstone-rgba.dds");
-	bgfx::TextureHandle fieldstoneTex = bgfx::createTexture(mem);
+	bgfx::TextureHandle figureTex     = loadTexture("figure-rgba.dds");
+	bgfx::TextureHandle flareTex      = loadTexture("flare.dds");
+	bgfx::TextureHandle fieldstoneTex = loadTexture("fieldstone-rgba.dds");
 
 	bgfx::TextureHandle fbtextures[] =
 	{
@@ -2049,15 +1984,15 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	cubeModel.m_program = programTextureLightning;
 	cubeModel.m_texture = figureTex;
 
-	hplaneFieldModel.load(s_hplaneVertices, s_numHPlaneVertices, PosNormalTexcoordDecl, s_planeIndices, s_numPlaneIndices);
+	hplaneFieldModel.load(s_hplaneVertices, BX_COUNTOF(s_hplaneVertices), PosNormalTexcoordVertex::ms_decl, s_planeIndices, BX_COUNTOF(s_planeIndices) );
 	hplaneFieldModel.m_program = programTextureLightning;
 	hplaneFieldModel.m_texture = fieldstoneTex;
 
-	hplaneFigureModel.load(s_hplaneVertices, s_numHPlaneVertices, PosNormalTexcoordDecl, s_planeIndices, s_numPlaneIndices);
+	hplaneFigureModel.load(s_hplaneVertices, BX_COUNTOF(s_hplaneVertices), PosNormalTexcoordVertex::ms_decl, s_planeIndices, BX_COUNTOF(s_planeIndices) );
 	hplaneFigureModel.m_program = programTextureLightning;
 	hplaneFigureModel.m_texture = figureTex;
 
-	vplaneModel.load(s_vplaneVertices, s_numVPlaneVertices, PosNormalTexcoordDecl, s_planeIndices, s_numPlaneIndices);
+	vplaneModel.load(s_vplaneVertices, BX_COUNTOF(s_vplaneVertices), PosNormalTexcoordVertex::ms_decl, s_planeIndices, BX_COUNTOF(s_planeIndices) );
 	vplaneModel.m_program = programColorTexture;
 	vplaneModel.m_texture = flareTex;
 
@@ -2138,7 +2073,6 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	const float aspect = float(viewState.m_width)/float(viewState.m_height);
 	const float nearPlane = 1.0f;
 	const float farPlane = 1000.0f;
-	bx::mtxProj(viewState.m_proj, fov, aspect, nearPlane, farPlane);
 
 	float initialPos[3] = { 3.0f, 20.0f, -58.0f };
 	cameraCreate();
@@ -2150,10 +2084,10 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	while (!entry::processEvents(viewState.m_width, viewState.m_height, debug, reset, &mouseState) )
 	{
 		// Respond properly on resize.
-		if (oldWidth != viewState.m_width
+		if (oldWidth  != viewState.m_width
 		||  oldHeight != viewState.m_height)
 		{
-			oldWidth = viewState.m_width;
+			oldWidth  = viewState.m_width;
 			oldHeight = viewState.m_height;
 
 			bgfx::destroyFrameBuffer(s_stencilFb);
@@ -2175,8 +2109,26 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		s_uniforms.m_time = time;
 
 		// Update camera.
-		cameraUpdate(deltaTime, mouseState.m_mx, mouseState.m_my, !!mouseState.m_buttons[entry::MouseButton::Right]);
-		cameraGetViewMtx(viewState.m_view);
+		cameraUpdate(deltaTime, mouseState);
+
+		// Set view and projection matrix for view 0.
+		const bgfx::HMD* hmd = bgfx::getHMD();
+		if (NULL != hmd)
+		{
+			float eye[3];
+			cameraGetPosition(eye);
+
+			bx::mtxQuatTranslationHMD(viewState.m_view, hmd->eye[0].rotation, eye);
+			bx::mtxProj(viewState.m_proj, hmd->eye[0].fov, nearPlane, farPlane, s_oglNdc);
+
+			viewState.m_width  = hmd->width;
+			viewState.m_height = hmd->height;
+		}
+		else
+		{
+			cameraGetViewMtx(viewState.m_view);
+			bx::mtxProj(viewState.m_proj, fov, aspect, nearPlane, farPlane, s_oglNdc);
+		}
 
 		imguiBeginFrame(mouseState.m_mx
 			, mouseState.m_my
@@ -2324,9 +2276,9 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		{
 			for (uint8_t ii = 0; ii < settings_numLights; ++ii)
 			{
-				lightPosRadius[ii][0] = cos(2.0f*float(M_PI)/settings_numLights * float(ii) + lightTimeAccumulator * 1.1f + 3.0f) * 20.0f;
+				lightPosRadius[ii][0] = cos(2.0f*bx::pi/settings_numLights * float(ii) + lightTimeAccumulator * 1.1f + 3.0f) * 20.0f;
 				lightPosRadius[ii][1] = 20.0f;
-				lightPosRadius[ii][2] = sin(2.0f*float(M_PI)/settings_numLights * float(ii) + lightTimeAccumulator * 1.1f + 3.0f) * 20.0f;
+				lightPosRadius[ii][2] = sin(2.0f*bx::pi/settings_numLights * float(ii) + lightTimeAccumulator * 1.1f + 3.0f) * 20.0f;
 				lightPosRadius[ii][3] = 20.0f;
 			}
 		}
@@ -2334,9 +2286,9 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		{
 			for (uint8_t ii = 0; ii < settings_numLights; ++ii)
 			{
-				lightPosRadius[ii][0] = cos(float(ii) * 2.0f/settings_numLights + lightTimeAccumulator * 1.3f + float(M_PI) ) * 40.0f;
+				lightPosRadius[ii][0] = cos(float(ii) * 2.0f/settings_numLights + lightTimeAccumulator * 1.3f + bx::pi) * 40.0f;
 				lightPosRadius[ii][1] = 20.0f;
-				lightPosRadius[ii][2] = sin(float(ii) * 2.0f/settings_numLights + lightTimeAccumulator * 1.3f + float(M_PI) ) * 40.0f;
+				lightPosRadius[ii][2] = sin(float(ii) * 2.0f/settings_numLights + lightTimeAccumulator * 1.3f + bx::pi) * 40.0f;
 				lightPosRadius[ii][3] = 20.0f;
 			}
 		}
@@ -2435,7 +2387,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 		// Scene 0 - shadow casters - Columns.
 		const float dist = 16.0f;
-		const float columnPositions[4][3] =
+		const float columnPositions[][3] =
 		{
 			{  dist, 3.3f,  dist },
 			{ -dist, 3.3f,  dist },
@@ -2467,7 +2419,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 			inst.m_scale[0]    = 21.0f;
 			inst.m_scale[1]    = 21.0f;
 			inst.m_scale[2]    = 21.0f;
-			inst.m_rotation[0] = float(M_PI);
+			inst.m_rotation[0] = bx::pi;
 			inst.m_rotation[1] = 0.0f;
 			inst.m_rotation[2] = 0.0f;
 			inst.m_pos[0]      = 0.0f;
@@ -2534,7 +2486,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 				inst.m_scale[1]    = 5.0f;
 				inst.m_scale[2]    = 5.0f;
 				inst.m_rotation[0] = 0.0f;
-				inst.m_rotation[1] = float(M_PI);
+				inst.m_rotation[1] = bx::pi;
 				inst.m_rotation[2] = 0.0f;
 				inst.m_pos[0]      = currX;
 				inst.m_pos[1]      = 0.0f;
@@ -2576,9 +2528,9 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 		// Make sure at the beginning everything gets cleared.
 		bgfx::setViewClear(0
-				, BGFX_CLEAR_COLOR_BIT
-				| BGFX_CLEAR_DEPTH_BIT
-				| BGFX_CLEAR_STENCIL_BIT
+				, BGFX_CLEAR_COLOR
+				| BGFX_CLEAR_DEPTH
+				| BGFX_CLEAR_STENCIL
 				, clearValues.m_clearRgba
 				, clearValues.m_clearDepth
 				, clearValues.m_clearStencil
@@ -2613,7 +2565,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		// Using stencil texture requires rendering to separate render target. first pass is building depth buffer.
 		if (settings_useStencilTexture)
 		{
-			bgfx::setViewClear(VIEWID_RANGE1_RT_PASS1, BGFX_CLEAR_DEPTH_BIT, 0x00000000, 1.0f, 0);
+			bgfx::setViewClear(VIEWID_RANGE1_RT_PASS1, BGFX_CLEAR_DEPTH, 0x00000000, 1.0f, 0);
 			bgfx::setViewFrameBuffer(VIEWID_RANGE1_RT_PASS1, s_stencilFb);
 
 			const RenderState& renderState = s_renderStates[RenderState::ShadowVolume_UsingStencilTexture_BuildDepth];
@@ -2649,7 +2601,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 				bgfx::setViewFrameBuffer(viewId, s_stencilFb);
 
 				bgfx::setViewClear(viewId
-						, BGFX_CLEAR_COLOR_BIT
+						, BGFX_CLEAR_COLOR
 						, 0x00000000
 						, 1.0f
 						, 0
@@ -2661,7 +2613,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 				bgfx::setViewFrameBuffer(viewId, invalid);
 
 				bgfx::setViewClear(viewId
-						, BGFX_CLEAR_STENCIL_BIT
+						, BGFX_CLEAR_STENCIL
 						, clearValues.m_clearRgba
 						, clearValues.m_clearDepth
 						, clearValues.m_clearStencil
@@ -2866,8 +2818,8 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		}
 
 		// Setup view rect and transform for all used views.
-		bgfx::setViewRectMask(s_viewMask, 0, 0, viewState.m_width, viewState.m_height);
-		bgfx::setViewTransformMask(s_viewMask, viewState.m_view, viewState.m_proj);
+		setViewRectMask(s_viewMask, 0, 0, viewState.m_width, viewState.m_height);
+		setViewTransformMask(s_viewMask, viewState.m_view, viewState.m_proj);
 		s_viewMask = 0;
 
 		// Advance to next frame. Rendering thread will be kicked to
@@ -2878,7 +2830,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		s_svAllocator.swap();
 
 		// Reset clear values.
-		bgfx::setViewClearMask(UINT32_MAX
+		setViewClearMask(UINT32_MAX
 			, BGFX_CLEAR_NONE
 			, clearValues.m_clearRgba
 			, clearValues.m_clearDepth

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx/blob/master/LICENSE
  *
  * vim: set tabstop=4 expandtab:
@@ -46,7 +46,7 @@ BGFX_C_API void bgfx_android_set_window(ANativeWindow* _window);
  */
 BGFX_C_API void bgfx_ios_set_eagl_layer(void* _layer);
 
-#elif BX_PLATFORM_LINUX
+#elif BX_PLATFORM_FREEBSD || BX_PLATFORM_LINUX || BX_PLATFORM_RPI
 #    include <X11/Xlib.h>
 
 /**

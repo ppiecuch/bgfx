@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2014 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx/blob/master/LICENSE
  */
 
@@ -50,13 +50,12 @@ namespace bgfx
 
 } // namespace bgfx
 
-#elif BX_PLATFORM_LINUX
-#	include <X11/Xlib.h>
+#elif BX_PLATFORM_FREEBSD || BX_PLATFORM_LINUX || BX_PLATFORM_RPI
 
 namespace bgfx
 {
 	///
-	void x11SetDisplayWindow(::Display* _display, ::Window _window);
+	void x11SetDisplayWindow(void* _display, uint32_t _window, void* _glx = NULL);
 
 } // namespace bgfx
 
@@ -77,7 +76,7 @@ namespace bgfx
 namespace bgfx
 {
 	///
-	void osxSetNSWindow(void* _window);
+	void osxSetNSWindow(void* _window, void* _nsgl = NULL);
 
 } // namespace bgfx
 
@@ -88,6 +87,16 @@ namespace bgfx
 {
 	///
 	void winSetHwnd(::HWND _window);
+
+} // namespace bgfx
+
+#elif BX_PLATFORM_WINRT
+#   include <Unknwn.h>
+
+namespace bgfx
+{
+	///
+	void winrtSetWindow(IUnknown* _window);
 
 } // namespace bgfx
 
@@ -111,7 +120,7 @@ namespace bgfx
 			return false;
 		}
 
-#	if BX_PLATFORM_LINUX
+#	if BX_PLATFORM_LINUX || BX_PLATFORM_FREEBSD
 		x11SetDisplayWindow(wmi.info.x11.display, wmi.info.x11.window);
 #	elif BX_PLATFORM_OSX
 		osxSetNSWindow(wmi.info.cocoa.window);
@@ -128,7 +137,7 @@ namespace bgfx
 // If GLFW/glfw3.h is included before bgfxplatform.h we can enable GLFW3
 // window interop convenience code.
 
-#	if BX_PLATFORM_LINUX
+#	if BX_PLATFORM_LINUX || BX_PLATFORM_FREEBSD
 #		define GLFW_EXPOSE_NATIVE_X11
 #		define GLFW_EXPOSE_NATIVE_GLX
 #	elif BX_PLATFORM_OSX
@@ -144,17 +153,19 @@ namespace bgfx
 {
 	inline void glfwSetWindow(GLFWwindow* _window)
 	{
-#	if BX_PLATFORM_LINUX
+#	if BX_PLATFORM_LINUX || BX_PLATFORM_FREEBSD
 		::Display* display = glfwGetX11Display();
-		::Window window = glfwGetX11Window(_window);
-		x11SetDisplayWindow(display, window);
+		::Window   window  = glfwGetX11Window(_window);
+		void* glx          = glfwGetGLXContext(_window);
+		x11SetDisplayWindow(display, window, glx);
 #	elif BX_PLATFORM_OSX
-		void* id = glfwGetCocoaWindow(_window);
-		osxSetNSWindow(id);
+		void* window = glfwGetCocoaWindow(_window);
+		void* nsgl   = glfwGetNSGLContext(_window);
+		osxSetNSWindow(window, nsgl);
 #	elif BX_PLATFORM_WINDOWS
 		HWND hwnd = glfwGetWin32Window(_window);
 		winSetHwnd(hwnd);
-#	endif BX_PLATFORM_WINDOWS
+#	endif // BX_PLATFORM_WINDOWS
 	}
 
 } // namespace bgfx
