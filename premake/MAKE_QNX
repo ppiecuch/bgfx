@@ -1,13 +1,28 @@
 #!/bin/bash
 export PATH=/bin:/sbin:/usr/bin
 
-#echo "Playbook SDK"
-#.  /Developer/SDKs/bbndk-2.1.0/bbndk-env.sh
-echo "BB10 SDK"
-.  /Developer/SDKs/bbndk/bbndk-env.sh
+echo "** Processing arguments ..."
+for i in "$@"
+do
+    k="${i%%=*}"
+    v="${i#*=}"
+    if [ "$i" == "$k" ]; then
+	v="1"
+    fi
+    echo "$k = $v"
+    eval $k=$v
+done
+
+if [ ".$SDK" == ".Playbook" ]; then
+    echo "** Playbook SDK"
+    .  /Developer/SDKs/bbndk-2.1.0/bbndk-env.sh
+else
+    echo "** BB10 SDK"
+    .  /Developer/SDKs/bbndk/bbndk-env.sh
+fi
 
 #    && sed -i "" 's/-m32 /-mfpu=neon /g' ../.build/projects/gmake-qnx-arm/* \
-../bin/premake4-osx --gcc=qnx-arm gmake \
+../bin/premake4-osx --gcc=qnx-arm --package gmake \
     && sed -i "" 's/-m32 //g' ../.build/projects/gmake-qnx-arm/* \
     && make -C ../.build/projects/gmake-qnx-arm/ \
     && open ../.build/qnx-arm/bin/

@@ -99,6 +99,15 @@ project "bgfx-shared-lib"
 			BGFX_DIR .. "3rdparty/khronos",
 		}
 
+	configuration { "qnx*" }
+		linkoptions {
+			    "-shared", -- seems to be missing in premake
+		}
+		links {
+			"EGL",
+			"GLESv2"
+		}
+
 	configuration {}
 
 	includedirs {

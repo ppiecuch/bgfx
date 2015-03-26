@@ -7,6 +7,10 @@ newoption {
 	trigger = "with-tools",
 	description = "Enable building tools.",
 }
+newoption {
+	trigger = "package",
+	description = "Package applications for deploy (if available for the platform).",
+}
 
 solution "bgfx"
 	configurations {
@@ -39,6 +43,8 @@ function copyLib()
 end
 
 function exampleProject(_name, _uuid)
+
+	local sample = string.sub(_name, 1, 2)
 
 	project ("example-" .. _name)
 		uuid (_uuid)
@@ -150,6 +156,18 @@ function exampleProject(_name, _uuid)
 			"EGL",
 			"GLESv2"
 		}
+		if _OPTIONS["package"] then
+		postbuildcommands {
+			  string.format("%s/package.sh qnx SAMPLENR=%s APP='%s' APPID='%s' APPFILE='$(TARGET)' PACKAGENAME='%s' DEBUGTK='%s'",
+			   path.getabsolute("."),
+			   sample,
+			   _name,
+			   "bgfx.example." .. _name,
+			   "example-" .. _name,
+			   path.getabsolute(".") .. "/debugtoken1.bar"
+			  )
+		}
+		end
 
 	configuration {}
 
