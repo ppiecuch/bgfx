@@ -4421,6 +4421,7 @@ namespace bgfx { namespace gl
 		uint32_t statsNumPrimsRendered[BX_COUNTOF(s_primInfo)] = {};
 		uint32_t statsNumInstances[BX_COUNTOF(s_primInfo)] = {};
 		uint32_t statsNumIndices = 0;
+		uint32_t statsKeyType[2] = {};
 
 		if (0 == (_render->m_debug&BGFX_DEBUG_IFH) )
 		{
@@ -4435,6 +4436,8 @@ namespace bgfx { namespace gl
 			for (int32_t item = 0, restartItem = numItems; item < numItems || restartItem < numItems;)
 			{
 				const bool isCompute   = key.decode(_render->m_sortKeys[item], _render->m_viewRemap);
+				statsKeyType[isCompute]++;
+
 				const bool viewChanged = 0
 					|| key.m_view != view
 					|| item == numItems
@@ -5236,15 +5239,17 @@ namespace bgfx { namespace gl
 					);
 
 				double elapsedCpuMs = double(elapsed)*toMs;
-				tvm.printf(10, pos++, 0x8e, " Draw calls: %4d / CPU %3.4f [ms] %c GPU %3.4f [ms]"
+				tvm.printf(10, pos++, 0x8e, "   Submitted: %4d (draw %4d, compute %4d) / CPU %3.4f [ms] %c GPU %3.4f [ms]"
 					, _render->m_num
+					, statsKeyType[0]
+					, statsKeyType[1]
 					, elapsedCpuMs
 					, elapsedCpuMs > elapsedGpuMs ? '>' : '<'
 					, elapsedGpuMs
 					);
 				for (uint32_t ii = 0; ii < BX_COUNTOF(s_primInfo); ++ii)
 				{
-					tvm.printf(10, pos++, 0x8e, "   %8s: %7d (#inst: %5d), submitted: %7d"
+					tvm.printf(10, pos++, 0x8e, "   %9s: %7d (#inst: %5d), submitted: %7d"
 						, s_primName[ii]
 						, statsNumPrimsRendered[ii]
 						, statsNumInstances[ii]
@@ -5257,9 +5262,9 @@ namespace bgfx { namespace gl
 					tvm.printf(tvm.m_width-27, 0, 0x1f, " [F11 - RenderDoc capture] ");
 				}
 
-				tvm.printf(10, pos++, 0x8e, "    Indices: %7d", statsNumIndices);
-				tvm.printf(10, pos++, 0x8e, "   DVB size: %7d", _render->m_vboffset);
-				tvm.printf(10, pos++, 0x8e, "   DIB size: %7d", _render->m_iboffset);
+				tvm.printf(10, pos++, 0x8e, "     Indices: %7d", statsNumIndices);
+				tvm.printf(10, pos++, 0x8e, "    DVB size: %7d", _render->m_vboffset);
+				tvm.printf(10, pos++, 0x8e, "    DIB size: %7d", _render->m_iboffset);
 
 				pos++;
 				tvm.printf(10, pos++, 0x8e, " State cache:     ");
