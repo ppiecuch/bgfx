@@ -27,7 +27,12 @@
 			|| BX_PLATFORM_WINDOWS \
 			)
 
-#if BGFX_CONFIG_RENDERER_OPENGL
+#ifdef QT_OPENGL_LIB
+#       include <qopengl.h>
+#       undef __glext_h_
+#       undef GL_GLEXT_VERSION
+#       include <qopenglext.h>
+#elif BGFX_CONFIG_RENDERER_OPENGL
 #	if BGFX_CONFIG_RENDERER_OPENGL >= 31
 #		include <gl/glcorearb.h>
 #		if BX_PLATFORM_OSX
@@ -580,7 +585,9 @@ typedef uint64_t GLuint64;
 #	define GL_LOCATION 0x930E
 #endif // GL_LOCATION
 
-#if BX_PLATFORM_NACL
+#ifdef QT_OPENGL_LIB
+#	include "glcontext_qt.h"
+#elif BX_PLATFORM_NACL
 #	include "glcontext_ppapi.h"
 #elif BX_PLATFORM_WINDOWS
 #	include <windows.h>
