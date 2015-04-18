@@ -9,15 +9,18 @@
 
 #if BGFX_USE_QT || defined QT_OPENGL_LIB
 
+#include <QObject>
+
+class QOpenGLContext;
+class QOffscreenSurface;
+
 namespace bgfx { namespace gl
 {
 	struct SwapChainGL;
 
-	struct GlContext
+	struct GlContext : public QObject
 	{
-		GlContext() : m_current(NULL)
-		{
-		}
+		GlContext() : m_current(0) { }
 
 		void create(uint32_t _width, uint32_t _height);
 		void destroy();
@@ -29,11 +32,15 @@ namespace bgfx { namespace gl
 		void swap(SwapChainGL* _swapChain = NULL);
 		void makeCurrent(SwapChainGL* _swapChain = NULL);
 
-		void import();
+		Q_SLOT void import();
 
-	  bool isValid() const;
+		bool isValid() const;
 
 		SwapChainGL* m_current;
+		QOpenGLContext* m_ctx;
+		QOffscreenSurface* m_surf;		
+
+		Q_OBJECT
 	};
 } /* namespace gl */ } // namespace bgfx
 

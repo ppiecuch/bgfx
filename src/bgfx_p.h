@@ -215,9 +215,15 @@ namespace stl
 #	define BGFX_RENDERER_OPENGL_NAME "OpenGL"
 #endif //
 
+#if QT_OPENGL_LIB
+	class QWindow;
+#endif
+
 namespace bgfx
 {
-#if BX_PLATFORM_ANDROID
+#ifdef QT_OPENGL_LIB
+	extern QWindow* g_bgfxQtWindow;
+#elif BX_PLATFORM_ANDROID
 	extern ::ANativeWindow* g_bgfxAndroidWindow;
 #elif BX_PLATFORM_IOS
 	extern void* g_bgfxEaglLayer;

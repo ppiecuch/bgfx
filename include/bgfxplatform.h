@@ -32,7 +32,19 @@ namespace bgfx
 	RenderFrame::Enum renderFrame();
 }
 
-#if BX_PLATFORM_ANDROID
+#ifdef QT_GUI_LIB
+
+class QWindow;
+
+namespace bgfx
+{
+	void qtSetWindow(QWindow* _window
+#	if BX_PLATFORM_WINDOWS
+			 , bool dx = false
+#	endif // BX_PLATFORM_WINDOWS
+			 );
+}
+#elif BX_PLATFORM_ANDROID
 #	include <android/native_window.h>
 
 namespace bgfx
@@ -170,6 +182,6 @@ namespace bgfx
 
 } // namespace bgfx
 
-#endif // defined(_SDL_H)
+#endif // _glfw3_h_
 
 #endif // BGFX_PLATFORM_H_HEADER_GUARD

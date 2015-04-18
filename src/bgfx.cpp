@@ -5,6 +5,10 @@
 
 #include "bgfx_p.h"
 
+#ifdef QT_GUI_LIB
+#       include <QWindow>
+#endif
+
 namespace bgfx
 {
 #define BGFX_MAIN_THREAD_MAGIC 0x78666762
@@ -19,7 +23,24 @@ namespace bgfx
 #	define BGFX_CHECK_RENDER_THREAD()
 #endif // BGFX_CONFIG_MULTITHREADED && !BX_PLATFORM_OSX && !BX_PLATFORM_IOS
 
-#if BX_PLATFORM_ANDROID
+#ifdef QT_GUI_LIB
+	QWindow *g_bgfxQtWindow = NULL;
+
+	void qtSetWindow(QWindow* _window
+#	if BX_PLATFORM_WINDOWS
+			 , bool dx = false
+#	endif // BX_PLATFORM_WINDOWS
+			 )
+	{
+#	if BX_PLATFORM_WINDOWS
+		if (dx) {
+		  HWND hwnd = _window->winId();
+		  winSetHwnd(hwnd);
+		} else
+#	endif // BX_PLATFORM_WINDOWS
+		  g_bgfxQtWindow = _window;
+	}
+#elif BX_PLATFORM_ANDROID
 	::ANativeWindow* g_bgfxAndroidWindow = NULL;
 
 	void androidSetWindow(::ANativeWindow* _window)
@@ -1455,6 +1476,7 @@ again:
 			}
 			else if (BX_ENABLED(0
 				 ||  BX_PLATFORM_ANDROID
+				 ||  BX_PLATFORM_QNX
 				 ||  BX_PLATFORM_EMSCRIPTEN
 				 ||  BX_PLATFORM_IOS
 				 ||  BX_PLATFORM_NACL
@@ -3550,7 +3572,13 @@ BGFX_C_API bgfx_render_frame_t bgfx_render_frame()
 	return bgfx_render_frame_t(bgfx::renderFrame() );
 }
 
-#if BX_PLATFORM_ANDROID
+#ifdef QT_GUI_LIB
+BGFX_C_API void bgfx_qt_set_window(QWindow* _window)
+{
+	bgfx::qtSetWindow(_window);
+}
+
+#elif BX_PLATFORM_ANDROID
 BGFX_C_API void bgfx_android_set_window(ANativeWindow* _window)
 {
 	bgfx::androidSetWindow(_window);

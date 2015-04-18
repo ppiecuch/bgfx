@@ -955,21 +955,21 @@ int loadDemoData(struct NVGcontext* vg, struct DemoData* data)
 	data->fontIcons = nvgCreateFont(vg, "icons", "font/entypo.ttf");
 	if (data->fontIcons == -1)
 	{
-		printf("Could not add font icons.\n");
+		printf("Could not add font icons (font/entypo.ttf).\n");
 		return -1;
 	}
 
 	data->fontNormal = nvgCreateFont(vg, "sans", "font/roboto-regular.ttf");
 	if (data->fontNormal == -1)
 	{
-		printf("Could not add font italic.\n");
+		printf("Could not add font italic (font/roboto-regular.ttf).\n");
 		return -1;
 	}
 
 	data->fontBold = nvgCreateFont(vg, "sans-bold", "font/roboto-bold.ttf");
 	if (data->fontBold == -1)
 	{
-		printf("Could not add font bold.\n");
+		printf("Could not add font bold (font/roboto-bold.ttf).\n");
 		return -1;
 	}
 

@@ -1,90 +1,209 @@
 /*
  * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
+ * Copyright 2014-2015 Pawel Piecuch. All rights reserved.
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
 #include "entry_p.h"
 
-#if ENTRY_CONFIG_USE_QT
+#ifdef QT_GUI_LIB
 
-#include <Qt>
 #include <bgfxplatform.h>
 #include "dbg.h"
 
 // This is just trivial implementation of Qt integration.
 // It's here just for testing purpose.
 
+#include <Qt>
+#include <QTime>
+#include <QKeyEvent>
+#include <QWindow>
+#include <QSurfaceFormat>
+#include <QOpenGLContext>
+#include <QApplication>
+#include <QGuiApplication>
+#include <QDebug>
+
 namespace entry
 {
-	static void errorCb(int _error, const char* _description)
-	{
-		DBG("Qt error %d: %s", _error, _description);
+	QtMsgType level = QtDebugMsg;
+
+	void fprintfMsg(const char *name,
+			const  QMessageLogContext &context,
+			const QString &msg) {
+	  QByteArray localMsg=msg.toLocal8Bit();
+	  fprintf(stderr, "%s: %s(%s:%u, %s)\n",
+		  name, localMsg.constData(),
+		  context.file,
+		  context.line,
+		  context.function);
 	}
+
+	void _MessageOutput(QtMsgType type,
+			     const QMessageLogContext &context,
+			     const QString &msg){
+
+	  if(type >= level) {
+	    switch (type) {
+	    case QtDebugMsg:
+	      fprintfMsg("Debug", context, msg);
+	      break;
+	    case QtWarningMsg:
+	      fprintfMsg("Warning", context, msg);
+	      break;
+	    case QtCriticalMsg:
+	      fprintfMsg("Critical", context, msg);
+	      break;
+	    case QtFatalMsg:
+	      fprintfMsg("Fatal", context, msg);
+	      exit(EXIT_FAILURE);
+	    }
+	  }
+	}
+  
+	class OpenGLWindow : public QWindow
+	{
+	  Q_OBJECT
+	  Q_PROPERTY(bool alwaysRefresh READ alwaysRefresh WRITE setAlwaysRefresh)
+    
+	public:
+	  explicit OpenGLWindow(QScreen *screen = 0) : QWindow(screen),
+						       _context(0),
+						       _alwaysRefresh(false),
+						       _pendingRefresh(false)
+	  { initialize(); }
+
+	  explicit OpenGLWindow(QWindow *parent) : QWindow(parent),
+						   _context(0),
+						   _alwaysRefresh(false),
+						   _pendingRefresh(false)
+	  { initialize(); }
+
+	  virtual ~OpenGLWindow() { delete _context; }
+
+	  bool alwaysRefresh() const { return _alwaysRefresh; }
+	  void setAlwaysRefresh(bool alwaysRefresh) {
+	    _alwaysRefresh = alwaysRefresh;
+	    if (alwaysRefresh) requestRefresh();
+	  }
+    
+	  QOpenGLContext const *context() { return _context; }
+
+	public slots:
+	  void makeCurrent() { qDebug() << Q_FUNC_INFO; _context->makeCurrent(this); }
+	  void swapBuffers() { qDebug() << Q_FUNC_INFO; _context->swapBuffers(this); }
+
+	protected:
+	  bool event(QEvent *event) {
+	    switch (event->type()) {
+	    case QEvent::UpdateRequest:
+	      _pendingRefresh = false;
+	      render();
+	      return true;        
+	    default:
+	      return QWindow::event(event);
+	    }
+	  }
+	  void exposeEvent(QExposeEvent *event) { requestRefresh(); }
+	  void resizeEvent(QResizeEvent *event) { requestRefresh(); }
+	  void keyPressEvent(QKeyEvent *event) {
+	    switch (event->key()) {
+	    case Qt::Key_Q :
+	      if (!(QApplication::keyboardModifiers() & Qt::ControlModifier)) break;
+	    case Qt::Key_Escape : 
+		QApplication::exit(EXIT_SUCCESS); break;
+	    }
+	  }
+
+	public slots:
+	  void render() {}
+	  void requestRefresh() {
+	    if (!_pendingRefresh) {
+	      _pendingRefresh = true;
+	      QCoreApplication::postEvent(this, new QEvent(QEvent::UpdateRequest));
+	    }
+	  }
+	      
+	private:
+	  void initialize() {
+	    setSurfaceType(QWindow::OpenGLSurface); // from default format    
+	    create();
+    
+	    _context = new QOpenGLContext(this); // from default context
+	    _context->create();
+
+	    qDebug() << Q_FUNC_INFO << _context;
+
+	    _time.start();
+	  }
+
+
+	  QOpenGLContext *_context;
+    
+	  bool _alwaysRefresh;
+	  bool _pendingRefresh;
+	  QTime _time;
+	};
+
+	static void _finishCtx();
 
 	struct Context
 	{
-		Context()
+		Context() : m_app(0), m_window(0)
 		{
 		}
-
+		~Context()
+		{
+			m_window->close();
+			m_app->exit();
+		}
 		int run(int _argc, char** _argv)
 		{
-			glfwSetErrorCallback(errorCb);
+			m_app = new QGuiApplication(_argc, _argv);
 
-			glfwInit();
-			m_window = glfwCreateWindow(1280, 720, "bgfx", NULL, NULL);
-			glfwMakeContextCurrent(m_window);
+			// init default format
+			QSurfaceFormat format;
+			format.setSamples(4);
+			format.setDepthBufferSize(24);
+#if BGFX_CONFIG_RENDERER_OPENGL >= 31
+			format.setProfile( QSurfaceFormat::CoreProfile );
+			format.setVersion( 3, 1 );
+#endif // BGFX_CONFIG_RENDERER_OPENGL >= 31
+			QSurfaceFormat::setDefaultFormat(format);
 
-			glfwSetKeyCallback(m_window, keyCb);
+			QObject::connect( m_app, &QGuiApplication::lastWindowClosed, &_finishCtx );
 
-			bgfx::glfwSetWindow(m_window);
-			int result = main(_argc, _argv);
+			m_window = new OpenGLWindow;
+			bgfx::qtSetWindow(m_window);
 
-			glfwDestroyWindow(m_window);
-			glfwTerminate();
-			return result;
+			m_window->show();
+			
+			return entry::main(_argc, _argv);
+		}	  
+		void processEvents()
+		{
+			m_app->processEvents();
 		}
-
-		static void keyCb(GLFWwindow* _window, int _key, int _scancode, int _action, int _mods);
 
 		EventQueue m_eventQueue;
 
-		OpenGLWindow* m_window;
+		QGuiApplication *m_app;
+		OpenGLWindow *m_window;
 	};
 
 	Context s_ctx;
 
-	void Context::keyCb(GLFWwindow* _window, int _key, int _scancode, int _action, int _mods)
-	{
-		BX_UNUSED(_window, _scancode, _mods);
-		if (_key    == GLFW_KEY_Q
-		&&  _action == GLFW_PRESS
-		&&  _mods   == GLFW_MOD_CONTROL)
-		{
-			s_ctx.m_eventQueue.postExitEvent();
-		}
-	}
+	static void _finishCtx() { s_ctx.m_eventQueue.postExitEvent(); }
 
 	const Event* poll()
 	{
-		glfwPollEvents();
-
-		if (glfwWindowShouldClose(s_ctx.m_window) )
-		{
-			s_ctx.m_eventQueue.postExitEvent();
-		}
+		s_ctx.processEvents(); // process Qt events
 		return s_ctx.m_eventQueue.poll();
 	}
 
-	const Event* poll(WindowHandle _handle)
-	{
-		return s_ctx.m_eventQueue.poll(_handle);
-	}
+	const Event* poll(WindowHandle _handle) { return s_ctx.m_eventQueue.poll(_handle); }
 
-	void release(const Event* _event)
-	{
-		s_ctx.m_eventQueue.release(_event);
-	}
+	void release(const Event* _event) { s_ctx.m_eventQueue.release(_event); }
 
 	WindowHandle createWindow(int32_t _x, int32_t _y, uint32_t _width, uint32_t _height, uint32_t _flags, const char* _title)
 	{
@@ -131,8 +250,10 @@ namespace entry
 
 int main(int _argc, char** _argv)
 {
-	using namespace entry;
+	using namespace entry;	
 	return s_ctx.run(_argc, _argv);
 }
 
-#endif // ENTRY_CONFIG_USE_QT
+#include "entry_qt.moc"
+
+#endif // QT_GUI_LIB
