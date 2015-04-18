@@ -178,6 +178,15 @@ EGL_IMPORT
 
 		m_eglLibrary = eglOpen();
 
+
+#	if BX_PLATFORM_ANDROID
+		if (!g_bgfxAndroidWindow)
+		{
+			BX_TRACE("androidSetWindow() was not called, assuming EGLContext and buffer-swapping are managed outside bgfx.");
+		}
+		else
+		{
+#	endif
 		BX_UNUSED(_width, _height);
 		EGLNativeDisplayType ndt = EGL_DEFAULT_DISPLAY;
 		EGLNativeWindowType nwh = (EGLNativeWindowType)NULL;
@@ -257,7 +266,9 @@ EGL_IMPORT
 		m_current = NULL;
 
 		eglSwapInterval(m_display, 0);
-
+#	if BX_PLATFORM_ANDROID
+		}
+#	endif
 #	if BX_PLATFORM_EMSCRIPTEN
 		emscripten_set_canvas_size(_width, _height);
 #	endif // BX_PLATFORM_EMSCRIPTEN
@@ -267,11 +278,14 @@ EGL_IMPORT
 
 	void GlContext::destroy()
 	{
-		eglMakeCurrent(EGL_NO_DISPLAY, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-		eglDestroyContext(m_display, m_context);
-		eglDestroySurface(m_display, m_surface);
-		eglTerminate(m_display);
-		m_context = NULL;
+		if (NULL != m_display)
+		{
+			eglMakeCurrent(EGL_NO_DISPLAY, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+			eglDestroyContext(m_display, m_context);
+			eglDestroySurface(m_display, m_surface);
+			eglTerminate(m_display);
+			m_context = NULL;
+		}
 
 		eglClose(m_eglLibrary);
 
@@ -280,16 +294,24 @@ EGL_IMPORT
 #	endif // BX_PLATFORM_RPI
 	}
 
-	void GlContext::resize(uint32_t _width, uint32_t _height, bool _vsync)
+	void GlContext::resize(uint32_t _width, uint32_t _height, uint32_t _flags)
 	{
 		BX_UNUSED(_width, _height);
+
 #	if BX_PLATFORM_ANDROID
-		EGLint format;
-		eglGetConfigAttrib(m_display, m_config, EGL_NATIVE_VISUAL_ID, &format);
-		ANativeWindow_setBuffersGeometry(g_bgfxAndroidWindow, _width, _height, format);
+		if (NULL != m_display)
+		{
+			EGLint format;
+			eglGetConfigAttrib(m_display, m_config, EGL_NATIVE_VISUAL_ID, &format);
+			ANativeWindow_setBuffersGeometry(g_bgfxAndroidWindow, _width, _height, format);
+		}
 #	endif // BX_PLATFORM_ANDROID
 
-		eglSwapInterval(m_display, _vsync ? 1 : 0);
+		if (NULL != m_display)
+		{
+			bool vsync = !!(_flags&BGFX_RESET_VSYNC);
+			eglSwapInterval(m_display, vsync ? 1 : 0);
+		}
 	}
 
 	bool GlContext::isSwapChainSupported()
@@ -316,7 +338,10 @@ EGL_IMPORT
 
 		if (NULL == _swapChain)
 		{
-			eglSwapBuffers(m_display, m_surface);
+			if (NULL != m_display)
+			{
+				eglSwapBuffers(m_display, m_surface);
+			}
 		}
 		else
 		{
@@ -332,7 +357,10 @@ EGL_IMPORT
 
 			if (NULL == _swapChain)
 			{
-				eglMakeCurrent(m_display, m_surface, m_surface, m_context);
+				if (NULL != m_display)
+				{
+					eglMakeCurrent(m_display, m_surface, m_surface, m_context);
+				}
 			}
 			else
 			{

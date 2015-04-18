@@ -1,7 +1,7 @@
 /*
-* Copyright 2011-2015 Branimir Karadzic. All rights reserved.
-* License: http://www.opensource.org/licenses/BSD-2-Clause
-*/
+ * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
+ * License: http://www.opensource.org/licenses/BSD-2-Clause
+ */
 
 #include "ovr.h"
 
@@ -39,19 +39,6 @@ namespace bgfx
 		{
 			switch (_config->Header.API)
 			{
-#if BGFX_CONFIG_RENDERER_DIRECT3D9
-			case ovrRenderAPI_D3D9:
-				{
-					ovrD3D9ConfigData* data = (ovrD3D9ConfigData*)_config;
-#	if OVR_VERSION > OVR_VERSION_043
-					m_rtSize = data->Header.BackBufferSize;
-#	else
-					m_rtSize = data->Header.RTSize;
-#	endif // OVR_VERSION > OVR_VERSION_043
-				}
-				break;
-#endif // BGFX_CONFIG_RENDERER_DIRECT3D9
-
 #if BGFX_CONFIG_RENDERER_DIRECT3D11
 			case ovrRenderAPI_D3D11:
 				{
@@ -123,11 +110,14 @@ namespace bgfx
 		result = ovrHmd_ConfigureRendering(m_hmd
 			, _config
 			, 0
-			| ovrDistortionCap_Chromatic
+#if OVR_VERSION < OVR_VERSION_050
+			| ovrDistortionCap_Chromatic // permanently enabled >= v5.0
+#endif
 			| ovrDistortionCap_Vignette
 			| ovrDistortionCap_TimeWarp
 			| ovrDistortionCap_Overdrive
 			| ovrDistortionCap_NoRestore
+			| ovrDistortionCap_HqDistortion
 			, eyeFov
 			, m_erd
 			);
@@ -185,6 +175,13 @@ ovrError:
 			m_texture[1].Header.RenderViewport = rect;
 
 			m_timing = ovrHmd_BeginFrame(m_hmd, 0);
+#if OVR_VERSION > OVR_VERSION_042
+			m_pose[0] = ovrHmd_GetHmdPosePerEye(m_hmd, ovrEye_Left);
+			m_pose[1] = ovrHmd_GetHmdPosePerEye(m_hmd, ovrEye_Right);
+#else
+			m_pose[0] = ovrHmd_GetEyePose(m_hmd, ovrEye_Left);
+			m_pose[1] = ovrHmd_GetEyePose(m_hmd, ovrEye_Right);
+#endif // OVR_VERSION > OVR_VERSION_042
 		}
 	}
 
@@ -200,7 +197,7 @@ ovrError:
 		m_debug = false;
 	}
 
-	bool OVR::swap()
+	bool OVR::swap(HMD& _hmd)
 	{
 		if (NULL == m_hmd)
 		{
@@ -224,6 +221,8 @@ ovrError:
 		m_pose[1] = ovrHmd_GetEyePose(m_hmd, ovrEye_Right);
 #endif // OVR_VERSION > OVR_VERSION_042
 
+		getEyePose(_hmd);
+
 		return true;
 	}
 
@@ -239,16 +238,9 @@ ovrError:
 	{
 		if (NULL != m_hmd)
 		{
-			ovrEyeType eye[2] = { ovrEye_Left, ovrEye_Right };
 			for (int ii = 0; ii < 2; ++ii)
 			{
-				ovrPosef& pose = m_pose[ii];
-#if OVR_VERSION > OVR_VERSION_042
-				pose = ovrHmd_GetHmdPosePerEye(m_hmd, eye[ii]);
-#else
-				pose = ovrHmd_GetEyePose(m_hmd, eye[ii]);
-#endif // OVR_VERSION > OVR_VERSION_042
-
+				const ovrPosef& pose = m_pose[ii];
 				HMD::Eye& eye = _hmd.eye[ii];
 				eye.rotation[0] = pose.Orientation.x;
 				eye.rotation[1] = pose.Orientation.y;
