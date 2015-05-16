@@ -1228,6 +1228,8 @@ namespace bgfx
 
 	bool Context::renderFrame()
 	{
+		m_renderCtx->requestContext();
+	  
 		if (m_rendererInitialized
 		&&  !m_flipAfterRender)
 		{
@@ -1250,6 +1252,8 @@ namespace bgfx
 		{
 			m_renderCtx->flip(m_render->m_hmd);
 		}
+
+		m_renderCtx->releaseContext();
 
 		return m_exit;
 	}
@@ -1512,8 +1516,9 @@ again:
 			}
 		}
 
+printf(">>init\n"); 
 		RendererContextI* renderCtx = s_rendererCreator[_type].createFn();
-
+printf(">>init\n"); 
 		if (NULL == renderCtx)
 		{
 			goto again;
@@ -1557,7 +1562,7 @@ again:
 		do
 		{
 			uint8_t command;
-			_cmdbuf.read(command);
+			_cmdbuf.read(command); printf(">>%d\n",command);
 
 			switch (command)
 			{

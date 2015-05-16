@@ -54,8 +54,22 @@ namespace bgfx { namespace gl
 		{
 		  // single thread rendering
 		}
-		if (QOpenGLContext::currentContext()) m_ctx->setShareContext(QOpenGLContext::currentContext());
-		m_ctx->create();
+
+		qRegisterMetaType<QOpenGLContext*>("QOpenGLContext*");
+		if (!QMetaObject::invokeMethod(g_bgfxQtWindow,
+					       "context",
+					       Qt::DirectConnection, /* we need result now */
+					       Q_RETURN_ARG(QOpenGLContext*, m_ctx)
+					       ))
+		  qWarning() << "Failed to invoke and retrive context from" << g_bgfxQtWindow;
+		Q_ASSERT(0 != m_ctx);
+
+		// Grab the context.
+		m_grabMutex.lock();
+		emit contextWanted();
+		m_grabCond.wait(&m_grabMutex);
+		QMutexLocker lock(&m_renderMutex);
+		m_grabMutex.unlock();
 
 		m_ctx->makeCurrent(g_bgfxQtWindow);		
 		import();
@@ -93,13 +107,10 @@ namespace bgfx { namespace gl
 	{
 		makeCurrent(_swapChain);
 
-		if (NULL == _swapChain)
-		{
+		if (NULL == _swapChain) {
 			if (g_bgfxQtWindow)
-			  g_bgfxQtWindow->metaObject()->invokeMethod(g_bgfxQtWindow, "swapBuffers"); // swap a main window
-		}
-		else
-		{
+			  m_ctx->makeCurrent(g_bgfxQtWindow);		
+		} else {
 			_swapChain->swapBuffers();
 		}
 	}
@@ -110,13 +121,11 @@ namespace bgfx { namespace gl
 		{
 			m_current = _swapChain;
 
-			if (NULL == _swapChain)
-			{
+			if (NULL == _swapChain) {
 				if (g_bgfxQtWindow)
-				  g_bgfxQtWindow->metaObject()->invokeMethod(g_bgfxQtWindow, "makeCurrent"); // make current a main window
+				  m_ctx->makeCurrent(g_bgfxQtWindow);		
 			}
-			else
-			{
+			else {
 				_swapChain->makeCurrent();
 			}
 		}

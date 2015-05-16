@@ -1600,6 +1600,26 @@ namespace bgfx { namespace gl
 			return BGFX_RENDERER_OPENGL_NAME;
 		}
 
+	  #ifdef QT_CORE_LIB
+		QMutex m_renderMutex;
+		QMutex m_grabMutex;
+		QWaitCondition m_grabCond;
+	  
+		void requestContext() {
+			// Grab the context.
+			m_grabMutex.lock();
+			emit contextWanted();
+			m_grabCond.wait(&m_grabMutex);
+			QMutexLocker lock(&m_renderMutex);
+			m_grabMutex.unlock();
+
+			Q_ASSERT(m_glctx.thread() == QThread::currentThread());
+		}
+	  
+		void releaseContext() {
+		}
+	  #endif
+	  
 		void flip(HMD& _hmd)
 		{
 			if (m_flip)

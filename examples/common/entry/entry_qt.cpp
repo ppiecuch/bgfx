@@ -10,13 +10,14 @@
 
 #include <bgfxplatform.h>
 #include "dbg.h"
-
+ 	
 // This is just trivial implementation of Qt integration.
 // It's here just for testing purpose.
 
 #include <Qt>
 #include <QTime>
 #include <QKeyEvent>
+#include <QFileInfo>
 #include <QWindow>
 #include <QSurfaceFormat>
 #include <QOpenGLContext>
@@ -87,12 +88,23 @@ namespace entry
 	    if (alwaysRefresh) requestRefresh();
 	  }
     
-	  QOpenGLContext const *context() { return _context; }
+	signals:
+	  void aboutToResize();
+	  void resized();
 
 	public slots:
+	  QOpenGLContext *context() const { return _context; }
 	  void makeCurrent() { qDebug() << Q_FUNC_INFO; _context->makeCurrent(this); }
 	  void swapBuffers() { qDebug() << Q_FUNC_INFO; _context->swapBuffers(this); }
 
+	  void BackgroundGLWidget::grabContext() {
+	    m_renderer->lockRenderer();
+	    QMutexLocker lock(m_renderer->grabMutex());
+	    context()->moveToThread(m_thread);
+	    m_renderer->grabCond()->wakeAll();
+	    m_renderer->unlockRenderer();
+	  }
+	  
 	protected:
 	  bool event(QEvent *event) {
 	    switch (event->type()) {
@@ -105,7 +117,9 @@ namespace entry
 	    }
 	  }
 	  void exposeEvent(QExposeEvent *event) { requestRefresh(); }
-	  void resizeEvent(QResizeEvent *event) { requestRefresh(); }
+	  void resizeEvent(QResizeEvent *event) { 
+	    requestRefresh(); 
+	  }
 	  void keyPressEvent(QKeyEvent *event) {
 	    switch (event->key()) {
 	    case Qt::Key_Q :
@@ -131,8 +145,9 @@ namespace entry
     
 	    _context = new QOpenGLContext(this); // from default context
 	    _context->create();
-
-	    qDebug() << Q_FUNC_INFO << _context;
+	    _context->makeCurrent(this);
+	      
+	    qDebug() << Q_FUNC_INFO << QOpenGLContext::currentContext();
 
 	    _time.start();
 	  }
@@ -174,6 +189,8 @@ namespace entry
 			QObject::connect( m_app, &QGuiApplication::lastWindowClosed, &_finishCtx );
 
 			m_window = new OpenGLWindow;
+			m_window->resize(640, 480);
+			m_window->setTitle(QFileInfo(_argv[0]).fileName());
 			bgfx::qtSetWindow(m_window);
 
 			m_window->show();

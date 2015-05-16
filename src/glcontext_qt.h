@@ -12,7 +12,6 @@
 #include <QObject>
 
 class QOpenGLContext;
-class QOffscreenSurface;
 
 namespace bgfx { namespace gl
 {
@@ -38,9 +37,11 @@ namespace bgfx { namespace gl
 
 		SwapChainGL* m_current;
 		QOpenGLContext* m_ctx;
-		QOffscreenSurface* m_surf;		
 
 		Q_OBJECT
+
+	signals:
+		void contextWanted(); // background rendering support
 	};
 } /* namespace gl */ } // namespace bgfx
 
