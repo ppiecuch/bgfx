@@ -9,12 +9,14 @@
 #ifdef QT_GUI_LIB
 
 #include <bgfxplatform.h>
+#include <bgfx.qt.h>
 #include "dbg.h"
  	
 // This is just trivial implementation of Qt integration.
 // It's here just for testing purpose.
 
 #include <Qt>
+#include <QDebug>
 #include <QTime>
 #include <QKeyEvent>
 #include <QFileInfo>
@@ -23,7 +25,7 @@
 #include <QOpenGLContext>
 #include <QApplication>
 #include <QGuiApplication>
-#include <QDebug>
+
 
 namespace entry
 {
@@ -97,12 +99,15 @@ namespace entry
 	  void makeCurrent() { qDebug() << Q_FUNC_INFO; _context->makeCurrent(this); }
 	  void swapBuffers() { qDebug() << Q_FUNC_INFO; _context->swapBuffers(this); }
 
-	  void BackgroundGLWidget::grabContext() {
-	    m_renderer->lockRenderer();
-	    QMutexLocker lock(m_renderer->grabMutex());
-	    context()->moveToThread(m_thread);
-	    m_renderer->grabCond()->wakeAll();
-	    m_renderer->unlockRenderer();
+	  void grabContext(QThread *toThread) {
+	    
+      QRendererContextGL *c = qtGetRender();
+
+      c->lockRenderer();
+	    QMutexLocker lock(c->grabMutex());
+	    context()->moveToThread(toThread);
+	    c->grabCond()->wakeAll();
+	    c->unlockRenderer();
 	  }
 	  
 	protected:
@@ -137,7 +142,22 @@ namespace entry
 	      QCoreApplication::postEvent(this, new QEvent(QEvent::UpdateRequest));
 	    }
 	  }
-	      
+
+  public:
+		template<QObject *target> 
+    void operator()(const char *sig) {
+			QMetaObject::invokeMethod(target, sig);
+			return;
+			// ((*((X*)NULL)).*((Y)NULL))();
+		}
+
+		template<QObject *target, typename T1>
+		void operator()(const char *sig, const char *a1, const T1 & t1) {
+			QMetaObject::invokeMethod(target, sig, QArgument<T1>(a1, t1));
+			return;
+			// ((*((X*)NULL)).*((Y)NULL))(t1);
+		}
+
 	private:
 	  void initialize() {
 	    setSurfaceType(QWindow::OpenGLSurface); // from default format    
@@ -147,7 +167,9 @@ namespace entry
 	    _context->create();
 	    _context->makeCurrent(this);
 	      
-	    qDebug() << Q_FUNC_INFO << QOpenGLContext::currentContext();
+	    qDebug() << Q_FUNC_INFO << ":\n\t" << QOpenGLContext::currentContext() << ":\n\t" << qtGetRender();
+
+      connect(qtGetRender(), SIGNAL(contextWanted(QThread*)), this, SLOT(grabContext(QThread*)));
 
 	    _time.start();
 	  }
@@ -191,7 +213,7 @@ namespace entry
 			m_window = new OpenGLWindow;
 			m_window->resize(640, 480);
 			m_window->setTitle(QFileInfo(_argv[0]).fileName());
-			bgfx::qtSetWindow(m_window);
+			bgfx::qtSetWindow(m_window, m_window->context());
 
 			m_window->show();
 			

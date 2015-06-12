@@ -7,17 +7,15 @@
 #ifndef BGFX_GLCONTEXT_QT_H_HEADER_GUARD
 #define BGFX_GLCONTEXT_QT_H_HEADER_GUARD
 
-#if BGFX_USE_QT || defined QT_OPENGL_LIB
+#if BGFX_USE_QT || defined(QT_GUI_LIB)
 
-#include <QObject>
-
-class QOpenGLContext;
+class QThread;
 
 namespace bgfx { namespace gl
 {
 	struct SwapChainGL;
 
-	struct GlContext : public QObject
+	struct GlContext
 	{
 		GlContext() : m_current(0) { }
 
@@ -29,22 +27,16 @@ namespace bgfx { namespace gl
 		SwapChainGL* createSwapChain(void* _nwh);
 		void destroySwapChain(SwapChainGL*  _swapChain);
 		void swap(SwapChainGL* _swapChain = NULL);
-		void makeCurrent(SwapChainGL* _swapChain = NULL);
+		void makeCurrent(SwapChainGL* _swapChain = NULL, QThread *_moveToThread = NULL);
 
-		Q_SLOT void import();
+		void import();
 
 		bool isValid() const;
 
-		SwapChainGL* m_current;
-		QOpenGLContext* m_ctx;
-
-		Q_OBJECT
-
-	signals:
-		void contextWanted(); // background rendering support
+		SwapChainGL *m_current;
 	};
 } /* namespace gl */ } // namespace bgfx
 
-#endif // BGFX_USE_QT || defined QT_OPENGL_LIB
+#endif // BGFX_USE_QT || defined(QT_GUI_LIB)
 
 #endif // BGFX_GLCONTEXT_QT_H_HEADER_GUARD

@@ -27,11 +27,11 @@ Supported platforms:
  * asm.js/Emscripten (1.25.0)
  * FreeBSD
  * iOS
- * Linux
+ * Linux ![](https://tc27.draster.com/app/rest/builds/buildType:(id:Bgfx_Linux)/statusIcon)
  * Native Client (PPAPI 37+, ARM, x86, x64, PNaCl)
  * OSX (10.9)
  * RaspberryPi
- * Windows (XP, Vista, 7, 8, 10)
+ * Windows (XP, Vista, 7, 8, 10) ![](https://tc27.draster.com/app/rest/builds/buildType:(id:Bgfx_Windows)/statusIcon)
  * WinRT (WinPhone 8.0+)
 
 Supported compilers:
@@ -47,6 +47,11 @@ Languages:
  * [C#/VB/F# language API bindings](https://github.com/MikePopoloski/SharpBgfx)
  * [D language API bindings](https://github.com/DerelictOrg/DerelictBgfx)
  * [Go language API bindings](https://github.com/james4k/go-bgfx)
+
+Build status
+------------
+
+https://tc27.draster.com/guestAuth/overview.html
 
 Who is using it?
 ----------------
@@ -334,6 +339,8 @@ Building
 
 Steps bellow are for default build system inside bgfx repository. There is
 alterative way to build bgfx and examples with [fips](https://github.com/floooh/fips-bgfx/#fips-bgfx).
+
+Binary builds (for Windows and Linux) are also available [here](https://tc27.draster.com/bgfx-bins/).
 
 ### Getting source
 
@@ -795,7 +802,7 @@ Miloš Tošić ([@milostosic](https://github.com/milostosic)) - 12-lod example.
 Dario Manesku ([@dariomanesku](https://github.com/dariomanesku)) - 13-stencil,
   14-shadowvolumes, 15-shadowmaps-simple, 16-shadowmaps, 18-ibl  
 James Gray ([@james4k](https://github.com/james4k)) - Go language API bindings.  
-p0nce ([@p0nce](https://github.com/p0nce)) - D language API bindings.  
+Guillaume Piolat ([@p0nce](https://github.com/p0nce)) - D language API bindings.  
 Mike Popoloski ([@MikePopoloski](https://github.com/MikePopoloski)) - C#/VB/F# 
 language API bindings, WinRT/WinPhone support.  
 Kai Jourdan ([@questor](https://github.com/questor)) - 23-vectordisplay example  
@@ -803,7 +810,8 @@ Stanlo Slasinski ([@stanlo](https://github.com/stanlo)) - 24-nbody example
 Daniel Collin ([@emoon](https://github.com/emoon)) - Port of Ocornut's ImGui
   to bgfx.  
 Andre Weissflog ([@floooh](https://github.com/floooh)) - Alternative build
-system fips.
+system fips.  
+Andrew Johnson  ([@ajohnson23](https://github.com/ajohnson23)) - TeamCity build.
 
 [License (BSD 2-clause)](https://github.com/bkaradzic/bgfx/blob/master/LICENSE)
 -------------------------------------------------------------------------------

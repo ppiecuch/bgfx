@@ -1,5 +1,7 @@
 TEMPLATE = app
-QT += opengl openglextensions
+QT += \
+  gui openglextensions \  # for library
+  widgets                 # for demo application
 CONFIG += debug
 CONFIG -= app_bundle
 
@@ -13,10 +15,14 @@ linux: INCLUDEPATH += ../3rdparty/bx/include/compat/freebsd
 
 macx: LIBS += -framework Foundation
 
+QMAKE_MOC_OPTIONS += -DBGFX_CONFIG_RENDERER_OPENGL
+
 HEADERS += \
-    ../src/glcontext_qt.h
+    ../include/bgfx.qt.h
 SOURCES += \
     ../src/amalgamated.cpp \
+    ../3rdparty/ocornut-imgui/imgui.cpp \
+    ../examples/common/imgui/imgui-amalgamated.cpp \
     ../examples/common/nanovg/nanovg-amalgamated.cpp \
     ../examples/common/entry/dbg.cpp \
     ../examples/common/entry/cmd.cpp \

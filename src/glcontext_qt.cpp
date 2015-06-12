@@ -5,14 +5,20 @@
 
 #include "bgfx_p.h"
 
-#if BGFX_USE_QT || defined QT_OPENGL_LIB
+#if BGFX_USE_QT || defined QT_GUI_LIB
 #	include "renderer_gl.h"
 
-#include <QtOpenGL>
-#include <QApplication>
+#include <qopengl.h>
+#include <qopenglcontext.h>
+#include <qwindow.h>
+#include <qthread.h>
+#include <qapplication.h>
 #include <assert.h>
 
 class QSurface;
+
+#define QWIN ((QWindow*)g_platformData.nwh)
+#define QCTX ((QOpenGLContext*)g_platformData.context)
 
 namespace bgfx { namespace gl
 {
@@ -23,7 +29,7 @@ namespace bgfx { namespace gl
 
 	struct SwapChainGL
 	{
-	  SwapChainGL(QSurface *surf) : m_surf(surf), m_context(0) { }
+	  SwapChainGL(QSurface *surf, QOpenGLContext *ctx) : m_surf(surf), m_context(ctx) { }
 		~SwapChainGL() { delete m_context; }
 		void makeCurrent() {
 		  if (m_context == 0) init();
@@ -38,40 +44,26 @@ namespace bgfx { namespace gl
 		  m_context = new QOpenGLContext;
 		  m_context->create();
 		}
-		QOpenGLContext *m_context;
 		QSurface *m_surf;
+		QOpenGLContext *m_context;
 	};
 
 	void GlContext::create(uint32_t _width, uint32_t _height)
 	{
 		BX_UNUSED(_width, _height);
+		
+		Q_ASSERT(0 != QCTX);
+		Q_ASSERT(0 != QWIN);
+
+		Q_ASSERT(QCTX->thread() == QThread::currentThread());
+
+		m_current =  BX_NEW(g_allocator, SwapChainGL)( QWIN, QCTX );
 
 #if BGFX_CONFIG_RENDERER_OPENGL >= 31
 #else
 #endif // BGFX_CONFIG_RENDERER_OPENGL >= 31
 
-		if (QThread::currentThread() == qApp->thread()) 
-		{
-		  // single thread rendering
-		}
-
-		qRegisterMetaType<QOpenGLContext*>("QOpenGLContext*");
-		if (!QMetaObject::invokeMethod(g_bgfxQtWindow,
-					       "context",
-					       Qt::DirectConnection, /* we need result now */
-					       Q_RETURN_ARG(QOpenGLContext*, m_ctx)
-					       ))
-		  qWarning() << "Failed to invoke and retrive context from" << g_bgfxQtWindow;
-		Q_ASSERT(0 != m_ctx);
-
-		// Grab the context.
-		m_grabMutex.lock();
-		emit contextWanted();
-		m_grabCond.wait(&m_grabMutex);
-		QMutexLocker lock(&m_renderMutex);
-		m_grabMutex.unlock();
-
-		m_ctx->makeCurrent(g_bgfxQtWindow);		
+		m_current->makeCurrent();		
 		import();
 	}
 
@@ -84,7 +76,7 @@ namespace bgfx { namespace gl
 	{
 		return m_current && m_current->isValid();
 	}
-	void GlContext::resize(uint32_t /*_width*/, uint32_t /*_height*/, bool _vsync)
+	void GlContext::resize(uint32_t /*_width*/, uint32_t /*_height*/, bool /*_vsync*/)
 	{
 	}
 
@@ -95,7 +87,7 @@ namespace bgfx { namespace gl
 
 	SwapChainGL* GlContext::createSwapChain(void* _nwh)
 	{
-		return BX_NEW(g_allocator, SwapChainGL)( (QSurface*)_nwh );
+		return BX_NEW(g_allocator, SwapChainGL)( (QSurface*)_nwh, QCTX );
 	}
 
 	void GlContext::destroySwapChain(SwapChainGL* _swapChain)
@@ -108,26 +100,26 @@ namespace bgfx { namespace gl
 		makeCurrent(_swapChain);
 
 		if (NULL == _swapChain) {
-			if (g_bgfxQtWindow)
-			  m_ctx->makeCurrent(g_bgfxQtWindow);		
+			m_current->makeCurrent();		
 		} else {
 			_swapChain->swapBuffers();
 		}
 	}
 
-	void GlContext::makeCurrent(SwapChainGL* _swapChain)
+	void GlContext::makeCurrent(SwapChainGL* _swapChain, QThread *_moveToThread)
 	{
 		if (m_current != _swapChain)
 		{
 			m_current = _swapChain;
 
 			if (NULL == _swapChain) {
-				if (g_bgfxQtWindow)
-				  m_ctx->makeCurrent(g_bgfxQtWindow);		
-			}
-			else {
+				m_current->makeCurrent();		
+			} else {
 				_swapChain->makeCurrent();
 			}
+
+      if (_moveToThread)
+        m_current->m_context->moveToThread(_moveToThread);
 		}
 	}
 
@@ -140,4 +132,4 @@ namespace bgfx { namespace gl
 
 } /* namespace gl */ } // namespace bgfx
 
-#endif // BGFX_USE_QT || defined QT_OPENGL_LIB
+#endif // BGFX_USE_QT || defined QT_GUI_LIB
