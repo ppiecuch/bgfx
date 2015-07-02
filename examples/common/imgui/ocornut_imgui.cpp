@@ -11,6 +11,10 @@
 #include "ocornut_imgui.h"
 #include <stb/stb_image.c>
 
+#if defined(SCI_NAMESPACE)
+#	include "../entry/input.h"
+#endif // defined(SCI_NAMESPACE)
+
 #include "vs_ocornut_imgui.bin.h"
 #include "fs_ocornut_imgui.bin.h"
 
@@ -35,17 +39,9 @@ struct OcornutImguiContext
 		{
 			bgfx::TransientVertexBuffer tvb;
 
-			uint32_t vtx_size = 0;
-
 			const ImDrawList* cmd_list   = _lists[ii];
 			const ImDrawVert* vtx_buffer = cmd_list->vtx_buffer.begin();
-
-			const ImDrawCmd* pcmd_begin = cmd_list->commands.begin();
-			const ImDrawCmd* pcmd_end   = cmd_list->commands.end();
-			for (const ImDrawCmd* pcmd = pcmd_begin; pcmd != pcmd_end; pcmd++)
-			{
-				vtx_size += (uint32_t)pcmd->vtx_count;
-			}
+            uint32_t vtx_size = (uint32_t)cmd_list->vtx_buffer.size();
 
 			if (!bgfx::checkAvailTransientVertexBuffer(vtx_size, m_decl))
 			{
@@ -59,18 +55,31 @@ struct OcornutImguiContext
 			memcpy(verts, vtx_buffer, vtx_size * sizeof(ImDrawVert));
 
 			uint32_t vtx_offset = 0;
+            const ImDrawCmd* pcmd_begin = cmd_list->commands.begin();
+            const ImDrawCmd* pcmd_end   = cmd_list->commands.end();
 			for (const ImDrawCmd* pcmd = pcmd_begin; pcmd != pcmd_end; pcmd++)
 			{
+                if (pcmd->user_callback)
+                {
+                    pcmd->user_callback(cmd_list, pcmd);
+                    vtx_offset += pcmd->vtx_count;
+                    continue;
+                }
+				if (0 == pcmd->vtx_count)
+				{
+					continue;
+				}
+
 				bgfx::setState(0
 					| BGFX_STATE_RGB_WRITE
 					| BGFX_STATE_ALPHA_WRITE
 					| BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA)
 					| BGFX_STATE_MSAA
 					);
-				bgfx::setScissor(uint16_t(pcmd->clip_rect.x)
-						, uint16_t(pcmd->clip_rect.y)
-						, uint16_t(pcmd->clip_rect.z-pcmd->clip_rect.x)
-						, uint16_t(pcmd->clip_rect.w-pcmd->clip_rect.y)
+				bgfx::setScissor(uint16_t(bx::fmax(pcmd->clip_rect.x, 0.0f))
+						, uint16_t(bx::fmax(pcmd->clip_rect.y, 0.0f))
+						, uint16_t(bx::fmin(pcmd->clip_rect.z, 65535.0f)-bx::fmax(pcmd->clip_rect.x, 0.0f))
+						, uint16_t(bx::fmin(pcmd->clip_rect.w, 65535.0f)-bx::fmax(pcmd->clip_rect.y, 0.0f))
 						);
 				union { void* ptr; bgfx::TextureHandle handle; } texture = { pcmd->texture_id };
 
@@ -92,6 +101,7 @@ struct OcornutImguiContext
 	{
 		m_viewId = 255;
 		m_allocator = _allocator;
+        m_lastScroll = 0;
 
 		ImGuiIO& io = ImGui::GetIO();
 		io.RenderDrawListsFn = renderDrawLists;
@@ -103,7 +113,27 @@ struct OcornutImguiContext
 		io.DisplaySize = ImVec2(1280.0f, 720.0f);
 		io.DeltaTime = 1.0f / 60.0f;
 		io.IniFilename = NULL;
-//		io.PixelCenterOffset = bgfx::RendererType::Direct3D9 == bgfx::getRendererType() ? -0.5f : 0.0f;
+		io.PixelCenterOffset = bgfx::RendererType::Direct3D9 == bgfx::getRendererType() ? 0.0f : 0.5f;
+
+#if defined(SCI_NAMESPACE)
+		io.KeyMap[ImGuiKey_Tab]        = (int)entry::Key::Tab;
+		io.KeyMap[ImGuiKey_LeftArrow]  = (int)entry::Key::Left;
+		io.KeyMap[ImGuiKey_RightArrow] = (int)entry::Key::Right;
+		io.KeyMap[ImGuiKey_UpArrow]    = (int)entry::Key::Up;
+		io.KeyMap[ImGuiKey_DownArrow]  = (int)entry::Key::Down;
+		io.KeyMap[ImGuiKey_Home]       = (int)entry::Key::Home;
+		io.KeyMap[ImGuiKey_End]        = (int)entry::Key::End;
+		io.KeyMap[ImGuiKey_Delete]     = (int)entry::Key::Delete;
+		io.KeyMap[ImGuiKey_Backspace]  = (int)entry::Key::Backspace;
+		io.KeyMap[ImGuiKey_Enter]      = (int)entry::Key::Return;
+		io.KeyMap[ImGuiKey_Escape]     = (int)entry::Key::Esc;
+		io.KeyMap[ImGuiKey_A]          = (int)entry::Key::KeyA;
+		io.KeyMap[ImGuiKey_C]          = (int)entry::Key::KeyC;
+		io.KeyMap[ImGuiKey_V]          = (int)entry::Key::KeyV;
+		io.KeyMap[ImGuiKey_X]          = (int)entry::Key::KeyX;
+		io.KeyMap[ImGuiKey_Y]          = (int)entry::Key::KeyY;
+		io.KeyMap[ImGuiKey_Z]          = (int)entry::Key::KeyZ;
+#endif // defined(SCI_NAMESPACE)
 
 		const bgfx::Memory* vsmem;
 		const bgfx::Memory* fsmem;
@@ -138,7 +168,7 @@ struct OcornutImguiContext
 			.add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
 			.end();
 
-		s_tex = bgfx::createUniform("s_tex", bgfx::UniformType::Uniform1i);
+		s_tex = bgfx::createUniform("s_tex", bgfx::UniformType::Int1);
 
 		uint8_t* data;
 		int32_t width;
@@ -172,15 +202,33 @@ struct OcornutImguiContext
 		m_allocator = NULL;
 	}
 
-	void beginFrame(int32_t _mx, int32_t _my, uint8_t _button, int _width, int _height, char _inputChar, uint8_t _viewId)
+	void beginFrame(int32_t _mx, int32_t _my, uint8_t _button, int32_t _scroll, int _width, int _height, char _inputChar, uint8_t _viewId)
 	{
 		m_viewId = _viewId;
 		ImGuiIO& io = ImGui::GetIO();
-		io.AddInputCharacter(_inputChar & 0x7f); // ASCII or GTFO! :)
+        if (_inputChar < 0x7f)
+		{
+		    io.AddInputCharacter(_inputChar); // ASCII or GTFO! :(
+		}
+
 		io.DisplaySize = ImVec2((float)_width, (float)_height);
 		io.DeltaTime = 1.0f / 60.0f;
 		io.MousePos = ImVec2((float)_mx, (float)_my);
 		io.MouseDown[0] = 0 != (_button & IMGUI_MBUT_LEFT);
+		io.MouseDown[1] = 0 != (_button & IMGUI_MBUT_RIGHT);
+		io.MouseWheel = (float)(_scroll - m_lastScroll);
+		m_lastScroll = _scroll;
+
+#if defined(SCI_NAMESPACE)
+		uint8_t modifiers = inputGetModifiersState();
+		io.KeyShift = 0 != (modifiers & (entry::Modifier::LeftShift | entry::Modifier::RightShift) );
+		io.KeyCtrl  = 0 != (modifiers & (entry::Modifier::LeftCtrl  | entry::Modifier::RightCtrl ) );
+		io.KeyAlt   = 0 != (modifiers & (entry::Modifier::LeftAlt   | entry::Modifier::RightAlt  ) );
+		for (int32_t ii = 0; ii < (int32_t)entry::Key::Count; ++ii)
+		{
+			io.KeysDown[ii] = inputGetKeyState(entry::Key::Enum(ii) );
+		}
+#endif // defined(SCI_NAMESPACE)
 
 		ImGui::NewFrame();
 
@@ -198,6 +246,7 @@ struct OcornutImguiContext
 	bgfx::TextureHandle m_texture;
 	bgfx::UniformHandle s_tex;
 	uint8_t m_viewId;
+    int32_t m_lastScroll;
 };
 
 static OcornutImguiContext s_ctx;
@@ -227,9 +276,9 @@ void IMGUI_destroy()
 	s_ctx.destroy();
 }
 
-void IMGUI_beginFrame(int32_t _mx, int32_t _my, uint8_t _button, int _width, int _height, char _inputChar, uint8_t _viewId)
+void IMGUI_beginFrame(int32_t _mx, int32_t _my, uint8_t _button, int32_t _scroll, int _width, int _height, char _inputChar, uint8_t _viewId)
 {
-	s_ctx.beginFrame(_mx, _my, _button, _width, _height, _inputChar, _viewId);
+	s_ctx.beginFrame(_mx, _my, _button, _scroll, _width, _height, _inputChar, _viewId);
 }
 
 void IMGUI_endFrame()

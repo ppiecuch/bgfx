@@ -8,6 +8,10 @@
 #if BGFX_CONFIG_RENDERER_DIRECT3D11
 #	include "renderer_d3d11.h"
 
+#	if !defined(BGFX_D3D11_MAP_CONSTANT_BUFFERS)
+#		define BGFX_D3D11_MAP_CONSTANT_BUFFERS 0
+#	endif
+
 namespace bgfx { namespace d3d11
 {
 	static wchar_t s_viewNameW[BGFX_CONFIG_MAX_VIEWS][BGFX_CONFIG_MAX_VIEW_NAME];
@@ -462,8 +466,13 @@ namespace bgfx { namespace d3d11
 			, m_flags(BGFX_RESET_NONE)
 			, m_maxAnisotropy(1)
 			, m_currentProgram(NULL)
+#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
+			, m_vsScratch(NULL)
+			, m_fsScratch(NULL)
+#else
 			, m_vsChanges(0)
 			, m_fsChanges(0)
+#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 			, m_rtMsaa(false)
 			, m_ovrRtv(NULL)
 			, m_ovrDsv(NULL)
@@ -940,7 +949,10 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			{
 				uint8_t support = BGFX_CAPS_FORMAT_TEXTURE_NONE;
 
-				const DXGI_FORMAT fmt     = s_textureFormat[ii].m_fmt;
+				const DXGI_FORMAT fmt = isDepth(TextureFormat::Enum(ii) )
+					? s_textureFormat[ii].m_fmtDsv
+					: s_textureFormat[ii].m_fmt
+					;
 				const DXGI_FORMAT fmtSrgb = s_textureFormat[ii].m_fmtSrgb;
 
 				if (DXGI_FORMAT_UNKNOWN != fmt)
@@ -978,6 +990,14 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 								| D3D11_FORMAT_SUPPORT_SHADER_LOAD
 								) )
 								? BGFX_CAPS_FORMAT_TEXTURE_IMAGE
+								: BGFX_CAPS_FORMAT_TEXTURE_NONE
+								;
+
+						support |= 0 != (data.OutFormatSupport & (0
+								| D3D11_FORMAT_SUPPORT_RENDER_TARGET
+								| D3D11_FORMAT_SUPPORT_DEPTH_STENCIL
+								) )
+								? BGFX_CAPS_FORMAT_TEXTURE_FRAMEBUFFER
 								: BGFX_CAPS_FORMAT_TEXTURE_NONE
 								;
 					}
@@ -1440,6 +1460,8 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			float proj[16];
 			bx::mtxOrtho(proj, 0.0f, (float)width, (float)height, 0.0f, 0.0f, 1000.0f);
 
+			prepareShaderConstants();
+
 			PredefinedUniform& predefined = program.m_predefined[0];
 			uint8_t flags = predefined.m_type;
 			setShaderUniform(flags, predefined.m_loc, proj, 4);
@@ -1703,18 +1725,28 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 						DX_RELEASE(m_swapChain, 0);
 
+						SwapChainDesc* scd = &m_scd;
+						SwapChainDesc swapChainScd;
+						if (0 != (m_flags & BGFX_RESET_HMD)
+						&&  m_ovr.isInitialized())
+						{
+							swapChainScd = m_scd;
+							swapChainScd.SampleDesc = s_msaa[0];
+							scd = &swapChainScd;
+						}
+
 #if BX_PLATFORM_WINRT
 						HRESULT hr;
 						hr = m_factory->CreateSwapChainForCoreWindow(m_device
 							, (::IUnknown*)g_platformData.nwh
-							, &m_scd
+							, scd
 							, NULL
 							, &m_swapChain
 							);
 #else
 						HRESULT hr;
 						hr = m_factory->CreateSwapChain(m_device
-							, &m_scd
+							, scd
 							, &m_swapChain
 							);
 #endif // BX_PLATFORM_WINRT
@@ -1736,12 +1768,16 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			if (_flags&BGFX_UNIFORM_FRAGMENTBIT)
 			{
 				memcpy(&m_fsScratch[_regIndex], _val, _numRegs*16);
+#if !BGFX_D3D11_MAP_CONSTANT_BUFFERS
 				m_fsChanges += _numRegs;
+#endif
 			}
 			else
 			{
 				memcpy(&m_vsScratch[_regIndex], _val, _numRegs*16);
+#if !BGFX_D3D11_MAP_CONSTANT_BUFFERS
 				m_vsChanges += _numRegs;
+#endif
 			}
 		}
 
@@ -1755,8 +1791,37 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			setShaderUniform(_flags, _regIndex, _val, _numRegs);
 		}
 
+		void prepareShaderConstants()
+		{
+#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
+			if (NULL != m_currentProgram->m_vsh->m_buffer)
+			{
+				D3D11_MAPPED_SUBRESOURCE mapped;
+				DX_CHECK(m_deviceCtx->Map(m_currentProgram->m_vsh->m_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
+				m_vsScratch = (uint8_t*)mapped.pData;
+			}
+			if (NULL != m_currentProgram->m_fsh->m_buffer)
+			{
+				D3D11_MAPPED_SUBRESOURCE mapped;
+				DX_CHECK(m_deviceCtx->Map(m_currentProgram->m_fsh->m_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
+				m_fsScratch = (uint8_t*)mapped.pData;
+			}
+#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
+		}
+
 		void commitShaderConstants()
 		{
+#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
+			if (NULL != m_vsScratch)
+			{
+				m_deviceCtx->Unmap(m_currentProgram->m_vsh->m_buffer, 0);
+			}
+			if (NULL != m_fsScratch)
+			{
+				m_deviceCtx->Unmap(m_currentProgram->m_fsh->m_buffer, 0);
+			}
+			m_vsScratch = m_fsScratch = 0;
+#else
 			if (0 < m_vsChanges)
 			{
 				if (NULL != m_currentProgram->m_vsh->m_buffer)
@@ -1776,6 +1841,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 				m_fsChanges = 0;
 			}
+#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 		}
 
 		void setFrameBuffer(FrameBufferHandle _fbh, bool _msaa = true)
@@ -2238,7 +2304,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					bx::write(&writer, magic);
 
 					TextureCreate tc;
-					tc.m_flags   = BGFX_TEXTURE_RT;
+					tc.m_flags   = BGFX_TEXTURE_RT|(((m_flags & BGFX_RESET_MSAA_MASK) >> BGFX_RESET_MSAA_SHIFT) << BGFX_TEXTURE_RT_MSAA_SHIFT);
 					tc.m_width   = m_ovr.m_rtSize.w;
 					tc.m_height  = m_ovr.m_rtSize.h;
 					tc.m_sides   = 0;
@@ -2419,8 +2485,8 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 				switch ( (uint32_t)type)
 				{
-				case UniformType::Uniform3x3fv:
-				case UniformType::Uniform3x3fv|BGFX_UNIFORM_FRAGMENTBIT: \
+				case UniformType::Mat3:
+				case UniformType::Mat3|BGFX_UNIFORM_FRAGMENTBIT: \
 					 {
 						 float* value = (float*)data;
 						 for (uint32_t ii = 0, count = num/3; ii < count; ++ii,  loc += 3*16, value += 9)
@@ -2443,14 +2509,9 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					}
 					break;
 
-				CASE_IMPLEMENT_UNIFORM(Uniform1i,    I, int);
-				CASE_IMPLEMENT_UNIFORM(Uniform1f,    F, float);
-				CASE_IMPLEMENT_UNIFORM(Uniform1iv,   I, int);
-				CASE_IMPLEMENT_UNIFORM(Uniform1fv,   F, float);
-				CASE_IMPLEMENT_UNIFORM(Uniform2fv,   F, float);
-				CASE_IMPLEMENT_UNIFORM(Uniform3fv,   F, float);
-				CASE_IMPLEMENT_UNIFORM(Uniform4fv,   F, float);
-				CASE_IMPLEMENT_UNIFORM(Uniform4x4fv, F, float);
+				CASE_IMPLEMENT_UNIFORM(Int1,    I, int);
+				CASE_IMPLEMENT_UNIFORM(Vec4,   F, float);
+				CASE_IMPLEMENT_UNIFORM(Mat4, F, float);
 
 				case UniformType::End:
 					break;
@@ -2518,6 +2579,12 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					deviceCtx->PSSetShader(fsh->m_pixelShader, NULL, 0);
 					deviceCtx->PSSetConstantBuffers(0, 1, &fsh->m_buffer);
 
+#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
+					D3D11_MAPPED_SUBRESOURCE mapped;
+					DX_CHECK(deviceCtx->Map(fsh->m_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
+					void* fsScratch = mapped.pData;
+#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
+
 					if (BGFX_CLEAR_COLOR_USE_PALETTE & _clear.m_flags)
 					{
 						float mrtClear[BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS][4];
@@ -2527,7 +2594,11 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 							memcpy(mrtClear[ii], _palette[index], 16);
 						}
 
+#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
+						memcpy(fsScratch, mrtClear, sizeof(mrtClear));
+#else
 						deviceCtx->UpdateSubresource(fsh->m_buffer, 0, 0, mrtClear, 0, 0);
+#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 					}
 					else
 					{
@@ -2538,8 +2609,20 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 							_clear.m_index[2]*1.0f/255.0f,
 							_clear.m_index[3]*1.0f/255.0f,
 						};
+
+#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
+						memcpy(fsScratch, rgba, sizeof(rgba));
+#else
 						deviceCtx->UpdateSubresource(fsh->m_buffer, 0, 0, rgba, 0, 0);
+#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 					}
+
+#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
+					if (NULL != fsScratch)
+					{
+						deviceCtx->Unmap(fsh->m_buffer, 0);
+					}
+#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 				}
 				else
 				{
@@ -2629,10 +2712,12 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		bool m_wireframe;
 
 #if BX_PLATFORM_WINRT
-        DXGI_SWAP_CHAIN_DESC1 m_scd;
+		typedef DXGI_SWAP_CHAIN_DESC1 SwapChainDesc;
 #else
-		DXGI_SWAP_CHAIN_DESC m_scd;
-#endif
+		typedef DXGI_SWAP_CHAIN_DESC  SwapChainDesc;
+#endif // BX_PLATFORM_WINRT
+
+		SwapChainDesc m_scd;
 		uint32_t m_flags;
 		uint32_t m_maxAnisotropy;
 
@@ -2660,11 +2745,15 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 		ProgramD3D11* m_currentProgram;
 
+#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
+		uint8_t* m_vsScratch;
+		uint8_t* m_fsScratch;
+#else
 		uint8_t m_vsScratch[64<<10];
 		uint8_t m_fsScratch[64<<10];
-
 		uint32_t m_vsChanges;
 		uint32_t m_fsChanges;
+#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 
 		FrameBufferHandle m_fbh;
 		bool m_rtMsaa;
@@ -3057,9 +3146,14 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		{
 			D3D11_BUFFER_DESC desc;
 			desc.ByteWidth = (size + 0xf) & ~0xf;
+#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
+			desc.Usage = D3D11_USAGE_DYNAMIC;
+			desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+#else
 			desc.Usage = D3D11_USAGE_DEFAULT;
-			desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 			desc.CPUAccessFlags = 0;
+#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
+			desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 			desc.MiscFlags = 0;
 			desc.StructureByteStride = 0;
 			DX_CHECK(s_renderD3D11->m_device->CreateBuffer(&desc, NULL, &m_buffer) );
@@ -3597,6 +3691,12 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			{
 				m_control.consume(1);
 
+				struct D3D11_QUERY_DATA_TIMESTAMP_DISJOINT
+				{
+					UINT64 Frequency;
+					BOOL Disjoint;
+				};
+
 				D3D11_QUERY_DATA_TIMESTAMP_DISJOINT disjoint;
 				deviceCtx->GetData(frame.m_disjoint, &disjoint, sizeof(disjoint), 0);
 
@@ -3648,9 +3748,9 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		currentState.m_flags = BGFX_STATE_NONE;
 		currentState.m_stencil = packStencil(BGFX_STENCIL_NONE, BGFX_STENCIL_NONE);
 
-		const bool hmdEnabled = m_ovr.isEnabled() || m_ovr.isDebug();
-		_render->m_hmdEnabled = hmdEnabled;
+		_render->m_hmdInitialized = m_ovr.isInitialized();
 
+		const bool hmdEnabled = m_ovr.isEnabled() || m_ovr.isDebug();
 		ViewState& viewState = m_viewState;
 		viewState.reset(_render, hmdEnabled);
 
@@ -3682,6 +3782,10 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 		if (0 == (_render->m_debug&BGFX_DEBUG_IFH) )
 		{
+			// reset the framebuffer to be the backbuffer; depending on the swap effect,
+			// if we don't do this we'll only see one frame of output and then nothing
+			setFrameBuffer(fbh);
+
 			bool viewRestart = false;
 			uint8_t eye = 0;
 			uint8_t restartState = 0;
@@ -3752,8 +3856,15 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 							PIX_BEGINEVENT(D3DCOLOR_RGBA(0xff, 0x00, 0x00, 0xff), viewNameW);
 						}
 
-						viewState.m_rect.m_x = eye * (viewState.m_rect.m_width+1)/2;
-						viewState.m_rect.m_width /= 2;
+						if (m_ovr.isEnabled() )
+						{
+							m_ovr.getViewport(eye, &viewState.m_rect);
+						}
+						else
+						{
+							viewState.m_rect.m_x = eye * (viewState.m_rect.m_width+1)/2;
+							viewState.m_rect.m_width /= 2;
+						}
 					}
 					else
 					{
@@ -4108,6 +4219,12 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				{
 					ProgramD3D11& program = m_program[programIdx];
 
+#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
+					if (constantsChanged || 0 != program.m_numPredefined)
+					{
+						prepareShaderConstants();
+					}
+#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 					if (constantsChanged)
 					{
 						ConstantBuffer* vcb = program.m_vsh->m_constantBuffer;
