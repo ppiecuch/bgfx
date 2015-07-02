@@ -52,11 +52,20 @@ namespace bgfx { namespace gl
 	{
 		BX_UNUSED(_width, _height);
 		
-		Q_ASSERT(0 != QCTX);
-		Q_ASSERT(0 != QWIN);
+		Q_ASSERT(NULL != QCTX);
+		Q_ASSERT(NULL != QWIN);
+   
+    QWIN->setProperty("bgfxReady", true);
 
-		Q_ASSERT(QCTX->thread() == QThread::currentThread());
-
+    // make sure context is in our thread when we are creating and
+    // initilizing object:
+    struct raii {
+      raii()  { qtReqCtxForThread(QThread::currentThread()); }
+      ~raii() { qtReleaseCtx(); }
+    } _res;
+		Q_ASSERT(QCTX->thread()==QThread::currentThread());
+    
+    // create default swapchain:
 		m_current =  BX_NEW(g_allocator, SwapChainGL)( QWIN, QCTX );
 
 #if BGFX_CONFIG_RENDERER_OPENGL >= 31

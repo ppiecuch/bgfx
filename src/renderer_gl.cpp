@@ -11,6 +11,7 @@
 #	include <bx/uint32_t.h>
 
 #ifdef QT_CORE_LIB
+#       include <QDebug>
 #       include <QMutex>
 #       include <QWaitCondition>
 #       include <QThread>
@@ -5997,6 +5998,7 @@ namespace bgfx { namespace gl
   void qtReqCtxForThread(QThread *_moveToThread)
   {
       QRendererContextGL *q = bgfx::gl::s_renderGL;
+			if (q == NULL) return;
     	// Grab the context.
 			q->m_grabMutex.lock();
 			emit q->contextWanted(_moveToThread);
@@ -6011,7 +6013,8 @@ namespace bgfx { namespace gl
   {
 			// Make no context current on this thread and move the QOpenGLWidget's
 			// context back to the gui thread.
-			bgfx::gl::s_renderGL->m_glctx.makeCurrent(NULL, qApp->thread());  
+			if (bgfx::gl::s_renderGL)
+			  bgfx::gl::s_renderGL->m_glctx.makeCurrent(NULL, qApp->thread());  
   }
 
 # endif

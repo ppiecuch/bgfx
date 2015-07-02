@@ -23,6 +23,7 @@
 #include <QWindow>
 #include <QSurfaceFormat>
 #include <QOpenGLContext>
+#include <QOpenGLFunctions>
 #include <QApplication>
 #include <QGuiApplication>
 
@@ -64,30 +65,45 @@ namespace entry
 	  }
 	}
   
-	class OpenGLWindow : public QWindow
+	class OpenGLWindow : public QWindow, public QOpenGLFunctions
 	{
 	  Q_OBJECT
 	  Q_PROPERTY(bool alwaysRefresh READ alwaysRefresh WRITE setAlwaysRefresh)
-    
+	  Q_PROPERTY(bool bgfxReady READ bgfxReady WRITE setBgfxReady)
+
+  
+  private:
+    bool _isGLInitialized;
+    bool _isWindowInitialized;
+  public:
+    void setWindowInitialized() { _isWindowInitialized = true; }
+
 	public:
 	  explicit OpenGLWindow(QScreen *screen = 0) : QWindow(screen),
-						       _context(0),
-						       _alwaysRefresh(false),
-						       _pendingRefresh(false)
-	  { initialize(); }
+              _isGLInitialized(0), _isWindowInitialized(0),
+						  _context(0), 
+						  _alwaysRefresh(false), _bgfxReady(false),
+						  _pendingRefresh(false)
+	  { initializeContext(); }
 
 	  explicit OpenGLWindow(QWindow *parent) : QWindow(parent),
-						   _context(0),
-						   _alwaysRefresh(false),
-						   _pendingRefresh(false)
-	  { initialize(); }
+              _isGLInitialized(0), _isWindowInitialized(0),
+		          _context(0),
+		          _alwaysRefresh(false), _bgfxReady(false),
+		          _pendingRefresh(false)
+	  { initializeContext(); }
 
-	  virtual ~OpenGLWindow() { delete _context; }
+	  virtual ~OpenGLWindow() { if (_context) delete _context; }
 
 	  bool alwaysRefresh() const { return _alwaysRefresh; }
 	  void setAlwaysRefresh(bool alwaysRefresh) {
 	    _alwaysRefresh = alwaysRefresh;
 	    if (alwaysRefresh) requestRefresh();
+	  }
+	  bool bgfxReady() const { return _bgfxReady; }
+	  void setBgfxReady(bool bgfxReady) {
+	    _bgfxReady = bgfxReady;
+	    if (bgfxReady) initializeWindow();
 	  }
     
 	signals:
@@ -95,12 +111,14 @@ namespace entry
 	  void resized();
 
 	public slots:
-	  QOpenGLContext *context() const { return _context; }
+	  QOpenGLContext *context() const { Q_ASSERT(_context!=NULL); return _context; }
 	  void makeCurrent() { qDebug() << Q_FUNC_INFO; _context->makeCurrent(this); }
 	  void swapBuffers() { qDebug() << Q_FUNC_INFO; _context->swapBuffers(this); }
 
 	  void grabContext(QThread *toThread) {
 	    
+      Q_ASSERT(_bgfxReady==true);
+qDebug() << Q_FUNC_INFO;
       QRendererContextGL *c = qtGetRender();
 
       c->lockRenderer();
@@ -122,20 +140,33 @@ namespace entry
 	    }
 	  }
 	  void exposeEvent(QExposeEvent *event) { requestRefresh(); }
-	  void resizeEvent(QResizeEvent *event) { 
-	    requestRefresh(); 
-	  }
+	  void resizeEvent(QResizeEvent *event) { requestRefresh(); }
 	  void keyPressEvent(QKeyEvent *event) {
 	    switch (event->key()) {
 	    case Qt::Key_Q :
 	      if (!(QApplication::keyboardModifiers() & Qt::ControlModifier)) break;
 	    case Qt::Key_Escape : 
-		QApplication::exit(EXIT_SUCCESS); break;
+		    QApplication::exit(EXIT_SUCCESS); break;
 	    }
 	  }
 
 	public slots:
-	  void render() {}
+	  void render() {
+      
+      QRendererContextGL *c = qtGetRender();
+      Q_ASSERT(c==NULL);
+
+      // We are on the gui thread here. Wait until the render thread finishes.
+      c->lockRenderer();
+
+      if (!_isGLInitialized) {
+        _context->makeCurrent(this);
+        initializeOpenGLFunctions();
+        initializeWindow();
+        _isGLInitialized = true;
+      }
+      c->unlockRenderer();
+    }
 	  void requestRefresh() {
 	    if (!_pendingRefresh) {
 	      _pendingRefresh = true;
@@ -159,14 +190,15 @@ namespace entry
 		}
 
 	private:
-	  void initialize() {
+    void initializeContext() {
 	    setSurfaceType(QWindow::OpenGLSurface); // from default format    
 	    create();
     
 	    _context = new QOpenGLContext(this); // from default context
 	    _context->create();
 	    _context->makeCurrent(this);
-	      
+	  }
+	  void initializeWindow() {      
 	    qDebug() << Q_FUNC_INFO << ":\n\t" << QOpenGLContext::currentContext() << ":\n\t" << qtGetRender();
 
       connect(qtGetRender(), SIGNAL(contextWanted(QThread*)), this, SLOT(grabContext(QThread*)));
@@ -178,6 +210,7 @@ namespace entry
 	  QOpenGLContext *_context;
     
 	  bool _alwaysRefresh;
+	  bool _bgfxReady;
 	  bool _pendingRefresh;
 	  QTime _time;
 	};
@@ -216,6 +249,7 @@ namespace entry
 			bgfx::qtSetWindow(m_window, m_window->context());
 
 			m_window->show();
+      m_window->setWindowInitialized();
 			
 			return entry::main(_argc, _argv);
 		}	  

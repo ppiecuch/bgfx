@@ -1486,13 +1486,12 @@ again:
 
 			if (!s_rendererCreator[_type].supported)
 			{
+        BX_TRACE("Null renderer selected.");
 				_type = RendererType::Null;
 			}
 		}
 
-printf(">>init\n"); 
 		RendererContextI* renderCtx = s_rendererCreator[_type].createFn();
-printf(">>init\n"); 
 		if (NULL == renderCtx)
 		{
 			goto again;
