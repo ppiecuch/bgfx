@@ -58,8 +58,6 @@
 #define IMGUI_NEW(type)         new (ImGui::MemAlloc(sizeof(type) ) ) type
 #define IMGUI_DELETE(type, obj) reinterpret_cast<type*>(obj)->~type(), ImGui::MemFree(obj)
 
-const stbtt_fontinfo& getFontInfo(int index);
-
 static void fillRectangle(Scintilla::PRectangle _rc, Scintilla::ColourDesired _color)
 {
 	const uint32_t abgr = (uint32_t)_color.AsLong();
@@ -82,7 +80,7 @@ static inline uint32_t makeRgba(uint32_t r, uint32_t g, uint32_t b, uint32_t a =
 
 struct FontInt
 {
-	stbtt_fontinfo m_fontInfo;
+	ImFont* m_font;
 	float m_scale;
 	float m_fontSize;
 };
@@ -238,44 +236,29 @@ public:
 	virtual Scintilla::XYPOSITION WidthChar(Scintilla::Font& _font, char ch) BX_OVERRIDE
 	{
 		FontInt* fi = (FontInt*)_font.GetID();
-
-		int advance, leftBearing;
-		stbtt_GetCodepointHMetrics(&fi->m_fontInfo, ch, &advance, &leftBearing);
-
-		return advance * fi->m_scale;
+		return fi->m_font->GetCharAdvance((unsigned int)ch) * fi->m_scale;
 	}
 
 	virtual Scintilla::XYPOSITION Ascent(Scintilla::Font& _font) BX_OVERRIDE
 	{
 		FontInt* fi = (FontInt*)_font.GetID();
-
-		int ascent, descent, lineGap;
-		stbtt_GetFontVMetrics(&fi->m_fontInfo, &ascent, &descent, &lineGap);
-
-		return ascent * fi->m_scale;
+		return fi->m_font->Ascent * fi->m_scale;
 	}
 
 	virtual Scintilla::XYPOSITION Descent(Scintilla::Font& _font) BX_OVERRIDE
 	{
-		int ascent, descent, lineGap;
 		FontInt* fi = (FontInt*)_font.GetID();
-
-		stbtt_GetFontVMetrics(&fi->m_fontInfo, &ascent, &descent, &lineGap);
-
-		return -descent * fi->m_scale;
+		return -fi->m_font->Descent * fi->m_scale;
 	}
 
-	virtual Scintilla::XYPOSITION InternalLeading(Scintilla::Font& /*_font*/) BX_OVERRIDE
+		virtual Scintilla::XYPOSITION InternalLeading(Scintilla::Font& /*_font*/) BX_OVERRIDE
 	{
 		return 0;
 	}
 
-	virtual Scintilla::XYPOSITION ExternalLeading(Scintilla::Font& _font) BX_OVERRIDE
+	virtual Scintilla::XYPOSITION ExternalLeading(Scintilla::Font& /*_font*/) BX_OVERRIDE
 	{
-		FontInt* fi = (FontInt*)_font.GetID();
-		int ascent, descent, lineGap;
-		stbtt_GetFontVMetrics(&fi->m_fontInfo, &ascent, &descent, &lineGap);
-		return lineGap * fi->m_scale;
+		return 0;
 	}
 
 	virtual Scintilla::XYPOSITION Height(Scintilla::Font& _font) BX_OVERRIDE
@@ -314,9 +297,8 @@ private:
 		FontInt* fi = (FontInt*)_font.GetID();
 
 		ImVec2 pos = ImGui::GetCursorScreenPos();
-		ImFont* imFont = ImGui::GetWindowFont();
 		ImDrawList* drawList = ImGui::GetWindowDrawList();
-		drawList->AddText(imFont
+		drawList->AddText(fi->m_font
 			, fi->m_fontSize
 			, ImVec2(xt + pos.x, yt + pos.y - fi->m_fontSize)
 			, fore
@@ -651,7 +633,7 @@ public:
 		return 0;
 	}
 
-    intptr_t command(unsigned int _msg, uintptr_t _p0 = 0, intptr_t _p1 = 0)
+	intptr_t command(unsigned int _msg, uintptr_t _p0 = 0, intptr_t _p1 = 0)
 	{
 		return WndProc(_msg, _p0, _p1);
 	}
@@ -875,12 +857,9 @@ namespace Scintilla
 	{
 		FontInt* newFont = (FontInt*)ImGui::MemAlloc(sizeof(FontInt) );
 		fid = newFont;
-
-		const stbtt_fontinfo& fontInfo = getFontInfo(0);
-
-		memcpy(&newFont->m_fontInfo, &fontInfo, sizeof(stbtt_fontinfo) );
-		newFont->m_scale    = stbtt_ScaleForPixelHeight(&fontInfo, fp.size);
+		newFont->m_font = ImGui::GetIO().Fonts->Fonts[0];
 		newFont->m_fontSize = fp.size;
+		newFont->m_scale = fp.size / newFont->m_font->FontSize;
 	}
 
 	void Font::Release()
@@ -1083,5 +1062,29 @@ namespace Scintilla
 	}
 
 } // namespace Scintilla
+
+ScintillaEditor* ImGuiScintilla(const char* _name, bool* _opened, const ImVec2& _size)
+{
+	ScintillaEditor* sci = NULL;
+
+	if (ImGui::Begin(_name, _opened, _size) )
+	{
+		ImGuiStorage* storage = ImGui::GetStateStorage();
+
+		ImGuiID id = ImGui::GetID(_name);
+		sci = (ScintillaEditor*)storage->GetVoidPtr(id);
+		if (NULL == sci)
+		{
+			ImVec2 size = ImGui::GetWindowSize();
+			sci = ScintillaEditor::create(size.x, size.y);
+			storage->SetVoidPtr(id, (void*)sci);
+		}
+
+		sci->draw();
+	}
+
+	ImGui::End();
+	return sci;
+}
 
 #endif // defined(SCI_NAMESPACE)

@@ -8,10 +8,6 @@
 #if BGFX_CONFIG_RENDERER_DIRECT3D11
 #	include "renderer_d3d11.h"
 
-#	if !defined(BGFX_D3D11_MAP_CONSTANT_BUFFERS)
-#		define BGFX_D3D11_MAP_CONSTANT_BUFFERS 0
-#	endif
-
 namespace bgfx { namespace d3d11
 {
 	static wchar_t s_viewNameW[BGFX_CONFIG_MAX_VIEWS][BGFX_CONFIG_MAX_VIEW_NAME];
@@ -46,6 +42,11 @@ namespace bgfx { namespace d3d11
 
 	union Zero
 	{
+		Zero()
+		{
+			memset(this, 0, sizeof(Zero) );
+		}
+
 		ID3D11Buffer*              m_buffer[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT];
 		ID3D11UnorderedAccessView* m_uav[D3D11_PS_CS_UAV_REGISTER_COUNT];
 		ID3D11ShaderResourceView*  m_srv[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT];
@@ -53,7 +54,10 @@ namespace bgfx { namespace d3d11
 		uint32_t                   m_zero[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT];
 	};
 
-	static Zero s_zero;
+	BX_PRAGMA_DIAGNOSTIC_PUSH();
+	BX_PRAGMA_DIAGNOSTIC_IGNORED_MSVC(4268) // warning C4268: '' : 'const' static/global data initialized with compiler generated default constructor fills the object with zeros
+	static const Zero s_zero;
+	BX_PRAGMA_DIAGNOSTIC_POP();
 
 	static const uint32_t s_checkMsaa[] =
 	{
@@ -466,13 +470,8 @@ namespace bgfx { namespace d3d11
 			, m_flags(BGFX_RESET_NONE)
 			, m_maxAnisotropy(1)
 			, m_currentProgram(NULL)
-#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
-			, m_vsScratch(NULL)
-			, m_fsScratch(NULL)
-#else
 			, m_vsChanges(0)
 			, m_fsChanges(0)
-#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 			, m_rtMsaa(false)
 			, m_ovrRtv(NULL)
 			, m_ovrDsv(NULL)
@@ -726,7 +725,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			}
 			else
 			{
-				setGraphicsDebuggerPresent(2 != getRefCount(device) );
+				setGraphicsDebuggerPresent(3 != getRefCount(device) );
 				DX_RELEASE(device, 2);
 			}
 
@@ -831,11 +830,6 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					m_infoQueue->PushStorageFilter(&filter);
 
 					DX_RELEASE(m_infoQueue, 3);
-				}
-				else
-				{
-					// InfoQueue QueryInterface will fail when AMD GPU Perfstudio 2 is present.
-					setGraphicsDebuggerPresent(true);
 				}
 			}
 #endif // __MINGW__
@@ -1108,8 +1102,8 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 			DX_RELEASE(m_swapChain, 0);
 			DX_RELEASE(m_deviceCtx, 0);
-			DX_RELEASE(m_factory, 0);
 			DX_RELEASE(m_device, 0);
+			DX_RELEASE(m_factory,0);
 
 			unloadRenderDoc(m_renderdocdll);
 
@@ -1460,8 +1454,6 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			float proj[16];
 			bx::mtxOrtho(proj, 0.0f, (float)width, (float)height, 0.0f, 0.0f, 1000.0f);
 
-			prepareShaderConstants();
-
 			PredefinedUniform& predefined = program.m_predefined[0];
 			uint8_t flags = predefined.m_type;
 			setShaderUniform(flags, predefined.m_loc, proj, 4);
@@ -1670,9 +1662,9 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			if (!!(_resolution.m_flags & BGFX_RESET_MAXANISOTROPY) )
 			{
 				m_maxAnisotropy = (m_featureLevel == D3D_FEATURE_LEVEL_9_1)
-				? D3D_FL9_1_DEFAULT_MAX_ANISOTROPY
-				: D3D11_REQ_MAXANISOTROPY
-				;
+								? D3D_FL9_1_DEFAULT_MAX_ANISOTROPY
+								: D3D11_REQ_MAXANISOTROPY
+								;
 			}
 			else
 			{
@@ -1768,16 +1760,12 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			if (_flags&BGFX_UNIFORM_FRAGMENTBIT)
 			{
 				memcpy(&m_fsScratch[_regIndex], _val, _numRegs*16);
-#if !BGFX_D3D11_MAP_CONSTANT_BUFFERS
 				m_fsChanges += _numRegs;
-#endif
 			}
 			else
 			{
 				memcpy(&m_vsScratch[_regIndex], _val, _numRegs*16);
-#if !BGFX_D3D11_MAP_CONSTANT_BUFFERS
 				m_vsChanges += _numRegs;
-#endif
 			}
 		}
 
@@ -1791,37 +1779,8 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			setShaderUniform(_flags, _regIndex, _val, _numRegs);
 		}
 
-		void prepareShaderConstants()
-		{
-#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
-			if (NULL != m_currentProgram->m_vsh->m_buffer)
-			{
-				D3D11_MAPPED_SUBRESOURCE mapped;
-				DX_CHECK(m_deviceCtx->Map(m_currentProgram->m_vsh->m_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
-				m_vsScratch = (uint8_t*)mapped.pData;
-			}
-			if (NULL != m_currentProgram->m_fsh->m_buffer)
-			{
-				D3D11_MAPPED_SUBRESOURCE mapped;
-				DX_CHECK(m_deviceCtx->Map(m_currentProgram->m_fsh->m_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
-				m_fsScratch = (uint8_t*)mapped.pData;
-			}
-#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
-		}
-
 		void commitShaderConstants()
 		{
-#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
-			if (NULL != m_vsScratch)
-			{
-				m_deviceCtx->Unmap(m_currentProgram->m_vsh->m_buffer, 0);
-			}
-			if (NULL != m_fsScratch)
-			{
-				m_deviceCtx->Unmap(m_currentProgram->m_fsh->m_buffer, 0);
-			}
-			m_vsScratch = m_fsScratch = 0;
-#else
 			if (0 < m_vsChanges)
 			{
 				if (NULL != m_currentProgram->m_vsh->m_buffer)
@@ -1841,7 +1800,6 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 				m_fsChanges = 0;
 			}
-#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 		}
 
 		void setFrameBuffer(FrameBufferHandle _fbh, bool _msaa = true)
@@ -1988,13 +1946,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 		void setBlendState(uint64_t _state, uint32_t _rgba = 0)
 		{
-			_state &= 0
-				| BGFX_STATE_BLEND_MASK
-				| BGFX_STATE_BLEND_EQUATION_MASK
-				| BGFX_STATE_BLEND_INDEPENDENT
-				| BGFX_STATE_ALPHA_WRITE
-				| BGFX_STATE_RGB_WRITE
-				;
+			_state &= BGFX_D3D11_BLEND_STATE_MASK;
 
 			bx::HashMurmur2A murmur;
 			murmur.begin();
@@ -2034,13 +1986,13 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				const uint32_t blend    = uint32_t( (_state&BGFX_STATE_BLEND_MASK)>>BGFX_STATE_BLEND_SHIFT);
 				const uint32_t equation = uint32_t( (_state&BGFX_STATE_BLEND_EQUATION_MASK)>>BGFX_STATE_BLEND_EQUATION_SHIFT);
 
-				const uint32_t srcRGB = (blend    )&0xf;
-				const uint32_t dstRGB = (blend>> 4)&0xf;
-				const uint32_t srcA   = (blend>> 8)&0xf;
-				const uint32_t dstA   = (blend>>12)&0xf;
+				const uint32_t srcRGB = (blend      ) & 0xf;
+				const uint32_t dstRGB = (blend >>  4) & 0xf;
+				const uint32_t srcA   = (blend >>  8) & 0xf;
+				const uint32_t dstA   = (blend >> 12) & 0xf;
 
-				const uint32_t equRGB = (equation   )&0x7;
-				const uint32_t equA   = (equation>>3)&0x7;
+				const uint32_t equRGB = (equation     ) & 0x7;
+				const uint32_t equA   = (equation >> 3) & 0x7;
 
 				drt->SrcBlend       = s_blendFactor[srcRGB][0];
 				drt->DestBlend      = s_blendFactor[dstRGB][0];
@@ -2050,8 +2002,16 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				drt->DestBlendAlpha = s_blendFactor[dstA][1];
 				drt->BlendOpAlpha   = s_blendEquation[equA];
 
-				uint8_t writeMask = (_state&BGFX_STATE_ALPHA_WRITE) ? D3D11_COLOR_WRITE_ENABLE_ALPHA : 0;
-				writeMask |= (_state&BGFX_STATE_RGB_WRITE) ? D3D11_COLOR_WRITE_ENABLE_RED|D3D11_COLOR_WRITE_ENABLE_GREEN|D3D11_COLOR_WRITE_ENABLE_BLUE : 0;
+				uint8_t writeMask = (_state&BGFX_STATE_ALPHA_WRITE)
+					? D3D11_COLOR_WRITE_ENABLE_ALPHA
+					: 0
+					;
+				writeMask |= (_state&BGFX_STATE_RGB_WRITE)
+					? D3D11_COLOR_WRITE_ENABLE_RED
+					| D3D11_COLOR_WRITE_ENABLE_GREEN
+					| D3D11_COLOR_WRITE_ENABLE_BLUE
+					: 0
+					;
 
 				drt->RenderTargetWriteMask = writeMask;
 
@@ -2060,19 +2020,19 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					for (uint32_t ii = 1, rgba = _rgba; ii < BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS; ++ii, rgba >>= 11)
 					{
 						drt = &desc.RenderTarget[ii];
-						drt->BlendEnable = 0 != (rgba&0x7ff);
+						drt->BlendEnable = 0 != (rgba & 0x7ff);
 
-						const uint32_t src			 = (rgba   )&0xf;
-						const uint32_t dst			 = (rgba>>4)&0xf;
-						const uint32_t equationIndex = (rgba>>8)&0x7;
+						const uint32_t src      = (rgba     ) & 0xf;
+						const uint32_t dst      = (rgba >> 4) & 0xf;
+						const uint32_t equation = (rgba >> 8) & 0x7;
 
 						drt->SrcBlend       = s_blendFactor[src][0];
 						drt->DestBlend      = s_blendFactor[dst][0];
-						drt->BlendOp        = s_blendEquation[equationIndex];
+						drt->BlendOp        = s_blendEquation[equation];
 
 						drt->SrcBlendAlpha  = s_blendFactor[src][1];
 						drt->DestBlendAlpha = s_blendFactor[dst][1];
-						drt->BlendOpAlpha   = s_blendEquation[equationIndex];
+						drt->BlendOpAlpha   = s_blendEquation[equation];
 
 						drt->RenderTargetWriteMask = writeMask;
 					}
@@ -2095,7 +2055,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 		void setDepthStencilState(uint64_t _state, uint64_t _stencil = 0)
 		{
-			_state &= BGFX_STATE_DEPTH_WRITE|BGFX_STATE_DEPTH_TEST_MASK;
+			_state &= BGFX_D3D11_DEPTH_STENCIL_MASK;
 
 			uint32_t fstencil = unpackStencil(0, _stencil);
 			uint32_t ref = (fstencil&BGFX_STENCIL_FUNC_REF_MASK)>>BGFX_STENCIL_FUNC_REF_SHIFT;
@@ -2579,12 +2539,6 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					deviceCtx->PSSetShader(fsh->m_pixelShader, NULL, 0);
 					deviceCtx->PSSetConstantBuffers(0, 1, &fsh->m_buffer);
 
-#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
-					D3D11_MAPPED_SUBRESOURCE mapped;
-					DX_CHECK(deviceCtx->Map(fsh->m_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped));
-					void* fsScratch = mapped.pData;
-#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
-
 					if (BGFX_CLEAR_COLOR_USE_PALETTE & _clear.m_flags)
 					{
 						float mrtClear[BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS][4];
@@ -2594,11 +2548,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 							memcpy(mrtClear[ii], _palette[index], 16);
 						}
 
-#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
-						memcpy(fsScratch, mrtClear, sizeof(mrtClear));
-#else
 						deviceCtx->UpdateSubresource(fsh->m_buffer, 0, 0, mrtClear, 0, 0);
-#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 					}
 					else
 					{
@@ -2610,19 +2560,8 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 							_clear.m_index[3]*1.0f/255.0f,
 						};
 
-#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
-						memcpy(fsScratch, rgba, sizeof(rgba));
-#else
 						deviceCtx->UpdateSubresource(fsh->m_buffer, 0, 0, rgba, 0, 0);
-#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 					}
-
-#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
-					if (NULL != fsScratch)
-					{
-						deviceCtx->Unmap(fsh->m_buffer, 0);
-					}
-#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 				}
 				else
 				{
@@ -2745,15 +2684,10 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 		ProgramD3D11* m_currentProgram;
 
-#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
-		uint8_t* m_vsScratch;
-		uint8_t* m_fsScratch;
-#else
 		uint8_t m_vsScratch[64<<10];
 		uint8_t m_fsScratch[64<<10];
 		uint32_t m_vsChanges;
 		uint32_t m_fsChanges;
-#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 
 		FrameBufferHandle m_fbh;
 		bool m_rtMsaa;
@@ -3146,13 +3080,8 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		{
 			D3D11_BUFFER_DESC desc;
 			desc.ByteWidth = (size + 0xf) & ~0xf;
-#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
-			desc.Usage = D3D11_USAGE_DYNAMIC;
-			desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-#else
 			desc.Usage = D3D11_USAGE_DEFAULT;
 			desc.CPUAccessFlags = 0;
-#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 			desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
 			desc.MiscFlags = 0;
 			desc.StructureByteStride = 0;
@@ -4070,10 +3999,12 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 				const uint64_t newFlags = draw.m_flags;
 				uint64_t changedFlags = currentState.m_flags ^ draw.m_flags;
+				changedFlags |= currentState.m_rgba != draw.m_rgba ? BGFX_D3D11_BLEND_STATE_MASK : 0;
 				currentState.m_flags = newFlags;
 
 				const uint64_t newStencil = draw.m_stencil;
 				uint64_t changedStencil = currentState.m_stencil ^ draw.m_stencil;
+				changedFlags |= 0 != changedStencil ? BGFX_D3D11_DEPTH_STENCIL_MASK : 0;
 				currentState.m_stencil = newStencil;
 
 				if (resetState)
@@ -4132,29 +4063,25 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					setRasterizerState(newFlags, wireframe, scissorEnabled);
 				}
 
-				if ( (BGFX_STATE_DEPTH_WRITE|BGFX_STATE_DEPTH_TEST_MASK) & changedFlags
-				|| 0 != changedStencil)
+				if (BGFX_D3D11_DEPTH_STENCIL_MASK & changedFlags)
 				{
 					setDepthStencilState(newFlags, newStencil);
 				}
 
+				if (BGFX_D3D11_BLEND_STATE_MASK & changedFlags)
+				{
+					setBlendState(newFlags, draw.m_rgba);
+					currentState.m_rgba = draw.m_rgba;
+				}
+
 				if ( (0
 					 | BGFX_STATE_CULL_MASK
-					 | BGFX_STATE_RGB_WRITE
-					 | BGFX_STATE_ALPHA_WRITE
-					 | BGFX_STATE_BLEND_MASK
-					 | BGFX_STATE_BLEND_EQUATION_MASK
 					 | BGFX_STATE_ALPHA_REF_MASK
 					 | BGFX_STATE_PT_MASK
 					 | BGFX_STATE_POINT_SIZE_MASK
 					 | BGFX_STATE_MSAA
 					 ) & changedFlags)
 				{
-					if ( (BGFX_STATE_BLEND_MASK|BGFX_STATE_BLEND_EQUATION_MASK|BGFX_STATE_ALPHA_WRITE|BGFX_STATE_RGB_WRITE) & changedFlags)
-					{
-						setBlendState(newFlags, draw.m_rgba);
-					}
-
 					if ( (BGFX_STATE_CULL_MASK|BGFX_STATE_MSAA) & changedFlags)
 					{
 						setRasterizerState(newFlags, wireframe, scissorEnabled);
@@ -4219,12 +4146,6 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				{
 					ProgramD3D11& program = m_program[programIdx];
 
-#if BGFX_D3D11_MAP_CONSTANT_BUFFERS
-					if (constantsChanged || 0 != program.m_numPredefined)
-					{
-						prepareShaderConstants();
-					}
-#endif // BGFX_D3D11_MAP_CONSTANT_BUFFERS
 					if (constantsChanged)
 					{
 						ConstantBuffer* vcb = program.m_vsh->m_constantBuffer;
@@ -4308,7 +4229,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 						if (isValid(draw.m_instanceDataBuffer) )
 						{
- 							const VertexBufferD3D11& inst = m_vertexBuffers[draw.m_instanceDataBuffer.idx];
+							const VertexBufferD3D11& inst = m_vertexBuffers[draw.m_instanceDataBuffer.idx];
 							uint32_t instStride = draw.m_instanceDataStride;
 							deviceCtx->IASetVertexBuffers(1, 1, &inst.m_ptr, &instStride, &draw.m_instanceDataOffset);
 							setInputLayout(vertexDecl, m_program[programIdx], draw.m_instanceDataStride/16);
