@@ -18,5 +18,6 @@
 #include "renderer_null.cpp"
 #include "renderer_gl.cpp"
 #include "renderer_vk.cpp"
+#include "renderer_mtl.mm"
 #include "vertexdecl.cpp"
 
