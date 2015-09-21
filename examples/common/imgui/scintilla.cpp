@@ -5,8 +5,16 @@
 
 #if defined(SCI_NAMESPACE)
 
+#include <bx/bx.h>
+
 #include <algorithm>
 #include <map>
+
+#if BX_PLATFORM_EMSCRIPTEN
+#	include <compat/ctype.h>
+#endif // BX_PLATFORM_EMSCRIPTEN
+
+#include <string>
 #include <vector>
 #include <string.h>
 
@@ -217,12 +225,7 @@ public:
 
 		while (_len--)
 		{
-			int advance;
-
-			const ImFont::Glyph* glyph = imFont->FindGlyph( (unsigned short)*_str++);
-			advance = glyph->XAdvance;
-
-			position     += advance;
+			position     += imFont->GetCharAdvance( (unsigned short)*_str++);
 			*_positions++ = position;
 		}
 	}
@@ -236,7 +239,7 @@ public:
 	virtual Scintilla::XYPOSITION WidthChar(Scintilla::Font& _font, char ch) BX_OVERRIDE
 	{
 		FontInt* fi = (FontInt*)_font.GetID();
-		return fi->m_font->GetCharAdvance((unsigned int)ch) * fi->m_scale;
+		return fi->m_font->GetCharAdvance( (unsigned int)ch) * fi->m_scale;
 	}
 
 	virtual Scintilla::XYPOSITION Ascent(Scintilla::Font& _font) BX_OVERRIDE
@@ -457,8 +460,6 @@ public:
 	Editor()
 		: m_width(0)
 		, m_height(0)
-		, m_wheelVRotation(0)
-		, m_wheelHRotation(0)
 		, m_searchResultIndication(0xff5A5A5A)
 		, m_filteredSearchResultIndication(0xff5a5a5a)
 		, m_occurrenceIndication(0xff5a5a5a)
@@ -642,7 +643,9 @@ public:
 	{
 		ImVec2 cursorPos = ImGui::GetCursorPos();
 		ImVec2 regionMax = ImGui::GetWindowContentRegionMax();
-		ImVec2 size = ImVec2(regionMax.x - cursorPos.x, regionMax.y - cursorPos.y);
+		ImVec2 size = ImVec2( regionMax.x - cursorPos.x - 32
+							, regionMax.y - cursorPos.y
+							);
 
 		Resize(0, 0, (int)size.x, (int)size.y);
 
@@ -670,6 +673,14 @@ public:
 		else if (ImGui::IsKeyPressed(entry::Key::Down) )
 		{
 			Editor::KeyDown(SCK_DOWN, shift, ctrl, alt);
+		}
+		else if (ImGui::IsKeyPressed(entry::Key::PageUp) )
+		{
+			Editor::KeyDown(SCK_PRIOR, shift, ctrl, alt);
+		}
+		else if (ImGui::IsKeyPressed(entry::Key::PageDown) )
+		{
+			Editor::KeyDown(SCK_NEXT, shift, ctrl, alt);
 		}
 		else if (ImGui::IsKeyPressed(entry::Key::Home) )
 		{
@@ -736,22 +747,50 @@ public:
 			}
 		}
 
+		int32_t lineCount = int32_t(command(SCI_GETLINECOUNT) );
+		int32_t firstVisibleLine = int32_t(command(SCI_GETFIRSTVISIBLELINE) );
+		float fontHeight = ImGui::GetWindowFontSize();
+
 		if (ImGui::IsMouseClicked(0) )
 		{
 			ImGuiIO& io = ImGui::GetIO();
 			Scintilla::Point pt = Scintilla::Point::FromInts( (int)io.MouseClickedPos[0].x, (int)io.MouseClickedPos[0].y);
 
-			ButtonDown(pt, (unsigned int)io.MouseDownTime[0], false, false, false);
+			ButtonDown(pt, (unsigned int)io.MouseDownDuration[0], false, false, false);
 		}
 
 		Tick();
 
-		Scintilla::AutoSurface surfaceWindow(this);
-		if (surfaceWindow)
-		{
-			Paint(surfaceWindow, GetClientRectangle() );
-			surfaceWindow->Release();
-		}
+		ImGui::BeginGroup();
+			ImGui::BeginChild("##editor", ImVec2(size.x, size.y-20) );
+				Scintilla::AutoSurface surfaceWindow(this);
+				if (surfaceWindow)
+				{
+					Paint(surfaceWindow, GetClientRectangle() );
+					surfaceWindow->Release();
+				}
+			ImGui::EndChild();
+
+			ImGui::SameLine();
+
+			ImGui::BeginChild("##scroll");
+				ImGuiListClipper clipper;
+				clipper.Begin(lineCount, fontHeight*2.0f);
+
+				if (m_lastFirstVisibleLine != firstVisibleLine)
+				{
+					m_lastFirstVisibleLine = firstVisibleLine;
+					ImGui::SetScrollY(firstVisibleLine * fontHeight*2.0f);
+				}
+				else if (firstVisibleLine != clipper.DisplayStart)
+				{
+					command(SCI_SETFIRSTVISIBLELINE, clipper.DisplayStart);
+				}
+
+				clipper.End();
+			ImGui::EndChild();
+
+		ImGui::EndGroup();
 	}
 
 	void setStyle(int style, Scintilla::ColourDesired fore, Scintilla::ColourDesired back = UINT32_MAX, int size = -1, const char* face = NULL)
@@ -773,8 +812,7 @@ public:
 private:
 	int m_width;
 	int m_height;
-	int m_wheelVRotation;
-	int m_wheelHRotation;
+	int m_lastFirstVisibleLine;
 
 	Scintilla::ColourDesired m_searchResultIndication;
 	Scintilla::ColourDesired m_filteredSearchResultIndication;

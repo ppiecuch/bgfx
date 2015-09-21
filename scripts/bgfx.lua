@@ -35,6 +35,7 @@ function bgfxProject(_name, _kind, _defines)
 
 		includedirs {
 			path.join(BGFX_DIR, "3rdparty"),
+			path.join(BGFX_DIR, "3rdparty/dxsdk/include"),
 			path.join(BGFX_DIR, "../bx/include"),
 		}
 
@@ -57,14 +58,6 @@ function bgfxProject(_name, _kind, _defines)
 			}
 		end
 
-		if (_OPTIONS["vs"] == "vs2012-xp")
-		or (_OPTIONS["vs"] == "vs2013-xp") then
-			configuration { "vs201*" }
-				includedirs {
-					"$(DXSDK_DIR)/include",
-				}
-		end
-
 		configuration { "Debug" }
 			defines {
 				"BGFX_CONFIG_DEBUG=1",
@@ -74,11 +67,6 @@ function bgfxProject(_name, _kind, _defines)
 			links {
 				"EGL",
 				"GLESv2",
-			}
-
-		configuration { "vs2008" }
-			includedirs {
-				"$(DXSDK_DIR)/include",
 			}
 
 		configuration { "winphone8* or winstore8*"}
@@ -129,6 +117,9 @@ function bgfxProject(_name, _kind, _defines)
 				path.join(BGFX_DIR, "src/renderer_null.cpp"),
 				path.join(BGFX_DIR, "src/renderer_gl.cpp"),
 				path.join(BGFX_DIR, "src/renderer_vk.cpp"),
+				path.join(BGFX_DIR, "src/shader_dx9bc.cpp"),
+				path.join(BGFX_DIR, "src/shader_dxbc.cpp"),
+				path.join(BGFX_DIR, "src/shader_spirv.cpp"),
 				path.join(BGFX_DIR, "src/vertexdecl.cpp"),
 			}
 

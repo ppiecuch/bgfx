@@ -327,29 +327,31 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 						);
 			}
 			bgfx::setUniform(u_lightMtx, lightMtx);
-			bgfx::setProgram(st.m_program);
 			bgfx::setIndexBuffer(ibh);
 			bgfx::setVertexBuffer(vbh);
 			bgfx::setState(st.m_state);
-			bgfx::submit(st.m_viewId);
+			bgfx::submit(st.m_viewId, st.m_program);
 		}
 
 		// Bunny.
 		bx::mtxMul(lightMtx, mtxBunny, mtxShadow);
 		bgfx::setUniform(u_lightMtx, lightMtx);
 		meshSubmit(bunny, &state[0], 1, mtxBunny);
+		bgfx::setUniform(u_lightMtx, lightMtx);
 		meshSubmit(bunny, &state[1], 1, mtxBunny);
 
 		// Hollow cube.
 		bx::mtxMul(lightMtx, mtxHollowcube, mtxShadow);
 		bgfx::setUniform(u_lightMtx, lightMtx);
 		meshSubmit(hollowcube, &state[0], 1, mtxHollowcube);
+		bgfx::setUniform(u_lightMtx, lightMtx);
 		meshSubmit(hollowcube, &state[1], 1, mtxHollowcube);
 
 		// Cube.
 		bx::mtxMul(lightMtx, mtxCube, mtxShadow);
 		bgfx::setUniform(u_lightMtx, lightMtx);
 		meshSubmit(cube, &state[0], 1, mtxCube);
+		bgfx::setUniform(u_lightMtx, lightMtx);
 		meshSubmit(cube, &state[1], 1, mtxCube);
 
 		// Advance to next frame. Rendering thread will be kicked to
