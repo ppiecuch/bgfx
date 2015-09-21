@@ -13,7 +13,7 @@
 #include <stdint.h>  // uint32_t
 #include <stdlib.h>  // size_t
 
-#include "bgfxdefines.h"
+#include <bgfx/bgfxdefines.h>
 
 typedef enum bgfx_renderer_type
 {
@@ -98,27 +98,43 @@ typedef enum bgfx_texture_format
     BGFX_TEXTURE_FORMAT_UNKNOWN,
 
     BGFX_TEXTURE_FORMAT_R1,
+    BGFX_TEXTURE_FORMAT_A8,
     BGFX_TEXTURE_FORMAT_R8,
+    BGFX_TEXTURE_FORMAT_R8I,
+    BGFX_TEXTURE_FORMAT_R8U,
     BGFX_TEXTURE_FORMAT_R8S,
     BGFX_TEXTURE_FORMAT_R16,
+    BGFX_TEXTURE_FORMAT_R16I,
+    BGFX_TEXTURE_FORMAT_R16U,
     BGFX_TEXTURE_FORMAT_R16F,
     BGFX_TEXTURE_FORMAT_R16S,
-    BGFX_TEXTURE_FORMAT_R32,
+    BGFX_TEXTURE_FORMAT_R32I,
+    BGFX_TEXTURE_FORMAT_R32U,
     BGFX_TEXTURE_FORMAT_R32F,
     BGFX_TEXTURE_FORMAT_RG8,
+    BGFX_TEXTURE_FORMAT_RG8I,
+    BGFX_TEXTURE_FORMAT_RG8U,
     BGFX_TEXTURE_FORMAT_RG8S,
     BGFX_TEXTURE_FORMAT_RG16,
+    BGFX_TEXTURE_FORMAT_RG16I,
+    BGFX_TEXTURE_FORMAT_RG16U,
     BGFX_TEXTURE_FORMAT_RG16F,
     BGFX_TEXTURE_FORMAT_RG16S,
-    BGFX_TEXTURE_FORMAT_RG32,
+    BGFX_TEXTURE_FORMAT_RG32I,
+    BGFX_TEXTURE_FORMAT_RG32U,
     BGFX_TEXTURE_FORMAT_RG32F,
     BGFX_TEXTURE_FORMAT_BGRA8,
     BGFX_TEXTURE_FORMAT_RGBA8,
+    BGFX_TEXTURE_FORMAT_RGBA8I,
+    BGFX_TEXTURE_FORMAT_RGBA8U,
     BGFX_TEXTURE_FORMAT_RGBA8S,
     BGFX_TEXTURE_FORMAT_RGBA16,
+    BGFX_TEXTURE_FORMAT_RGBA16I,
+    BGFX_TEXTURE_FORMAT_RGBA16U,
     BGFX_TEXTURE_FORMAT_RGBA16F,
     BGFX_TEXTURE_FORMAT_RGBA16S,
-    BGFX_TEXTURE_FORMAT_RGBA32,
+    BGFX_TEXTURE_FORMAT_RGBA32I,
+    BGFX_TEXTURE_FORMAT_RGBA32U,
     BGFX_TEXTURE_FORMAT_RGBA32F,
     BGFX_TEXTURE_FORMAT_R5G6B5,
     BGFX_TEXTURE_FORMAT_RGBA4,
@@ -168,7 +184,7 @@ typedef enum bgfx_backbuffer_ratio
 } bgfx_backbuffer_ratio_t;
 
 #define BGFX_HANDLE_T(_name) \
-    typedef struct _name { uint16_t idx; } _name##_t;
+    typedef struct _name { uint16_t idx; } _name##_t
 
 BGFX_HANDLE_T(bgfx_indirect_buffer_handle);
 BGFX_HANDLE_T(bgfx_dynamic_index_buffer_handle);
@@ -622,7 +638,7 @@ BGFX_C_API bgfx_uniform_handle_t bgfx_create_uniform(const char* _name, bgfx_uni
 BGFX_C_API void bgfx_destroy_uniform(bgfx_uniform_handle_t _handle);
 
 /**/
-BGFX_C_API void bgfx_set_clear_color(uint8_t _index, const float _rgba[4]);
+BGFX_C_API void bgfx_set_palette_color(uint8_t _index, const float _rgba[4]);
 
 /**/
 BGFX_C_API void bgfx_set_view_name(uint8_t _id, const char* _name);

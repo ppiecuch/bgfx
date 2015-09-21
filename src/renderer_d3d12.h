@@ -107,7 +107,7 @@ namespace bgfx { namespace d3d12
 		void destroy();
 
 		uint16_t alloc(ID3D12Resource* _ptr, const D3D12_SHADER_RESOURCE_VIEW_DESC* _desc);
-		uint16_t alloc(const uint32_t* _flags, uint32_t _num = BGFX_CONFIG_MAX_TEXTURE_SAMPLERS);
+		uint16_t alloc(const uint32_t* _flags, uint32_t _num, const float _palette[][4]);
 		void free(uint16_t _handle);
 		void reset();
 
@@ -140,15 +140,7 @@ namespace bgfx { namespace d3d12
 
 		void create(uint32_t _size, void* _data, uint16_t _flags, bool _vertex, uint32_t _stride = 0);
 		void update(ID3D12GraphicsCommandList* _commandList, uint32_t _offset, uint32_t _size, void* _data, bool _discard = false);
-
-		void destroy()
-		{
-			if (NULL != m_ptr)
-			{
-				DX_RELEASE(m_ptr, 0);
-				m_dynamic = false;
-			}
-		}
+		void destroy();
 
 		D3D12_RESOURCE_STATES setState(ID3D12GraphicsCommandList* _commandList, D3D12_RESOURCE_STATES _state);
 
@@ -187,7 +179,7 @@ namespace bgfx { namespace d3d12
 		{
 			if (NULL != m_constantBuffer)
 			{
-				ConstantBuffer::destroy(m_constantBuffer);
+				UniformBuffer::destroy(m_constantBuffer);
 				m_constantBuffer = NULL;
 			}
 
@@ -202,7 +194,7 @@ namespace bgfx { namespace d3d12
 		}
 
 		const Memory* m_code;
-		ConstantBuffer* m_constantBuffer;
+		UniformBuffer* m_constantBuffer;
 
 		PredefinedUniform m_predefined[PredefinedUniform::Count];
 		uint16_t m_attrMask[Attrib::Count];
@@ -272,7 +264,6 @@ namespace bgfx { namespace d3d12
 		void create(const Memory* _mem, uint32_t _flags, uint8_t _skip);
 		void destroy();
 		void update(ID3D12GraphicsCommandList* _commandList, uint8_t _side, uint8_t _mip, const Rect& _rect, uint16_t _z, uint16_t _depth, uint16_t _pitch, const Memory* _mem);
-		void commit(uint8_t _stage, uint32_t _flags = BGFX_SAMPLER_DEFAULT_FLAGS);
 		void resolve();
 		D3D12_RESOURCE_STATES setState(ID3D12GraphicsCommandList* _commandList, D3D12_RESOURCE_STATES _state);
 
@@ -292,6 +283,8 @@ namespace bgfx { namespace d3d12
 	{
 		FrameBufferD3D12()
 			: m_swapChain(NULL)
+			, m_width(0)
+			, m_height(0)
 			, m_denseIdx(UINT16_MAX)
 			, m_num(0)
 			, m_numTh(0)
@@ -310,6 +303,8 @@ namespace bgfx { namespace d3d12
 		TextureHandle m_texture[BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS];
 		TextureHandle m_depth;
 		IDXGISwapChain* m_swapChain;
+		uint32_t m_width;
+		uint32_t m_height;
 		uint16_t m_denseIdx;
 		uint8_t m_num;
 		uint8_t m_numTh;
