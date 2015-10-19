@@ -6332,36 +6332,6 @@ namespace bgfx { namespace gl
 	}
 } } // namespace gl::bgfx
 
-# ifdef QT_GUI_LIB
-	QRendererContextGL* qtGetRender()
-	{
-		return (QRendererContextGL*)bgfx::gl::s_renderGL;
-	}
-  void qtReqCtxForThread(QThread *_moveToThread)
-  {
-      QRendererContextGL *q = bgfx::gl::s_renderGL;
-			if (q == NULL) return;
-    	// Grab the context.
-			q->m_grabMutex.lock();
-			emit q->contextWanted(_moveToThread);
-			q->m_grabCond.wait(&q->m_grabMutex);
-			QMutexLocker lock(&q->m_renderMutex);
-			q->m_grabMutex.unlock();
-
-			Q_ASSERT(q->thread() == QThread::currentThread());
-	
-  }
-  void qtReleaseCtx()
-  {
-			// Make no context current on this thread and move the QOpenGLWidget's
-			// context back to the gui thread.
-			if (bgfx::gl::s_renderGL)
-			  bgfx::gl::s_renderGL->m_glctx.makeCurrent(NULL, qApp->thread());  
-  }
-
-# endif
-
-
 #else
 
 namespace bgfx { namespace gl

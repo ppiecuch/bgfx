@@ -64,25 +64,25 @@ namespace bgfx
 
 #ifdef QT_GUI_LIB
 
-class QObject;
 class QWindow;
-class QOpenGLContext;
 
 namespace bgfx
 {
-	inline void qtSetWindow(QWindow* _window, QOpenGLContext* _ctx)
+	inline void qtSetWindow(QWindow* _window)
 	{
 		PlatformData pd;
 		pd.ndt          = NULL;
 		pd.nwh          = _window;
-		pd.context      = _ctx;
+		pd.context      = NULL;
 		pd.backBuffer   = NULL;
 		pd.backBufferDS = NULL;
 		setPlatformData(pd);
 	}
 } // namespace bgfx
 
-#elif BX_PLATFORM_ANDROID
+#endif
+
+#if BX_PLATFORM_ANDROID
 #	include <android/native_window.h>
 
 namespace bgfx

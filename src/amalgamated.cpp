@@ -8,7 +8,6 @@
 #include "glcontext_glx.cpp"
 #include "glcontext_ppapi.cpp"
 #include "glcontext_wgl.cpp"
-#include "glcontext_qt.cpp"
 #include "image.cpp"
 #include "ovr.cpp"
 #include "renderdoc.cpp"
