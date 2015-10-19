@@ -169,6 +169,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 
 	const bgfx::Caps* caps = bgfx::getCaps();
 	const bool texture3DSupported = !!(caps->supported & BGFX_CAPS_TEXTURE_3D);
+	const bool blitSupported      = !!(caps->supported & BGFX_CAPS_BLIT);
 
 	uint32_t numTextures3d = 0;
 	bgfx::TextureHandle textures3d[3] = {};
@@ -197,26 +198,38 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	// Create static index buffer.
 	bgfx::IndexBufferHandle ibh = bgfx::createIndexBuffer(bgfx::makeRef(s_cubeIndices, sizeof(s_cubeIndices) ) );
 
-	// Create texture sampler uniforms.
-	bgfx::UniformHandle s_texCube  = bgfx::createUniform("s_texCube",  bgfx::UniformType::Int1);
-	bgfx::UniformHandle s_texColor = bgfx::createUniform("s_texColor", bgfx::UniformType::Int1);
-
-	bgfx::UniformHandle u_time = bgfx::createUniform("u_time", bgfx::UniformType::Vec4);
-
-	bgfx::ProgramHandle program     = loadProgram("vs_update", "fs_update");
-	bgfx::ProgramHandle programCmp  = loadProgram("vs_update", "fs_update_cmp");
-	bgfx::ProgramHandle program3d   = BGFX_INVALID_HANDLE;
+	// Create programs.
+	bgfx::ProgramHandle program    = loadProgram("vs_update", "fs_update");
+	bgfx::ProgramHandle programCmp = loadProgram("vs_update", "fs_update_cmp");
+	bgfx::ProgramHandle program3d  = BGFX_INVALID_HANDLE;
 	if (texture3DSupported)
 	{
 		program3d = loadProgram("vs_update", "fs_update_3d");
 	}
 
+	// Create texture sampler uniforms.
+	bgfx::UniformHandle s_texCube  = bgfx::createUniform("s_texCube",  bgfx::UniformType::Int1);
+	bgfx::UniformHandle s_texColor = bgfx::createUniform("s_texColor", bgfx::UniformType::Int1);
+
+	// Create time uniform.
+	bgfx::UniformHandle u_time = bgfx::createUniform("u_time", bgfx::UniformType::Vec4);
+
 	const uint32_t textureSide = 2048;
 
-	bgfx::TextureHandle textureCube = bgfx::createTextureCube(textureSide, 1
+	bgfx::TextureHandle textureCube[2];
+
+	textureCube[0] = bgfx::createTextureCube(textureSide, 1
 		, bgfx::TextureFormat::BGRA8
 		, BGFX_TEXTURE_MIN_POINT|BGFX_TEXTURE_MAG_POINT|BGFX_TEXTURE_MIP_POINT
 		);
+
+	if (blitSupported)
+	{
+		textureCube[1] = bgfx::createTextureCube(textureSide, 1
+			, bgfx::TextureFormat::BGRA8
+			, BGFX_TEXTURE_MIN_POINT|BGFX_TEXTURE_MAG_POINT|BGFX_TEXTURE_MIP_POINT|BGFX_TEXTURE_BLIT_DST
+			);
+	}
 
 	const uint32_t texture2dSize = 256;
 
@@ -283,7 +296,11 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 				++hit;
 				const Pack2D& rect = face.m_rect;
 
-				updateTextureCubeRectBgra8(textureCube, face.m_side, rect.m_x, rect.m_y, rect.m_width, rect.m_height, rr, gg, bb);
+				updateTextureCubeRectBgra8(textureCube[0], face.m_side, rect.m_x, rect.m_y, rect.m_width, rect.m_height, rr, gg, bb);
+				if (blitSupported)
+				{
+					bgfx::blit(0, textureCube[1], 0, rect.m_x, rect.m_y, face.m_side, textureCube[0], 0, rect.m_x, rect.m_y, face.m_side, rect.m_width, rect.m_height);
+				}
 
 				rr = rand()%255;
 				gg = rand()%255;
@@ -345,25 +362,27 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		// Set view and projection matrix for view 0.
 		bgfx::setViewTransform(0, view, proj);
 
-		float mtx[16];
-		bx::mtxRotateXY(mtx, time, time*0.37f);
+		for (uint32_t ii = 0; ii < 1 + uint32_t(blitSupported); ++ii)
+		{
+			float mtx[16];
+			bx::mtxSRT(mtx, 1.0f, 1.0f, 1.0f, time, time*0.37f, 0.0f, -1.5f*blitSupported + ii*3.0f, 0.0f, 0.0f);
 
-		// Set model matrix for rendering.
-		bgfx::setTransform(mtx);
+			// Set model matrix for rendering.
+			bgfx::setTransform(mtx);
 
-		// Set vertex and index buffer.
-		bgfx::setVertexBuffer(vbh);
-		bgfx::setIndexBuffer(ibh);
+			// Set vertex and index buffer.
+			bgfx::setVertexBuffer(vbh);
+			bgfx::setIndexBuffer(ibh);
 
-		// Bind texture.
-		bgfx::setTexture(0, s_texCube, textureCube);
+			// Bind texture.
+			bgfx::setTexture(0, s_texCube, textureCube[ii]);
 
-		// Set render states.
-		bgfx::setState(BGFX_STATE_DEFAULT);
+			// Set render states.
+			bgfx::setState(BGFX_STATE_DEFAULT);
 
-		// Submit primitive for rendering to view 0.
-		bgfx::submit(0, program);
-
+			// Submit primitive for rendering to view 0.
+			bgfx::submit(0, program);
+		}
 
 		// Set view and projection matrix for view 1.
 		const float aspectRatio = float(height)/float(width);
@@ -371,7 +390,7 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 		bx::mtxOrtho(proj, -size, size, size*aspectRatio, -size*aspectRatio, 0.0f, 1000.0f);
 		bgfx::setViewTransform(1, NULL, proj);
 
-
+		float mtx[16];
 		bx::mtxTranslate(mtx, -size+2.0f - BX_COUNTOF(textures)*0.1f*0.5f, 1.9f, 0.0f);
 
 		// Set model matrix for rendering.
@@ -479,7 +498,11 @@ int _main_(int /*_argc*/, char** /*_argv*/)
 	}
 
 	bgfx::destroyTexture(texture2d);
-	bgfx::destroyTexture(textureCube);
+	bgfx::destroyTexture(textureCube[0]);
+	if (blitSupported)
+	{
+		bgfx::destroyTexture(textureCube[1]);
+	}
 	bgfx::destroyIndexBuffer(ibh);
 	bgfx::destroyVertexBuffer(vbh);
 	if (bgfx::isValid(program3d) )
