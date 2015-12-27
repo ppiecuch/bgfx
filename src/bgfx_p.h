@@ -53,11 +53,26 @@
 #	if BGFX_CONFIG_PROFILER_MICROPROFILE
 #		include <microprofile.h>
 #		define BGFX_PROFILER_SCOPE(_group, _name, _color) MICROPROFILE_SCOPEI(#_group, #_name, _color)
+#		define BGFX_PROFILER_BEGIN(_group, _name, _color) BX_NOOP()
+#		define BGFX_PROFILER_BEGIN_DYNAMIC(_namestr) BX_NOOP()
+#		define BGFX_PROFILER_END() BX_NOOP()
+#		define BGFX_PROFILER_SET_CURRENT_THREAD_NAME(_name) BX_NOOP()
 #	elif BGFX_CONFIG_PROFILER_REMOTERY
-#		include <remotery.h>
-#		define BGFX_PROFILER_SCOPE(_group, _name, _color) rmt_ScopedCPUSample(_group##_name)
+#		define RMT_ENABLED BGFX_CONFIG_PROFILER_REMOTERY
+#		define RMT_USE_D3D11 BGFX_CONFIG_RENDERER_DIRECT3D11
+#		define RMT_USE_OPENGL BGFX_CONFIG_RENDERER_OPENGL
+#		include <remotery/lib/Remotery.h>
+#		define BGFX_PROFILER_SCOPE(_group, _name, _color) rmt_ScopedCPUSample(_group##_##_name)
+#		define BGFX_PROFILER_BEGIN(_group, _name, _color) rmt_BeginCPUSample(_group##_##_name)
+#		define BGFX_PROFILER_BEGIN_DYNAMIC(_namestr) rmt_BeginCPUSampleDynamic(_namestr)
+#		define BGFX_PROFILER_END() rmt_EndCPUSample()
+#		define BGFX_PROFILER_SET_CURRENT_THREAD_NAME(_name) rmt_SetCurrentThreadName(_name)
 #	else
 #		define BGFX_PROFILER_SCOPE(_group, _name, _color) BX_NOOP()
+#		define BGFX_PROFILER_BEGIN(_group, _name, _color) BX_NOOP()
+#		define BGFX_PROFILER_BEGIN_DYNAMIC(_namestr) BX_NOOP()
+#		define BGFX_PROFILER_END() BX_NOOP()
+#		define BGFX_PROFILER_SET_CURRENT_THREAD_NAME(_name) BX_NOOP()
 #	endif // BGFX_CONFIG_PROFILER_*
 #endif // BGFX_PROFILER_SCOPE
 
@@ -685,12 +700,54 @@ namespace bgfx
 		void operator=(const CommandBuffer&);
 	};
 
-#define SORT_KEY_RENDER_DRAW (UINT64_C(1)<<0x36)
-#define SORT_KEY_VIEW_SHIFT  UINT8_C(0x37)
-#define SORT_KEY_VIEW_MASK   ( (uint64_t(BGFX_CONFIG_MAX_VIEWS-1) )<<SORT_KEY_VIEW_SHIFT)
+#define SORT_KEY_DRAW_BIT              (UINT64_C(1)<<0x36)
+
+#define SORT_KEY_SEQ_SHIFT             0x2b
+#define SORT_KEY_SEQ_MASK              (UINT64_C(0x7ff)<<SORT_KEY_SEQ_SHIFT)
+
+#define SORT_KEY_VIEW_SHIFT            0x37
+#define SORT_KEY_VIEW_MASK             ( (uint64_t(BGFX_CONFIG_MAX_VIEWS-1) )<<SORT_KEY_VIEW_SHIFT)
+
+#define SORT_KEY_DRAW_TRANS_SHIFT      0x29
+#define SORT_KEY_DRAW_TRANS_MASK       (UINT64_C(0x3)<<SORT_KEY_DRAW_TRANS_SHIFT)
+
+#define SORT_KEY_DRAW_PROGRAM_SHIFT    0x20
+#define SORT_KEY_DRAW_PROGRAM_MASK     ( (uint64_t(BGFX_CONFIG_MAX_PROGRAMS-1) )<<SORT_KEY_DRAW_PROGRAM_SHIFT)
+
+#define SORT_KEY_DRAW_DEPTH_SHIFT      0
+#define SORT_KEY_DRAW_DEPTH_MASK       ( (uint64_t(UINT32_MAX) )<<SORT_KEY_DRAW_DEPTH_SHIFT)
+
+#define SORT_KEY_COMPUTE_PROGRAM_SHIFT 0x22
+#define SORT_KEY_COMPUTE_PROGRAM_MASK  ( (uint64_t(BGFX_CONFIG_MAX_PROGRAMS-1) )<<SORT_KEY_COMPUTE_PROGRAM_SHIFT)
 
 	BX_STATIC_ASSERT(BGFX_CONFIG_MAX_VIEWS <= 256);
-	BX_STATIC_ASSERT( (BGFX_CONFIG_MAX_PROGRAMS & (BGFX_CONFIG_MAX_PROGRAMS-1) ) == 0); // must be power of 2
+	BX_STATIC_ASSERT( (BGFX_CONFIG_MAX_PROGRAMS & (BGFX_CONFIG_MAX_PROGRAMS-1) ) == 0); // Must be power of 2.
+	BX_STATIC_ASSERT( (0 // Render key mask shouldn't overlap.
+		| SORT_KEY_DRAW_BIT
+		| SORT_KEY_SEQ_MASK
+		| SORT_KEY_VIEW_MASK
+		| SORT_KEY_DRAW_TRANS_MASK
+		| SORT_KEY_DRAW_PROGRAM_MASK
+		| SORT_KEY_DRAW_DEPTH_MASK
+		) == (0
+		^ SORT_KEY_DRAW_BIT
+		^ SORT_KEY_SEQ_MASK
+		^ SORT_KEY_VIEW_MASK
+		^ SORT_KEY_DRAW_TRANS_MASK
+		^ SORT_KEY_DRAW_PROGRAM_MASK
+		^ SORT_KEY_DRAW_DEPTH_MASK
+		) );
+	BX_STATIC_ASSERT( (0 // Compute key mask shouldn't overlap.
+		| SORT_KEY_DRAW_BIT
+		| SORT_KEY_SEQ_MASK
+		| SORT_KEY_VIEW_MASK
+		| SORT_KEY_COMPUTE_PROGRAM_MASK
+		) == (0
+		^ SORT_KEY_DRAW_BIT
+		^ SORT_KEY_SEQ_MASK
+		^ SORT_KEY_VIEW_MASK
+		^ SORT_KEY_COMPUTE_PROGRAM_MASK
+		) );
 
 	struct SortKey
 	{
@@ -704,12 +761,17 @@ namespace bgfx
 			// |   view-+|      seq-+ +-trans  +-program                 depth-+|
 			// |         +-draw                                                 |
 
-			const uint64_t depth   = m_depth;
-			const uint64_t program = uint64_t(m_program)<<0x20;
-			const uint64_t trans   = uint64_t(m_trans  )<<0x29;
-			const uint64_t seq     = uint64_t(m_seq    )<<0x2b;
-			const uint64_t view    = uint64_t(m_view   )<<SORT_KEY_VIEW_SHIFT;
-			const uint64_t key     = depth|program|trans|SORT_KEY_RENDER_DRAW|seq|view;
+			const uint64_t depth   = (uint64_t(m_depth  ) << SORT_KEY_DRAW_DEPTH_SHIFT  ) & SORT_KEY_DRAW_DEPTH_MASK;
+			const uint64_t program = (uint64_t(m_program) << SORT_KEY_DRAW_PROGRAM_SHIFT) & SORT_KEY_DRAW_PROGRAM_MASK;
+			const uint64_t trans   = (uint64_t(m_trans  ) << SORT_KEY_DRAW_TRANS_SHIFT  ) & SORT_KEY_DRAW_TRANS_MASK;
+			const uint64_t seq     = (uint64_t(m_seq    ) << SORT_KEY_SEQ_SHIFT         ) & SORT_KEY_SEQ_MASK;
+			const uint64_t view    = (uint64_t(m_view   ) << SORT_KEY_VIEW_SHIFT        ) & SORT_KEY_VIEW_MASK;
+			const uint64_t key     = depth|program|trans|SORT_KEY_DRAW_BIT|seq|view;
+
+			BX_CHECK(seq == (uint64_t(m_seq) << SORT_KEY_SEQ_SHIFT), "SortKey error, sequence is truncated (m_seq: %d)."
+				, m_seq
+				);
+
 			return key;
 		}
 
@@ -723,27 +785,32 @@ namespace bgfx
 			// |   view-+|      seq-+        +-program                          |
 			// |         +-draw                                                 |
 
-			const uint64_t program = uint64_t(m_program)<<0x22;
-			const uint64_t seq     = uint64_t(m_seq    )<<0x2b;
-			const uint64_t view    = uint64_t(m_view   )<<SORT_KEY_VIEW_SHIFT;
+			const uint64_t program = (uint64_t(m_program) << SORT_KEY_COMPUTE_PROGRAM_SHIFT) & SORT_KEY_COMPUTE_PROGRAM_MASK;
+			const uint64_t seq     = (uint64_t(m_seq    ) << SORT_KEY_SEQ_SHIFT            ) & SORT_KEY_SEQ_MASK;
+			const uint64_t view    = (uint64_t(m_view   ) << SORT_KEY_VIEW_SHIFT           ) & SORT_KEY_VIEW_MASK;
 			const uint64_t key     = program|seq|view;
+
+			BX_CHECK(seq == (uint64_t(m_seq) << SORT_KEY_SEQ_SHIFT), "SortKey error, sequence is truncated (m_seq: %d)."
+				, m_seq
+				);
+
 			return key;
 		}
 
 		/// Returns true if item is command.
 		bool decode(uint64_t _key)
 		{
-			m_seq     = (_key>>0x2c)& 0x7ff;
-			m_view    = uint8_t( (_key&SORT_KEY_VIEW_MASK)>>SORT_KEY_VIEW_SHIFT);
-			if (_key & SORT_KEY_RENDER_DRAW)
+			m_seq  = uint16_t( (_key & SORT_KEY_SEQ_MASK ) >> SORT_KEY_SEQ_SHIFT);
+			m_view =  uint8_t( (_key & SORT_KEY_VIEW_MASK) >> SORT_KEY_VIEW_SHIFT);
+			if (_key & SORT_KEY_DRAW_BIT)
 			{
-				m_depth   =  _key       & 0xffffffff;
-				m_program = (_key>>0x20)&(BGFX_CONFIG_MAX_PROGRAMS-1);
-				m_trans   = (_key>>0x29)& 0x3;
+				m_depth   = uint32_t( (_key & SORT_KEY_DRAW_DEPTH_MASK  ) >> SORT_KEY_DRAW_DEPTH_SHIFT);
+				m_program = uint16_t( (_key & SORT_KEY_DRAW_PROGRAM_MASK) >> SORT_KEY_DRAW_PROGRAM_SHIFT);
+				m_trans   =  uint8_t( (_key & SORT_KEY_DRAW_TRANS_MASK  ) >> SORT_KEY_DRAW_TRANS_SHIFT);
 				return false; // draw
 			}
 
-			m_program = (_key>>0x22)&(BGFX_CONFIG_MAX_PROGRAMS-1);
+			m_program = uint16_t( (_key & SORT_KEY_COMPUTE_PROGRAM_MASK) >> SORT_KEY_COMPUTE_PROGRAM_SHIFT);
 			return true; // compute
 		}
 
@@ -2027,7 +2094,8 @@ namespace bgfx
 		static int32_t renderThread(void * /* _userData */)
 		{
 			BX_TRACE("render thread start");
-      while (RenderFrame::Exiting != bgfx::renderFrame()) {};
+			BGFX_PROFILER_SET_CURRENT_THREAD_NAME("bgfx - Render Thread");
+			while (RenderFrame::Exiting != bgfx::renderFrame() ) {};
 			BX_TRACE("render thread exit");
 			return EXIT_SUCCESS;
 		}
@@ -2256,7 +2324,7 @@ namespace bgfx
 			DynamicIndexBuffer& dib = m_dynamicIndexBuffers[handle.idx];
 			dib.m_handle.idx = uint16_t(ptr>>32);
 			dib.m_offset     = uint32_t(ptr);
-			dib.m_size       = size;
+			dib.m_size       = _num * indexSize;
 			dib.m_startIndex = bx::strideAlign(dib.m_offset, indexSize)/indexSize;
 			dib.m_flags      = _flags;
 
@@ -2401,9 +2469,9 @@ namespace bgfx
 			DynamicVertexBuffer& dvb = m_dynamicVertexBuffers[handle.idx];
 			dvb.m_handle.idx  = uint16_t(ptr>>32);
 			dvb.m_offset      = uint32_t(ptr);
-			dvb.m_size        = size;
+			dvb.m_size        = _num * _decl.m_stride;
 			dvb.m_startVertex = bx::strideAlign(dvb.m_offset, _decl.m_stride)/_decl.m_stride;
-			dvb.m_numVertices = dvb.m_size/_decl.m_stride;
+			dvb.m_numVertices = _num;
 			dvb.m_stride      = _decl.m_stride;
 			dvb.m_decl        = declHandle;
 			dvb.m_flags       = _flags;
@@ -2441,6 +2509,7 @@ namespace bgfx
 				dvb.m_handle.idx  = uint16_t(ptr>>32);
 				dvb.m_offset      = uint32_t(ptr);
 				dvb.m_size        = _mem->size;
+				dvb.m_numVertices = dvb.m_size / dvb.m_stride;
 				dvb.m_startVertex = bx::strideAlign(dvb.m_offset, dvb.m_stride)/dvb.m_stride;
 			}
 
@@ -3795,7 +3864,7 @@ namespace bgfx
 		{
 			if (!m_singleThreaded)
 			{
-				BGFX_PROFILER_SCOPE(bgfx, main_thread_wait, 0xff2040ff)
+				BGFX_PROFILER_SCOPE(bgfx, main_thread_wait, 0xff2040ff);
 				int64_t start = bx::getHPCounter();
 				bool ok = m_gameSem.wait();
 				BX_CHECK(ok, "Semaphore wait failed."); BX_UNUSED(ok);
@@ -3815,7 +3884,7 @@ namespace bgfx
 		{
 			if (!m_singleThreaded)
 			{
-				BGFX_PROFILER_SCOPE(bgfx, render_thread_wait, 0xff2040ff)
+				BGFX_PROFILER_SCOPE(bgfx, render_thread_wait, 0xff2040ff);
 				int64_t start = bx::getHPCounter();
 				bool ok = m_renderSem.wait();
 				BX_CHECK(ok, "Semaphore wait failed."); BX_UNUSED(ok);

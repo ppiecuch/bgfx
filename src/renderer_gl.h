@@ -745,6 +745,10 @@ typedef uint64_t GLuint64;
 #	define GL_UNSIGNED_INT_10_10_10_2 0x8DF6
 #endif // GL_UNSIGNED_INT_10_10_10_2
 
+#ifndef GL_FRAMEBUFFER_SRGB
+#	define GL_FRAMEBUFFER_SRGB 0x8DB9
+#endif // GL_FRAMEBUFFER_SRGB
+
 // _KHR or _ARB...
 #define GL_DEBUG_OUTPUT_SYNCHRONOUS         0x8242
 #define GL_DEBUG_NEXT_LOGGED_MESSAGE_LENGTH 0x8243
@@ -1245,9 +1249,12 @@ namespace bgfx { namespace gl
 			}
 
 			Frame& frame = m_frame[m_control.m_current];
-			GL_CHECK(glQueryCounter(frame.m_begin
-					, GL_TIMESTAMP
-					) );
+			if (!BX_ENABLED(BX_PLATFORM_OSX) )
+			{
+				GL_CHECK(glQueryCounter(frame.m_begin
+						, GL_TIMESTAMP
+						) );
+			}
 
 			GL_CHECK(glBeginQuery(GL_TIME_ELAPSED
 					, frame.m_elapsed
@@ -1274,10 +1281,17 @@ namespace bgfx { namespace gl
 
 				if (available)
 				{
-					GL_CHECK(glGetQueryObjectui64v(frame.m_begin
-							, GL_QUERY_RESULT
-							, &m_begin
-							) );
+					if (!BX_ENABLED(BX_PLATFORM_OSX) )
+					{
+						GL_CHECK(glGetQueryObjectui64v(frame.m_begin
+								, GL_QUERY_RESULT
+								, &m_begin
+								) );
+					}
+					else
+					{
+						m_begin = 0;
+					}
 
 					GL_CHECK(glGetQueryObjectui64v(frame.m_elapsed
 							, GL_QUERY_RESULT

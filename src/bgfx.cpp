@@ -3,8 +3,21 @@
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
+#include <bx/platform.h>
+#if BX_PLATFORM_WINDOWS
+// BK - Remotery needs WinSock, but on VS2015/Win10 build
+//      fails if WinSock2 is included after Windows.h?!
+#	include <winsock2.h>
+#endif // BX_PLATFORM_WINDOWS
+
 #include "bgfx_p.h"
 #include <bgfx.qt.h>
+
+#if BGFX_CONFIG_PROFILER_REMOTERY_BUILD_LIB
+#	define RMT_USE_D3D11 BGFX_CONFIG_RENDERER_DIRECT3D11
+#	define RMT_USE_OPENGL BGFX_CONFIG_RENDERER_OPENGL
+#	include <remotery/lib/Remotery.c>
+#endif // BGFX_CONFIG_PROFILER_REMOTERY_BUILD_LIB
 
 namespace bgfx
 {
@@ -329,9 +342,15 @@ namespace bgfx
 	{
 		va_list argList;
 		va_start(argList, _format);
-		g_callback->traceVargs(_filePath, _line, _format, argList);
+		if (NULL == g_callback)
+		{
+			dbgPrintfVargs(_format, argList);
+		}
+		else
+		{
+			g_callback->traceVargs(_filePath, _line, _format, argList);
+		}
 		va_end(argList);
-
 	}
 
 #include "charset.h"
@@ -356,7 +375,7 @@ namespace bgfx
 
 	static const uint32_t numCharsPerBatch = 1024;
 	static const uint32_t numBatchVertices = numCharsPerBatch*4;
-	static const uint32_t numBatchIndices = numCharsPerBatch*6;
+	static const uint32_t numBatchIndices  = numCharsPerBatch*6;
 
 	void TextVideoMemBlitter::init()
 	{
@@ -1348,6 +1367,7 @@ namespace bgfx
 			m_occlusionQuerySet.clear();
 		}
 
+		BGFX_PROFILER_SCOPE(bgfx, main_thread_frame, 0xff2040ff);
 		// wait for render thread to finish
 		renderSemWait();
 		frameNoRenderWait();
@@ -1423,7 +1443,7 @@ namespace bgfx
 
 	bool Context::renderFrame()
 	{
-		BGFX_PROFILER_SCOPE(bgfx, render_frame, 0xff2040ff)
+		BGFX_PROFILER_SCOPE(bgfx, render_frame, 0xff2040ff);
 
 		if (m_rendererInitialized
 		&& !m_flipAfterRender)
@@ -1436,6 +1456,7 @@ namespace bgfx
 		rendererExecCommands(m_render->m_cmdPre);
 		if (m_rendererInitialized)
 		{
+			BGFX_PROFILER_SCOPE(bgfx, render_submit, 0xff2040ff);
 			m_renderCtx->submit(m_render, m_clearQuad, m_textVideoMemBlitter);
 		}
 		rendererExecCommands(m_render->m_cmdPost);
@@ -2622,7 +2643,11 @@ again:
 		BGFX_CHECK_MAIN_THREAD();
 		BX_CHECK(NULL != _tib, "_tib can't be NULL");
 		BX_CHECK(0 < _num, "Requesting 0 indices.");
-		return s_ctx->allocTransientIndexBuffer(_tib, _num);
+		s_ctx->allocTransientIndexBuffer(_tib, _num);
+		BX_CHECK(_num == _tib->size/2, "Failed to allocate transient index buffer (requested %d, available %d). Use bgfx::checkAvailTransient* functions to ensure availability."
+			, _num
+			, _tib->size/2
+			);
 	}
 
 	void allocTransientVertexBuffer(TransientVertexBuffer* _tvb, uint32_t _num, const VertexDecl& _decl)
@@ -2632,7 +2657,11 @@ again:
 		BX_CHECK(0 < _num, "Requesting 0 vertices.");
 		BX_CHECK(UINT16_MAX >= _num, "Requesting %d vertices (max: %d).", _num, UINT16_MAX);
 		BX_CHECK(0 != _decl.m_stride, "Invalid VertexDecl.");
-		return s_ctx->allocTransientVertexBuffer(_tvb, _num, _decl);
+		s_ctx->allocTransientVertexBuffer(_tvb, _num, _decl);
+		BX_CHECK(_num == _tvb->size / _decl.m_stride, "Failed to allocate transient vertex buffer (requested %d, available %d). Use bgfx::checkAvailTransient* functions to ensure availability."
+			, _num
+			, _tvb->size / _decl.m_stride
+			);
 	}
 
 	bool allocTransientBuffers(bgfx::TransientVertexBuffer* _tvb, const bgfx::VertexDecl& _decl, uint32_t _numVertices, bgfx::TransientIndexBuffer* _tib, uint32_t _numIndices)
@@ -2652,7 +2681,12 @@ again:
 		BGFX_CHECK_MAIN_THREAD();
 		BGFX_CHECK_CAPS(BGFX_CAPS_INSTANCING, "Instancing is not supported!");
 		BX_CHECK(0 < _num, "Requesting 0 instanced data vertices.");
-		return s_ctx->allocInstanceDataBuffer(_num, _stride);
+		const InstanceDataBuffer* idb = s_ctx->allocInstanceDataBuffer(_num, _stride);
+		BX_CHECK(_num == idb->size / _stride, "Failed to allocate instance data buffer (requested %d, available %d). Use bgfx::checkAvailTransient* functions to ensure availability."
+			, _num
+			, idb->size / _stride
+			);
+		return idb;
 	}
 
 	IndirectBufferHandle createIndirectBuffer(uint32_t _num)
@@ -2780,6 +2814,10 @@ again:
 	TextureHandle createTexture2D(BackbufferRatio::Enum _ratio, uint16_t _width, uint16_t _height, uint8_t _numMips, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
 	{
 		BGFX_CHECK_MAIN_THREAD();
+		BX_CHECK(0 != (g_caps.formats[_format] & (BGFX_CAPS_FORMAT_TEXTURE_2D|BGFX_CAPS_FORMAT_TEXTURE_2D_EMULATED|BGFX_CAPS_FORMAT_TEXTURE_2D_SRGB) )
+			, "Format %s is not supported for 2D texture. Use bgfx::getCaps to check available texture formats."
+			, getName(_format)
+			);
 
 		_numMips = uint8_t(bx::uint32_max(1, _numMips) );
 
@@ -2840,6 +2878,10 @@ again:
 	{
 		BGFX_CHECK_MAIN_THREAD();
 		BGFX_CHECK_CAPS(BGFX_CAPS_TEXTURE_3D, "Texture3D is not supported!");
+		BX_CHECK(0 != (g_caps.formats[_format] & (BGFX_CAPS_FORMAT_TEXTURE_3D|BGFX_CAPS_FORMAT_TEXTURE_3D_EMULATED|BGFX_CAPS_FORMAT_TEXTURE_3D_SRGB) )
+			, "Format %s is not supported for 3D texture. Use bgfx::getCaps to check available texture formats."
+			, getName(_format)
+			);
 
 		_numMips = uint8_t(bx::uint32_max(1, _numMips) );
 
@@ -2880,6 +2922,10 @@ again:
 	TextureHandle createTextureCube(uint16_t _size, uint8_t _numMips, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
 	{
 		BGFX_CHECK_MAIN_THREAD();
+		BX_CHECK(0 != (g_caps.formats[_format] & (BGFX_CAPS_FORMAT_TEXTURE_CUBE|BGFX_CAPS_FORMAT_TEXTURE_CUBE_EMULATED|BGFX_CAPS_FORMAT_TEXTURE_CUBE_SRGB) )
+			, "Format %s is not supported for cube texture. Use bgfx::getCaps to check available texture formats."
+			, getName(_format)
+			);
 
 		_numMips = uint8_t(bx::uint32_max(1, _numMips) );
 
@@ -2944,9 +2990,9 @@ again:
 		BX_CHECK(NULL != _mem, "_mem can't be NULL");
 		BGFX_CHECK_CAPS(BGFX_CAPS_TEXTURE_3D, "Texture3D is not supported!");
 
-		if (_width == 0
-		||  _height == 0
-		||  _depth == 0)
+		if (0 == _width
+		||  0 == _height
+		||  0 == _depth)
 		{
 			release(_mem);
 		}
@@ -2961,8 +3007,8 @@ again:
 		BGFX_CHECK_MAIN_THREAD();
 		BX_CHECK(NULL != _mem, "_mem can't be NULL");
 		BX_CHECK(_side <= 5, "Invalid side %d.", _side);
-		if (_width == 0
-		||  _height == 0)
+		if (0 == _width
+		||  0 == _height)
 		{
 			release(_mem);
 		}
@@ -3948,6 +3994,18 @@ BGFX_C_API void bgfx_update_texture_cube(bgfx_texture_handle_t _handle, uint8_t 
 	bgfx::updateTextureCube(handle.cpp, _side, _mip, _x, _y, _width, _height, (const bgfx::Memory*)_mem, _pitch);
 }
 
+BGFX_C_API void bgfx_read_texture(bgfx_texture_handle_t _handle, void* _data)
+{
+	union { bgfx_texture_handle_t c; bgfx::TextureHandle cpp; } handle = { _handle };
+	bgfx::readTexture(handle.cpp, _data);
+}
+
+BGFX_C_API void bgfx_read_frame_buffer(bgfx_frame_buffer_handle_t _handle, uint8_t _attachment, void* _data)
+{
+	union { bgfx_frame_buffer_handle_t c; bgfx::FrameBufferHandle cpp; } handle = { _handle };
+	bgfx::readTexture(handle.cpp, _attachment, _data);
+}
+
 BGFX_C_API void bgfx_destroy_texture(bgfx_texture_handle_t _handle)
 {
 	union { bgfx_texture_handle_t c; bgfx::TextureHandle cpp; } handle = { _handle };
@@ -4033,6 +4091,11 @@ BGFX_C_API void bgfx_set_view_name(uint8_t _id, const char* _name)
 BGFX_C_API void bgfx_set_view_rect(uint8_t _id, uint16_t _x, uint16_t _y, uint16_t _width, uint16_t _height)
 {
 	bgfx::setViewRect(_id, _x, _y, _width, _height);
+}
+
+BGFX_C_API void bgfx_set_view_rect_auto(uint8_t _id, uint16_t _x, uint16_t _y, bgfx_backbuffer_ratio_t _ratio)
+{
+	bgfx::setViewRect(_id, _x, _y, bgfx::BackbufferRatio::Enum(_ratio));
 }
 
 BGFX_C_API void bgfx_set_view_scissor(uint8_t _id, uint16_t _x, uint16_t _y, uint16_t _width, uint16_t _height)
@@ -4290,6 +4353,13 @@ BGFX_C_API void bgfx_blit(uint8_t _id, bgfx_texture_handle_t _dst, uint8_t _dstM
 	union { bgfx_texture_handle_t c; bgfx::TextureHandle cpp; } dst = { _dst };
 	union { bgfx_texture_handle_t c; bgfx::TextureHandle cpp; } src = { _src };
 	bgfx::blit(_id, dst.cpp, _dstMip, _dstX, _dstY, _dstZ, src.cpp, _srcMip, _srcX, _srcY, _srcZ, _width, _height, _depth);
+}
+
+BGFX_C_API void bgfx_blit_frame_buffer(uint8_t _id, bgfx_texture_handle_t _dst, uint8_t _dstMip, uint16_t _dstX, uint16_t _dstY, uint16_t _dstZ, bgfx_frame_buffer_handle_t _src, uint8_t _attachment, uint8_t _srcMip, uint16_t _srcX, uint16_t _srcY, uint16_t _srcZ, uint16_t _width, uint16_t _height, uint16_t _depth)
+{
+	union { bgfx_texture_handle_t c; bgfx::TextureHandle cpp; } dst = { _dst };
+	union { bgfx_frame_buffer_handle_t c; bgfx::FrameBufferHandle cpp; } src = { _src };
+	bgfx::blit(_id, dst.cpp, _dstMip, _dstX, _dstY, _dstZ, src.cpp, _attachment, _srcMip, _srcX, _srcY, _srcZ, _width, _height, _depth);
 }
 
 BGFX_C_API void bgfx_save_screen_shot(const char* _filePath)

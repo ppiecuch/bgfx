@@ -141,7 +141,7 @@ namespace bgfx { namespace mtl
 			id<MTLLibrary> lib =  [m_obj newLibraryWithData:(dispatch_data_t)_data error:&error];
 			BX_WARN(NULL == error
 				, "newLibraryWithData failed: %s"
-				, error.localizedDescription.UTF8String
+				, [error.localizedDescription cStringUsingEncoding:NSASCIIStringEncoding]
 				);
 			return lib;
 		}
@@ -150,10 +150,9 @@ namespace bgfx { namespace mtl
 		{
 			NSError* error;
 			id<MTLLibrary> lib = [m_obj newLibraryWithSource:@(_source) options:nil error:&error];
-			//TODO: sometimes prints null as paremeter. string is too large
 			BX_WARN(NULL == error
 				, "Shader compilation failed: %s"
-				, error.localizedDescription.UTF8String
+				, [error.localizedDescription cStringUsingEncoding:NSASCIIStringEncoding]
 				);
 			return lib;
 		}
@@ -201,7 +200,7 @@ namespace bgfx { namespace mtl
 			id <MTLRenderPipelineState> state = [m_obj newRenderPipelineStateWithDescriptor:_descriptor error:&error];
 			BX_WARN(NULL == error
 				, "newRenderPipelineStateWithDescriptor failed: %s"
-				, error.localizedDescription.UTF8String
+				, [error.localizedDescription cStringUsingEncoding:NSASCIIStringEncoding]
 				);
 			return state;
 		}
@@ -213,7 +212,7 @@ namespace bgfx { namespace mtl
 
 			BX_WARN(NULL == error
 				, "newRenderPipelineStateWithDescriptor failed: %s"
-				, error.localizedDescription.UTF8String
+				, [error.localizedDescription cStringUsingEncoding:NSASCIIStringEncoding]
 				);
 			return state;
 		}
@@ -226,7 +225,7 @@ namespace bgfx { namespace mtl
 
 			BX_WARN(NULL == error
 				, "newComputePipelineStateWithFunction failed: %s"
-				, error.localizedDescription.UTF8String
+				, [error.localizedDescription cStringUsingEncoding:NSASCIIStringEncoding]
 				);
 			return state;
 		}
