@@ -27,11 +27,11 @@ namespace entry
 	static bx::FileReaderI* s_fileReader = NULL;
 	static bx::FileWriterI* s_fileWriter = NULL;
 
-	extern bx::ReallocatorI* getDefaultAllocator();
-	static bx::ReallocatorI* s_allocator = getDefaultAllocator();
+	extern bx::AllocatorI* getDefaultAllocator();
+	static bx::AllocatorI* s_allocator = getDefaultAllocator();
 
 #if ENTRY_CONFIG_IMPLEMENT_DEFAULT_ALLOCATOR
-	bx::ReallocatorI* getDefaultAllocator()
+	bx::AllocatorI* getDefaultAllocator()
 	{
 BX_PRAGMA_DIAGNOSTIC_PUSH();
 BX_PRAGMA_DIAGNOSTIC_IGNORED_MSVC(4459); // warning C4459: declaration of 's_allocator' hides global declaration
@@ -319,6 +319,10 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 	int runApp(AppI* _app, int _argc, char** _argv)
 	{
 		_app->init(_argc, _argv);
+		bgfx::frame();
+
+		WindowHandle defaultWindow = { 0 };
+		setWindowSize(defaultWindow, ENTRY_DEFAULT_WIDTH, ENTRY_DEFAULT_HEIGHT);
 
 #if BX_PLATFORM_EMSCRIPTEN
 		s_app = _app;
@@ -349,6 +353,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 		entry::WindowHandle defaultWindow = { 0 };
 		entry::setWindowTitle(defaultWindow, bx::baseName(_argv[0]) );
+		setWindowSize(defaultWindow, ENTRY_DEFAULT_WIDTH, ENTRY_DEFAULT_HEIGHT);
 
 		int32_t result = ::_main_(_argc, _argv);
 
@@ -464,10 +469,10 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				case Event::Window:
 					break;
 
-                case Event::Suspend:
-                    break;
+				case Event::Suspend:
+					break;
 
-                    default:
+				default:
 					break;
 				}
 			}
@@ -616,6 +621,9 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					}
 					break;
 
+				case Event::Suspend:
+					break;
+
 				default:
 					break;
 				}
@@ -658,7 +666,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		return s_fileWriter;
 	}
 
-	bx::ReallocatorI* getAllocator()
+	bx::AllocatorI* getAllocator()
 	{
 		return s_allocator;
 	}
