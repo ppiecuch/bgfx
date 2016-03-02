@@ -11,7 +11,6 @@
 #endif // BX_PLATFORM_WINDOWS
 
 #include "bgfx_p.h"
-#include <bgfx.qt.h>
 
 #if BGFX_CONFIG_PROFILER_REMOTERY_BUILD_LIB
 #	define RMT_USE_D3D11 BGFX_CONFIG_RENDERER_DIRECT3D11
@@ -945,12 +944,6 @@ namespace bgfx
 				return RenderFrame::NoContext;
 			}
 
-#ifdef QT_CORE_LIB
-      struct raii {
-        raii()  { qtReqCtxForThread(QThread::currentThread()); }
-        ~raii() { qtReleaseCtx(); }
-      } _res;
-#endif
 			BGFX_CHECK_RENDER_THREAD();
 			if (s_ctx->renderFrame() )
 			{

@@ -8,8 +8,7 @@
 
 #ifdef QT_GUI_LIB
 
-#include <bgfxplatform.h>
-#include <bgfx.qt.h>
+#include <bgfx/bgfxplatform.h>
 #include "dbg.h"
  	
 // This is just trivial implementation of Qt integration.
@@ -69,7 +68,6 @@ namespace entry
 	{
 	  Q_OBJECT
 	  Q_PROPERTY(bool alwaysRefresh READ alwaysRefresh WRITE setAlwaysRefresh)
-	  Q_PROPERTY(bool bgfxReady READ bgfxReady WRITE setBgfxReady)
 
   
   private:
@@ -82,14 +80,14 @@ namespace entry
 	  explicit OpenGLWindow(QScreen *screen = 0) : QWindow(screen),
               _isGLInitialized(0), _isWindowInitialized(0),
 						  _context(0), 
-						  _alwaysRefresh(false), _bgfxReady(false),
+						  _alwaysRefresh(false),
 						  _pendingRefresh(false)
 	  { initializeContext(); }
 
 	  explicit OpenGLWindow(QWindow *parent) : QWindow(parent),
               _isGLInitialized(0), _isWindowInitialized(0),
 		          _context(0),
-		          _alwaysRefresh(false), _bgfxReady(false),
+		          _alwaysRefresh(false),
 		          _pendingRefresh(false)
 	  { initializeContext(); }
 
@@ -100,11 +98,6 @@ namespace entry
 	    _alwaysRefresh = alwaysRefresh;
 	    if (alwaysRefresh) requestRefresh();
 	  }
-	  bool bgfxReady() const { return _bgfxReady; }
-	  void setBgfxReady(bool bgfxReady) {
-	    _bgfxReady = bgfxReady;
-	    if (bgfxReady) initializeWindow();
-	  }
     
 	signals:
 	  void aboutToResize();
@@ -112,22 +105,9 @@ namespace entry
 
 	public slots:
 	  QOpenGLContext *context() const { Q_ASSERT(_context!=NULL); return _context; }
-	  void makeCurrent() { qDebug() << Q_FUNC_INFO; _context->makeCurrent(this); }
-	  void swapBuffers() { qDebug() << Q_FUNC_INFO; _context->swapBuffers(this); }
+	  void makeCurrent() { _context->makeCurrent(this); }
+	  void swapBuffers() { _context->swapBuffers(this); }
 
-	  void grabContext(QThread *toThread) {
-	    
-      Q_ASSERT(_bgfxReady==true);
-qDebug() << Q_FUNC_INFO;
-      QRendererContextGL *c = qtGetRender();
-
-      c->lockRenderer();
-	    QMutexLocker lock(c->grabMutex());
-	    context()->moveToThread(toThread);
-	    c->grabCond()->wakeAll();
-	    c->unlockRenderer();
-	  }
-	  
 	protected:
 	  bool event(QEvent *event) {
 	    switch (event->type()) {
@@ -153,20 +133,13 @@ qDebug() << Q_FUNC_INFO;
 	public slots:
 	  void render() {
       
-      QRendererContextGL *c = qtGetRender();
-      Q_ASSERT(c==NULL);
-
-      // We are on the gui thread here. Wait until the render thread finishes.
-      c->lockRenderer();
-
-      if (!_isGLInitialized) {
-        _context->makeCurrent(this);
-        initializeOpenGLFunctions();
-        initializeWindow();
-        _isGLInitialized = true;
-      }
-      c->unlockRenderer();
-    }
+      	if (!_isGLInitialized) {
+       		_context->makeCurrent(this);
+        	initializeOpenGLFunctions();
+        	initializeWindow();
+        	_isGLInitialized = true;
+    	}
+	  }
 	  void requestRefresh() {
 	    if (!_pendingRefresh) {
 	      _pendingRefresh = true;
@@ -175,8 +148,8 @@ qDebug() << Q_FUNC_INFO;
 	  }
 
   public:
-		template<QObject *target> 
-    void operator()(const char *sig) {
+		template<QObject *target>
+		void operator()(const char *sig) {
 			QMetaObject::invokeMethod(target, sig);
 			return;
 			// ((*((X*)NULL)).*((Y)NULL))();
@@ -199,10 +172,6 @@ qDebug() << Q_FUNC_INFO;
 	    _context->makeCurrent(this);
 	  }
 	  void initializeWindow() {      
-	    qDebug() << Q_FUNC_INFO << ":\n\t" << QOpenGLContext::currentContext() << ":\n\t" << qtGetRender();
-
-      connect(qtGetRender(), SIGNAL(contextWanted(QThread*)), this, SLOT(grabContext(QThread*)));
-
 	    _time.start();
 	  }
 
@@ -210,7 +179,6 @@ qDebug() << Q_FUNC_INFO;
 	  QOpenGLContext *_context;
     
 	  bool _alwaysRefresh;
-	  bool _bgfxReady;
 	  bool _pendingRefresh;
 	  QTime _time;
 	};
@@ -230,26 +198,15 @@ qDebug() << Q_FUNC_INFO;
 		int run(int _argc, char** _argv)
 		{
 			m_app = new QGuiApplication(_argc, _argv);
-
-			// init default format
-			QSurfaceFormat format;
-			format.setSamples(4);
-			format.setDepthBufferSize(24);
-#if BGFX_CONFIG_RENDERER_OPENGL >= 31
-			format.setProfile( QSurfaceFormat::CoreProfile );
-			format.setVersion( 3, 1 );
-#endif // BGFX_CONFIG_RENDERER_OPENGL >= 31
-			QSurfaceFormat::setDefaultFormat(format);
-
 			QObject::connect( m_app, &QGuiApplication::lastWindowClosed, &_finishCtx );
 
 			m_window = new OpenGLWindow;
 			m_window->resize(640, 480);
 			m_window->setTitle(QFileInfo(_argv[0]).fileName());
-			bgfx::qtSetWindow(m_window, m_window->context());
+			bgfx::qtSetWindow(m_window);
 
 			m_window->show();
-      m_window->setWindowInitialized();
+      		m_window->setWindowInitialized();
 			
 			return entry::main(_argc, _argv);
 		}	  

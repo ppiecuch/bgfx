@@ -809,9 +809,7 @@ typedef uint64_t GLuint64;
 #endif // GL_DISPATCH_INDIRECT_BUFFER
 
 
-#ifdef QT_GUI_LIB
-#	include "glcontext_qt.h"
-#elif BX_PLATFORM_NACL
+#if BX_PLATFORM_NACL
 #	include "glcontext_ppapi.h"
 #elif BX_PLATFORM_WINDOWS
 #	include <windows.h>

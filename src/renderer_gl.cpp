@@ -1205,10 +1205,7 @@ namespace bgfx { namespace gl
 	}
 
 	struct RendererContextGL : public RendererContextI
-#ifdef QT_CORE_LIB
-    , public QRendererContextGL
-#endif
-  {
+  	{
 		RendererContextGL()
 			: m_numWindows(1)
 			, m_rtMsaa(false)
@@ -6561,20 +6558,4 @@ namespace bgfx { namespace gl
 #undef BGFX_GPU_PROFILER_BEGIN
 #undef BGFX_GPU_PROFILER_BEGIN_DYNAMIC
 #undef BGFX_GPU_PROFILER_END
-
-#else
-
-namespace bgfx { namespace gl
-{
-	RendererContextI* rendererCreate()
-	{
-		return NULL;
-	}
-
-	void rendererDestroy()
-	{
-	}
-} /* namespace gl */ } // namespace bgfx
-
-#endif // (BGFX_CONFIG_RENDERER_OPENGLES || BGFX_CONFIG_RENDERER_OPENGL)
 

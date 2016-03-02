@@ -2,7 +2,7 @@ TEMPLATE = app
 QT += \
   gui openglextensions \  # for library
   widgets                 # for demo application
-CONFIG += debug
+CONFIG += c++11 debug
 CONFIG -= app_bundle
 
 DEFINES += BGFX_CONFIG_DEBUG
@@ -22,6 +22,8 @@ HEADERS += \
 SOURCES += \
     ../src/amalgamated.cpp \
     ../3rdparty/ocornut-imgui/imgui.cpp \
+    ../3rdparty/ocornut-imgui/imgui_wm.cpp \
+    ../3rdparty/ocornut-imgui/imgui_draw.cpp \
     ../examples/common/imgui/imgui-amalgamated.cpp \
     ../examples/common/nanovg/nanovg-amalgamated.cpp \
     ../examples/common/entry/dbg.cpp \
@@ -30,3 +32,5 @@ SOURCES += \
     ../examples/common/entry/entry.cpp \
     ../examples/common/entry/entry_qt.cpp \
     ../examples/20-nanovg/nanovg.cpp
+
+include("common.pri")
