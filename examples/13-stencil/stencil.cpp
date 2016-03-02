@@ -1,6 +1,6 @@
 /*
  * Copyright 2013-2014 Dario Manesku. All rights reserved.
- * License: http://www.opensource.org/licenses/BSD-2-Clause
+ * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
 #include <string>
@@ -9,7 +9,7 @@
 #include "common.h"
 #include "bgfx_utils.h"
 
-#include <bx/readerwriter.h>
+#include <bx/crtimpl.h>
 #include "camera.h"
 #include "imgui/imgui.h"
 
@@ -682,7 +682,7 @@ struct Mesh
 #define BGFX_CHUNK_MAGIC_PRI BX_MAKEFOURCC('P', 'R', 'I', 0x0)
 
 		bx::CrtFileReader reader;
-		reader.open(_filePath);
+		bx::open(&reader, _filePath);
 
 		Group group;
 
@@ -763,7 +763,7 @@ struct Mesh
 			}
 		}
 
-		reader.close();
+		bx::close(&reader);
 	}
 
 	void unload()

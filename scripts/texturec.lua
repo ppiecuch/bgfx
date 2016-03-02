@@ -1,6 +1,6 @@
 --
--- Copyright 2010-2015 Branimir Karadzic. All rights reserved.
--- License: http://www.opensource.org/licenses/BSD-2-Clause
+-- Copyright 2010-2016 Branimir Karadzic. All rights reserved.
+-- License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
 --
 
 project "texturec"
@@ -19,8 +19,12 @@ project "texturec"
 		path.join(BGFX_DIR, "src/image.*"),
 		path.join(BGFX_DIR, "3rdparty/libsquish/**.cpp"),
 		path.join(BGFX_DIR, "3rdparty/libsquish/**.h"),
+		path.join(BGFX_DIR, "3rdparty/edtaa3/**.cpp"),
+		path.join(BGFX_DIR, "3rdparty/edtaa3/**.h"),
 		path.join(BGFX_DIR, "3rdparty/etc1/**.cpp"),
 		path.join(BGFX_DIR, "3rdparty/etc1/**.h"),
+		path.join(BGFX_DIR, "3rdparty/etc2/**.cpp"),
+		path.join(BGFX_DIR, "3rdparty/etc2/**.hpp"),
 		path.join(BGFX_DIR, "3rdparty/nvtt/**.cpp"),
 		path.join(BGFX_DIR, "3rdparty/nvtt/**.h"),
 		path.join(BGFX_DIR, "3rdparty/pvrtc/**.cpp"),

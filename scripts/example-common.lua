@@ -1,6 +1,6 @@
 --
--- Copyright 2010-2015 Branimir Karadzic. All rights reserved.
--- License: http://www.opensource.org/licenses/BSD-2-Clause
+-- Copyright 2010-2016 Branimir Karadzic. All rights reserved.
+-- License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
 --
 
 project ("example-common")
@@ -60,6 +60,11 @@ project ("example-common")
 			"ENTRY_CONFIG_USE_GLFW=1",
 		}
 	end
+	
+	configuration { "linux-steamlink" }
+		defines {
+			"EGL_API_FB",
+		}
 
 	configuration { "osx or ios* or tvos*" }
 		files {

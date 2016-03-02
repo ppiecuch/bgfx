@@ -1,6 +1,6 @@
 /*
- * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
- * License: http://www.opensource.org/licenses/BSD-2-Clause
+ * Copyright 2011-2016 Branimir Karadzic. All rights reserved.
+ * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
 #ifndef ENTRY_PRIVATE_H_HEADER_GUARD
@@ -13,8 +13,12 @@
 #include "entry.h"
 #include <string.h> // memcpy
 
+#ifndef ENTRY_CONFIG_USE_NOOP
+#	define ENTRY_CONFIG_USE_NOOP (BX_PLATFORM_QNX || BX_PLATFORM_XBOXONE)
+#endif // ENTRY_CONFIG_USE_NOOP
+
 #ifndef ENTRY_CONFIG_USE_SDL
-#	define ENTRY_CONFIG_USE_SDL 0
+#	define ENTRY_CONFIG_USE_SDL BX_PLATFORM_STEAMLINK
 #endif // ENTRY_CONFIG_USE_SDL
 
 #ifndef ENTRY_CONFIG_USE_GLFW
@@ -22,6 +26,7 @@
 #endif // ENTRY_CONFIG_USE_GLFW
 
 #if !defined(ENTRY_CONFIG_USE_NATIVE) \
+	&& !ENTRY_CONFIG_USE_NOOP \
 	&& !ENTRY_CONFIG_USE_SDL \
 	&& !ENTRY_CONFIG_USE_GLFW
 #	define ENTRY_CONFIG_USE_NATIVE 1

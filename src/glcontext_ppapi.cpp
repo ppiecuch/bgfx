@@ -1,6 +1,6 @@
 /*
- * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
- * License: http://www.opensource.org/licenses/BSD-2-Clause
+ * Copyright 2011-2016 Branimir Karadzic. All rights reserved.
+ * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
 #include "bgfx_p.h"
@@ -121,11 +121,13 @@ namespace bgfx { namespace gl
 
 	static void GL_APIENTRY naclGetQueryObjectiv(GLuint _id, GLenum _pname, GLint* _params)
 	{
+		BX_UNUSED(_id, _pname);
 		s_ppapi.m_query->GetQueryivEXT(s_ppapi.m_context, GL_ANY_SAMPLES_PASSED_EXT, GL_CURRENT_QUERY_EXT, _params);
 	}
 
 	static void GL_APIENTRY naclGetQueryObjectui64v(GLuint _id, GLenum _pname, GLuint64* _params)
 	{
+		BX_UNUSED(_id, _pname);
 		GLint params;
 		s_ppapi.m_query->GetQueryivEXT(s_ppapi.m_context, GL_ANY_SAMPLES_PASSED_EXT, GL_CURRENT_QUERY_EXT, &params);
 		*_params = params;
@@ -191,6 +193,8 @@ namespace bgfx { namespace gl
 	{
 		BX_UNUSED(_width, _height);
 		BX_TRACE("GlContext::create");
+
+		g_internalData.context = &s_ppapi.m_context;
 	}
 
 	void GlContext::destroy()

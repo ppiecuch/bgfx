@@ -1,6 +1,6 @@
 /*
- * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
- * License: http://www.opensource.org/licenses/BSD-2-Clause
+ * Copyright 2011-2016 Branimir Karadzic. All rights reserved.
+ * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
 #include "bgfx_p.h"
@@ -712,7 +712,11 @@ namespace bgfx
 			uint32_t size = read(&reader, instruction);
 			BX_CHECK(size/4 == instruction.length, "read %d, expected %d", size/4, instruction.length); BX_UNUSED(size);
 
-			_fn(token * sizeof(uint32_t), instruction, _userData);
+			bool cont = _fn(token * sizeof(uint32_t), instruction, _userData);
+			if (!cont)
+			{
+				return;
+			}
 
 			token += instruction.length;
 		}
@@ -722,8 +726,7 @@ namespace bgfx
 	{
 		bx::MemoryReader reader(_src.byteCode.data(), uint32_t(_src.byteCode.size() ) );
 
-		bx::CrtAllocator r;
-		bx::MemoryBlock mb(&r);
+		bx::MemoryBlock mb(g_allocator);
 		bx::MemoryWriter writer(&mb);
 
 		for (uint32_t token = 0, numTokens = uint32_t(_src.byteCode.size() / sizeof(uint32_t) ); token < numTokens;)

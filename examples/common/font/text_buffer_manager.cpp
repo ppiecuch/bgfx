@@ -1,6 +1,6 @@
 /*
  * Copyright 2013 Jeremie Roy. All rights reserved.
- * License: http://www.opensource.org/licenses/BSD-2-Clause
+ * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
 #include "../common.h"
@@ -822,8 +822,8 @@ void TextBufferManager::submitTextBuffer(TextBufferHandle _handle, uint8_t _id, 
 						);
 			}
 
-			bgfx::setVertexBuffer(vbh, bc.textBuffer->getVertexCount() );
-			bgfx::setIndexBuffer(ibh, bc.textBuffer->getIndexCount() );
+			bgfx::setVertexBuffer(vbh, 0, bc.textBuffer->getVertexCount() );
+			bgfx::setIndexBuffer(ibh, 0, bc.textBuffer->getIndexCount() );
 		}
 		break;
 

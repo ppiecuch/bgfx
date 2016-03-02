@@ -1,6 +1,6 @@
 /*
- * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
- * License: http://www.opensource.org/licenses/BSD-2-Clause
+ * Copyright 2011-2016 Branimir Karadzic. All rights reserved.
+ * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
 #ifndef BGFX_RENDERER_D3D12_H_HEADER_GUARD
@@ -9,7 +9,11 @@
 #define USE_D3D12_DYNAMIC_LIB 1
 
 #include <sal.h>
-#include <d3d12.h>
+#if BX_PLATFORM_XBOXONE
+#	include <d3d12_x.h>
+#else
+#	include <d3d12.h>
+#endif // BX_PLATFORM_XBOXONE
 
 #if defined(__MINGW32__) // BK - temp workaround for MinGW until I nuke d3dx12 usage.
 extern "C++" {
@@ -27,10 +31,16 @@ extern "C++" {
 
 BX_PRAGMA_DIAGNOSTIC_PUSH();
 BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wmissing-field-initializers");
-#include <d3dx12.h>
+#if BX_PLATFORM_XBOXONE
+#	include <d3dx12_x.h>
+#else
+#	include <d3dx12.h>
+#endif // BX_PLATFORM_XBOXONE
 BX_PRAGMA_DIAGNOSTIC_POP();
 
-#include <dxgi1_4.h>
+#if !BX_PLATFORM_XBOXONE
+#	include <dxgi1_4.h>
+#endif // !BX_PLATFORM_XBOXONE
 
 #include "renderer.h"
 #include "renderer_d3d.h"
@@ -173,7 +183,6 @@ namespace bgfx { namespace d3d12
 		}
 
 		void create(const Memory* _mem);
-		DWORD* getShaderCode(uint8_t _fragmentBit, const Memory* _mem);
 
 		void destroy()
 		{
@@ -295,7 +304,7 @@ namespace bgfx { namespace d3d12
 			m_depth.idx = bgfx::invalidHandle;
 		}
 
-		void create(uint8_t _num, const TextureHandle* _handles);
+		void create(uint8_t _num, const Attachment* _attachment);
 		void create(uint16_t _denseIdx, void* _nwh, uint32_t _width, uint32_t _height, TextureFormat::Enum _depthFormat);
 		uint16_t destroy();
 		void preReset();
@@ -311,7 +320,7 @@ namespace bgfx { namespace d3d12
 		uint16_t m_denseIdx;
 		uint8_t m_num;
 		uint8_t m_numTh;
-		TextureHandle m_th[BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS];
+		Attachment m_attachment[BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS];
 	};
 
 	struct CommandQueueD3D12

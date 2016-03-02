@@ -1,6 +1,6 @@
 /*
- * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
- * License: http://www.opensource.org/licenses/BSD-2-Clause
+ * Copyright 2011-2016 Branimir Karadzic. All rights reserved.
+ * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
 #include "entry_p.h"
@@ -358,7 +358,7 @@ namespace entry
 			s_translateKey[VK_HOME]       = Key::Home;
 			s_translateKey[VK_END]        = Key::End;
 			s_translateKey[VK_PRIOR]      = Key::PageUp;
-			s_translateKey[VK_NEXT]       = Key::PageUp;
+			s_translateKey[VK_NEXT]       = Key::PageDown;
 			s_translateKey[VK_SNAPSHOT]   = Key::Print;
 			s_translateKey[VK_OEM_PLUS]   = Key::Plus;
 			s_translateKey[VK_OEM_MINUS]  = Key::Minus;

@@ -1,6 +1,9 @@
 [bgfx](https://github.com/bkaradzic/bgfx) - Cross-platform rendering library
 ============================================================================
 
+[![Build Status](https://travis-ci.org/bkaradzic/bgfx.svg?branch=master)](https://travis-ci.org/bkaradzic/bgfx)
+[![Build status](https://ci.appveyor.com/api/projects/status/ipa3ojgeaet1oko5?svg=true)](https://ci.appveyor.com/project/bkaradzic/bgfx)
+
 [What is it?](https://bkaradzic.github.io/bgfx/overview.html)
 -------------------------------------------------------------
 
@@ -29,12 +32,13 @@ Supported platforms:
  * asm.js/Emscripten (1.25.0)
  * FreeBSD
  * iOS (iPhone, iPad, AppleTV)
- * Linux ![](https://tc27.draster.com/app/rest/builds/buildType:(id:Bgfx_Linux)/statusIcon)
+ * Linux
  * MIPS Creator CI20
  * Native Client (PPAPI 37+, ARM, x86, x64, PNaCl)
  * OSX (10.9+)
  * RaspberryPi
- * Windows (XP, Vista, 7, 8, 10) ![](https://tc27.draster.com/app/rest/builds/buildType:(id:Bgfx_Windows)/statusIcon)
+ * SteamLink
+ * Windows (XP, Vista, 7, 8, 10)
  * WinRT (WinPhone 8.0+)
 
 Supported compilers:
@@ -51,11 +55,23 @@ Languages:
  * [Go language API bindings](https://github.com/james4k/go-bgfx)
  * [Java language API bindings](https://github.com/enleeten/twilight-bgfx)
  * [Haskell language API bindings](https://github.com/haskell-game/bgfx)
+ * [Python language API bindings](https://github.com/jnadro/pybgfx#pybgf)
+ * [Rust language API bindings](https://github.com/rhoot/bgfx-rs)
 
-Build status
-------------
+[Building](https://bkaradzic.github.io/bgfx/build.html)
+----------------------------------------------------
 
-https://tc27.draster.com/guestAuth/overview.html
+ - AppVeyor https://ci.appveyor.com/project/bkaradzic/bgfx
+ - TravisCI https://travis-ci.org/bkaradzic/bgfx
+
+[Examples](https://bkaradzic.github.io/bgfx/examples.html)
+----------------------------------------------------------
+
+[API Reference](https://bkaradzic.github.io/bgfx/bgfx.html)
+-----------------------------------------------------------
+
+[Tools](https://bkaradzic.github.io/bgfx/tools.html)
+----------------------------------------------------
 
 Who is using it?
 ----------------
@@ -94,7 +110,7 @@ deployment model of web with the performance of native code and GPU acceleration
 
 https://github.com/nem0/LumixEngine LumixEngine is a MIT licensed 3D engine.
 The main goal is performance and Unity-like usability.  
-![LumixEngine screenshot](https://cloud.githubusercontent.com/assets/153526/10109455/450c51be-63c7-11e5-9c87-96d9d00efe02.png)
+![LumixEngine screenshot](https://cloud.githubusercontent.com/assets/153526/12904252/3fcf130e-cece-11e5-878b-c9fe24c1b11a.png)
 
 https://github.com/podgorskiy/KeplerOrbits KeplerOrbits - Tool that calculates
 positions of celestial bodies using their orbital elements. [Web Demo](http://podgorskiy.com/KeplerOrbits/KeplerOrbits.html)
@@ -107,17 +123,10 @@ https://github.com/jpcy/ioq3-renderer-bgfx - A renderer for ioquake3 written in
 C++ and using bgfx to support multiple rendering APIs.  
 ![ioq3-renderer-bgfx screenshot](https://camo.githubusercontent.com/052aa40c05120e56306294d3a1bb5f99f97de8c8/687474703a2f2f692e696d6775722e636f6d2f64364f6856594b2e6a7067)
 
-[Building](https://bkaradzic.github.io/bgfx/build.html)
--------------------------------------------------------
+http://makingartstudios.itch.io/dls - DLS the digital logic simulator game.  
+![dls-screenshot](https://img.itch.io/aW1hZ2UvMzk3MTgvMTc5MjQ4LnBuZw==/original/kA%2FQPb.png)
 
-[Examples](https://bkaradzic.github.io/bgfx/examples.html)
-----------------------------------------------------------
-
-[API Reference](https://bkaradzic.github.io/bgfx/bgfx.html)
------------------------------------------------------------
-
-[Tools](https://bkaradzic.github.io/bgfx/tools.html)
-----------------------------------------------------
+https://github.com/mamedev/mame MAME - Multiple Arcade Machine Emulator
 
 [License (BSD 2-clause)](https://bkaradzic.github.io/bgfx/license.html)
 -----------------------------------------------------------------------
@@ -126,7 +135,7 @@ C++ and using bgfx to support multiple rendering APIs.
 <img align="right" src="http://opensource.org/trademarks/opensource/OSI-Approved-License-100x137.png">
 </a>
 
-	Copyright 2010-2015 Branimir Karadzic. All rights reserved.
+	Copyright 2010-2016 Branimir Karadzic. All rights reserved.
 	
 	https://github.com/bkaradzic/bgfx
 	

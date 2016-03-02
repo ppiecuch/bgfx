@@ -1,6 +1,6 @@
 /*
- * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
- * License: http://www.opensource.org/licenses/BSD-2-Clause
+ * Copyright 2011-2016 Branimir Karadzic. All rights reserved.
+ * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
 // This code is based on:
@@ -28,6 +28,7 @@
 #include <bx/uint32_t.h>
 #include <bx/fpumath.h>
 #include <bx/handlealloc.h>
+#include <bx/crtimpl.h>
 
 #include "imgui.h"
 #include "ocornut_imgui.h"
@@ -454,11 +455,13 @@ struct Imgui
 	{
 		m_allocator = _allocator;
 
-		if (NULL == m_allocator)
+#if BX_CONFIG_ALLOCATOR_CRT
+		if (NULL == _allocator)
 		{
 			static bx::CrtAllocator allocator;
 			m_allocator = &allocator;
 		}
+#endif // BX_CONFIG_ALLOCATOR_CRT
 
 		if (NULL == _data)
 		{
@@ -468,7 +471,7 @@ struct Imgui
 
 		IMGUI_create(_data, _size, _fontSize, m_allocator);
 
-		m_nvg = nvgCreate(1, m_view);
+		m_nvg = nvgCreate(1, m_view, m_allocator);
  		nvgCreateFontMem(m_nvg, "default", (unsigned char*)_data, INT32_MAX, 0);
  		nvgFontSize(m_nvg, _fontSize);
  		nvgFontFace(m_nvg, "default");
@@ -3415,12 +3418,14 @@ bool imguiCheck(const char* _text, bool _checked, bool _enabled)
 	return s_imgui.check(_text, _checked, _enabled);
 }
 
-void imguiBool(const char* _text, bool& _flag, bool _enabled)
+bool imguiBool(const char* _text, bool& _flag, bool _enabled)
 {
-	if (imguiCheck(_text, _flag, _enabled) )
+	bool result = imguiCheck(_text, _flag, _enabled);
+	if (result)
 	{
 		_flag = !_flag;
 	}
+	return result;
 }
 
 bool imguiCollapse(const char* _text, const char* _subtext, bool _checked, bool _enabled)
@@ -3569,4 +3574,11 @@ float imguiGetTextLength(const char* _text, ImguiFontHandle _handle)
 bool imguiMouseOverArea()
 {
 	return s_imgui.m_insideArea;
+}
+
+bgfx::ProgramHandle imguiGetImageProgram(uint8_t _mip)
+{
+	const float lodEnabled[4] = { float(_mip), 1.0f, 0.0f, 0.0f };
+	bgfx::setUniform(s_imgui.u_imageLodEnabled, lodEnabled);
+	return s_imgui.m_imageProgram;
 }

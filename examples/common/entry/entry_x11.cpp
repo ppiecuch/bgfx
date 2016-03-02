@@ -1,11 +1,11 @@
 /*
- * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
- * License: http://www.opensource.org/licenses/BSD-2-Clause
+ * Copyright 2011-2016 Branimir Karadzic. All rights reserved.
+ * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
 #include "entry_p.h"
 
-#if ENTRY_CONFIG_USE_NATIVE && (BX_PLATFORM_FREEBSD || BX_PLATFORM_LINUX || BX_PLATFORM_RPI)
+#if ENTRY_CONFIG_USE_NATIVE && (BX_PLATFORM_BSD || BX_PLATFORM_LINUX || BX_PLATFORM_RPI)
 
 #define XK_MISCELLANY
 #define XK_LATIN1
@@ -60,6 +60,23 @@ namespace entry
 		GamepadAxis::RightY,
 		GamepadAxis::RightZ,
 	};
+
+	struct AxisDpadRemap
+	{
+		Key::Enum first;
+		Key::Enum second;
+	};
+
+	static AxisDpadRemap s_axisDpad[] =
+	{
+		{ Key::GamepadLeft, Key::GamepadRight },
+		{ Key::GamepadUp,   Key::GamepadDown  },
+		{ Key::None,        Key::None         },
+		{ Key::GamepadLeft, Key::GamepadRight },
+		{ Key::GamepadUp,   Key::GamepadDown  },
+		{ Key::None,        Key::None         },
+	};
+	BX_STATIC_ASSERT(BX_COUNTOF(s_translateAxis) == BX_COUNTOF(s_axisDpad) );
 
 	struct Joystick
 	{
@@ -135,6 +152,24 @@ namespace entry
 					if (filter(axis, &value) )
 					{
 						_eventQueue.postAxisEvent(defaultWindow, handle, axis, value);
+
+						if (Key::None != s_axisDpad[axis].first)
+						{
+							if (m_value[axis] == 0)
+							{
+								_eventQueue.postKeyEvent(defaultWindow, s_axisDpad[axis].first,  0, false);
+								_eventQueue.postKeyEvent(defaultWindow, s_axisDpad[axis].second, 0, false);
+							}
+							else
+							{
+								_eventQueue.postKeyEvent(defaultWindow
+									, 0 > m_value[axis] ? s_axisDpad[axis].first : s_axisDpad[axis].second
+									, 0
+									, true
+									);
+							}
+						}
+
 					}
 				}
 			}
@@ -713,4 +748,4 @@ int main(int _argc, char** _argv)
 	return s_ctx.run(_argc, _argv);
 }
 
-#endif // ENTRY_CONFIG_USE_NATIVE && (BX_PLATFORM_FREEBSD || BX_PLATFORM_LINUX || BX_PLATFORM_RPI)
+#endif // ENTRY_CONFIG_USE_NATIVE && (BX_PLATFORM_BSD || BX_PLATFORM_LINUX || BX_PLATFORM_RPI)

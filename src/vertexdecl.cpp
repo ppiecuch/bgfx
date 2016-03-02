@@ -1,14 +1,15 @@
 /*
- * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
- * License: http://www.opensource.org/licenses/BSD-2-Clause
+ * Copyright 2011-2016 Branimir Karadzic. All rights reserved.
+ * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
 #include <string.h>
 #include <bx/debug.h>
 #include <bx/hash.h>
-#include <bx/uint32_t.h>
-#include <bx/string.h>
 #include <bx/readerwriter.h>
+#include <bx/radixsort.h>
+#include <bx/string.h>
+#include <bx/uint32_t.h>
 
 #include "config.h"
 #include "vertexdecl.h"
@@ -839,4 +840,5 @@ namespace bgfx
 
 		return (uint16_t)numVertices;
 	}
+
 } // namespace bgfx

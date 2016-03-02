@@ -1,6 +1,6 @@
 /*
- * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
- * License: http://www.opensource.org/licenses/BSD-2-Clause
+ * Copyright 2011-2016 Branimir Karadzic. All rights reserved.
+ * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
 #ifndef BGFX_SHADER_H_HEADER_GUARD
@@ -11,6 +11,22 @@
 #endif // !defined(BGFX_CONFIG_MAX_BONES)
 
 #ifndef __cplusplus
+
+#if BGFX_SHADER_LANGUAGE_HLSL > 3
+#	define BRANCH [branch]
+#	define LOOP   [loop]
+#	define UNROLL [unroll]
+#else
+#	define BRANCH
+#	define LOOP
+#	define UNROLL
+#endif // BGFX_SHADER_LANGUAGE_HLSL > 3
+
+#if BGFX_SHADER_LANGUAGE_HLSL > 3 && BGFX_SHADER_TYPE_FRAGMENT
+#	define EARLY_DEPTH_STENCIL [earlydepthstencil]
+#else
+#	define EARLY_DEPTH_STENCIL
+#endif // BGFX_SHADER_LANGUAGE_HLSL > 3 && BGFX_SHADER_TYPE_FRAGMENT
 
 #if BGFX_SHADER_LANGUAGE_HLSL
 #	define dFdx(_x) ddx(_x)
@@ -23,6 +39,13 @@
 #	define bvec4 bool4
 
 #	if BGFX_SHADER_LANGUAGE_HLSL > 3
+#		if BGFX_SHADER_LANGUAGE_HLSL > 4
+#			define dFdxCoarse(_x) ddx_coarse(_x)
+#			define dFdxFine(_x)   ddx_fine(_x)
+#			define dFdyCoarse(_y) ddy_coarse(-_y)
+#			define dFdyFine(_y)   ddy_fine(-_y)
+#		endif // BGFX_SHADER_LANGUAGE_HLSL > 4
+
 struct BgfxSampler2D
 {
 	SamplerState m_sampler;
@@ -59,13 +82,13 @@ struct BgfxSampler2DShadow
 
 float bgfxShadow2D(BgfxSampler2DShadow _sampler, vec3 _coord)
 {
-	return _sampler.m_texture.SampleCmpLevelZero(_sampler.m_sampler, _coord.xy, _coord.z * 2.0 - 1.0);
+	return _sampler.m_texture.SampleCmpLevelZero(_sampler.m_sampler, _coord.xy, _coord.z);
 }
 
 float bgfxShadow2DProj(BgfxSampler2DShadow _sampler, vec4 _coord)
 {
 	vec3 coord = _coord.xyz * rcp(_coord.w);
-	return _sampler.m_texture.SampleCmpLevelZero(_sampler.m_sampler, coord.xy, coord.z * 2.0 - 1.0);
+	return _sampler.m_texture.SampleCmpLevelZero(_sampler.m_sampler, coord.xy, coord.z);
 }
 
 struct BgfxSampler3D
@@ -180,9 +203,9 @@ float bgfxShadow2D(sampler2DShadow _sampler, vec3 _coord)
 {
 #if 0
 	float occluder = tex2D(_sampler, _coord.xy).x;
-	return step(_coord.z * 2.0 - 1.0, occluder);
+	return step(_coord.z, occluder);
 #else
-	return tex2Dproj(_sampler, vec4(_coord.xy, _coord.z * 2.0 - 1.0, 1.0) ).x;
+	return tex2Dproj(_sampler, vec4(_coord.xy, _coord.z, 1.0) ).x;
 #endif // 0
 }
 
@@ -191,7 +214,7 @@ float bgfxShadow2DProj(sampler2DShadow _sampler, vec4 _coord)
 #if 0
 	vec3 coord = _coord.xyz * rcp(_coord.w);
 	float occluder = tex2D(_sampler, coord.xy).x;
-	return step(coord.z * 2.0 - 1.0, occluder);
+	return step(coord.z, occluder);
 #else
 	return tex2Dproj(_sampler, _coord).x;
 #endif // 0
@@ -222,14 +245,6 @@ float bgfxShadow2DProj(sampler2DShadow _sampler, vec4 _coord)
 #		endif // BGFX_SHADER_LANGUAGE_HLSL == 2
 
 #	endif // BGFX_SHADER_LANGUAGE_HLSL > 3
-
-vec2 vec2_splat(float _x) { return vec2(_x, _x); }
-vec3 vec3_splat(float _x) { return vec3(_x, _x, _x); }
-vec4 vec4_splat(float _x) { return vec4(_x, _x, _x, _x); }
-
-uvec2 uvec2_splat(uint _x) { return uvec2(_x, _x); }
-uvec3 uvec3_splat(uint _x) { return uvec3(_x, _x, _x); }
-uvec4 uvec4_splat(uint _x) { return uvec4(_x, _x, _x, _x); }
 
 vec3 instMul(vec3 _vec, mat3 _mtx) { return mul(_mtx, _vec); }
 vec3 instMul(mat3 _mtx, vec3 _vec) { return mul(_vec, _mtx); }
@@ -278,12 +293,6 @@ vec4  mod(vec4  _a, vec4  _b) { return _a - _b * floor(_a / _b); }
 #	define SAMPLER3D(_name, _reg) uniform sampler3D _name
 #	define SAMPLERCUBE(_name, _reg) uniform samplerCube _name
 #	define SAMPLER2DSHADOW(_name, _reg) uniform sampler2DShadow _name
-#	define vec2_splat(_x) vec2(_x)
-#	define vec3_splat(_x) vec3(_x)
-#	define vec4_splat(_x) vec4(_x)
-#	define uvec2_splat(_x) uvec2(_x)
-#	define uvec3_splat(_x) uvec3(_x)
-#	define uvec4_splat(_x) uvec4(_x)
 
 #	if BGFX_SHADER_LANGUAGE_GLSL >= 130
 #		define ISAMPLER3D(_name, _reg) uniform isampler3D _name
@@ -302,6 +311,16 @@ vec2  rcp(vec2  _a) { return vec2(1.0)/_a; }
 vec3  rcp(vec3  _a) { return vec3(1.0)/_a; }
 vec4  rcp(vec4  _a) { return vec4(1.0)/_a; }
 #endif // BGFX_SHADER_LANGUAGE_*
+
+vec2 vec2_splat(float _x) { return vec2(_x, _x); }
+vec3 vec3_splat(float _x) { return vec3(_x, _x, _x); }
+vec4 vec4_splat(float _x) { return vec4(_x, _x, _x, _x); }
+
+#if BGFX_SHADER_LANGUAGE_GLSL >= 130 || BGFX_SHADER_LANGUAGE_HLSL
+uvec2 uvec2_splat(uint _x) { return uvec2(_x, _x); }
+uvec3 uvec3_splat(uint _x) { return uvec3(_x, _x, _x); }
+uvec4 uvec4_splat(uint _x) { return uvec4(_x, _x, _x, _x); }
+#endif // BGFX_SHADER_LANGUAGE_GLSL >= 130 || BGFX_SHADER_LANGUAGE_HLSL
 
 uniform vec4  u_viewRect;
 uniform vec4  u_viewTexel;

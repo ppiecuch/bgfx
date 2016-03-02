@@ -1,6 +1,6 @@
 /*
- * Copyright 2011-2015 Branimir Karadzic. All rights reserved.
- * License: http://www.opensource.org/licenses/BSD-2-Clause
+ * Copyright 2011-2016 Branimir Karadzic. All rights reserved.
+ * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
 // This code is based on:
@@ -173,7 +173,7 @@ void imguiSetCurrentScissor(); // Call before drawing custom widgets over imgui 
 bool imguiButton(const char* _text, bool _enabled = true, ImguiAlign::Enum _align = ImguiAlign::LeftIndented, uint32_t _rgb0 = IMGUI_BUTTON_RGB0, int32_t _r = IMGUI_BUTTON_R);
 bool imguiItem(const char* _text, bool _enabled = true);
 bool imguiCheck(const char* _text, bool _checked, bool _enabled = true);
-void imguiBool(const char* _text, bool& _flag, bool _enabled = true);
+bool imguiBool(const char* _text, bool& _flag, bool _enabled = true);
 bool imguiCollapse(const char* _text, const char* _subtext, bool _checked, bool _enabled = true);
 void imguiLabel(const char* _format, ...);
 void imguiLabel(uint32_t _rgba, const char* _format, ...);
@@ -208,12 +208,13 @@ bool imguiMouseOverArea();
 
 namespace ImGui
 {
-#define IMGUI_FLAGS_NONE        UINT16_C(0x0000)
-#define IMGUI_FLAGS_ALPHA_BLEND UINT16_C(0x0001)
+#define IMGUI_FLAGS_NONE        UINT8_C(0x00)
+#define IMGUI_FLAGS_ALPHA_BLEND UINT8_C(0x01)
 
 	// Helper function for passing bgfx::TextureHandle to ImGui::Image.
 	inline void Image(bgfx::TextureHandle _handle
-		, uint16_t _flags
+		, uint8_t _flags
+		, uint8_t _mip
 		, const ImVec2& _size
 		, const ImVec2& _uv0       = ImVec2(0.0f, 0.0f)
 		, const ImVec2& _uv1       = ImVec2(1.0f, 1.0f)
@@ -221,9 +222,10 @@ namespace ImGui
 		, const ImVec4& _borderCol = ImVec4(0.0f, 0.0f, 0.0f, 0.0f)
 		)
 	{
-		union { struct { uint16_t flags; bgfx::TextureHandle handle; } s; ImTextureID ptr; } texture;
-		texture.s.flags  = _flags;
+		union { struct { bgfx::TextureHandle handle; uint8_t flags; uint8_t mip; } s; ImTextureID ptr; } texture;
 		texture.s.handle = _handle;
+		texture.s.flags  = _flags;
+		texture.s.mip    = _mip;
 		Image(texture.ptr, _size, _uv0, _uv1, _tintCol, _borderCol);
 	}
 
@@ -236,12 +238,13 @@ namespace ImGui
 		, const ImVec4& _borderCol = ImVec4(0.0f, 0.0f, 0.0f, 0.0f)
 		)
 	{
-		Image(_handle, IMGUI_FLAGS_ALPHA_BLEND, _size, _uv0, _uv1, _tintCol, _borderCol);
+		Image(_handle, IMGUI_FLAGS_ALPHA_BLEND, 0, _size, _uv0, _uv1, _tintCol, _borderCol);
 	}
 
 	// Helper function for passing bgfx::TextureHandle to ImGui::ImageButton.
 	inline bool ImageButton(bgfx::TextureHandle _handle
-		, uint16_t _flags
+		, uint8_t _flags
+		, uint8_t _mip
 		, const ImVec2& _size
 		, const ImVec2& _uv0     = ImVec2(0.0f, 0.0f)
 		, const ImVec2& _uv1     = ImVec2(1.0f, 1.0f)
@@ -250,9 +253,10 @@ namespace ImGui
 		, const ImVec4& _tintCol = ImVec4(1.0f, 1.0f, 1.0f, 1.0f)
 		)
 	{
-		union { struct { uint16_t flags; bgfx::TextureHandle handle; } s; ImTextureID ptr; } texture;
-		texture.s.flags  = _flags;
+		union { struct { bgfx::TextureHandle handle; uint8_t flags; uint8_t mip; } s; ImTextureID ptr; } texture;
 		texture.s.handle = _handle;
+		texture.s.flags  = _flags;
+		texture.s.mip    = _mip;
 		return ImageButton(texture.ptr, _size, _uv0, _uv1, _framePadding, _bgCol, _tintCol);
 	}
 
@@ -266,7 +270,7 @@ namespace ImGui
 		, const ImVec4& _tintCol = ImVec4(1.0f, 1.0f, 1.0f, 1.0f)
 		)
 	{
-		return ImageButton(_handle, IMGUI_FLAGS_ALPHA_BLEND, _size, _uv0, _uv1, _framePadding, _bgCol, _tintCol);
+		return ImageButton(_handle, IMGUI_FLAGS_ALPHA_BLEND, 0, _size, _uv0, _uv1, _framePadding, _bgCol, _tintCol);
 	}
 
 } // namespace ImGui
