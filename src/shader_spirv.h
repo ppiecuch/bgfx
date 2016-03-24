@@ -8,11 +8,16 @@
 
 #include <bx/readerwriter.h>
 
+BX_ERROR_RESULT(BGFX_SHADER_SPIRV_INVALID_HEADER,      BX_MAKEFOURCC('S', 'H', 0, 1) );
+BX_ERROR_RESULT(BGFX_SHADER_SPIRV_INVALID_INSTRUCTION, BX_MAKEFOURCC('S', 'H', 0, 2) );
+
+#define SPV_CHUNK_HEADER BX_MAKEFOURCC(0x03, 0x02, 0x23, 0x07)
+
 namespace bgfx
 {
 	// Reference: https://www.khronos.org/registry/spir-v/specs/1.0/SPIRV.html
 
-	struct SpirvOpcode
+	struct SpvOpcode
 	{
 		enum Enum
 		{
@@ -25,13 +30,16 @@ namespace bgfx
 			MemberName,
 			String,
 			Line,
+			Invalid9,
 			Extension,
 			ExtInstImport,
 			ExtInst,
+			Invalid13,
 			MemoryModel,
 			EntryPoint,
 			ExecutionMode,
 			Capability,
+			Invalid18,
 			TypeVoid,
 			TypeBool,
 			TypeInt,
@@ -53,21 +61,25 @@ namespace bgfx
 			TypeQueue,
 			TypePipe,
 			TypeForwardPointer,
+			Invalid40,
 			ConstantTrue,
 			ConstantFalse,
 			Constant,
 			ConstantComposite,
 			ConstantSampler,
 			ConstantNull,
+			Invalid47,
 			SpecConstantTrue,
 			SpecConstantFalse,
 			SpecConstant,
 			SpecConstantComposite,
 			SpecConstantOp,
+			Invalid53,
 			Function,
 			FunctionParameter,
 			FunctionEnd,
 			FunctionCall,
+			Invalid58,
 			Variable,
 			ImageTexelPointer,
 			Load,
@@ -85,6 +97,7 @@ namespace bgfx
 			DecorationGroup,
 			GroupDecorate,
 			GroupMemberDecorate,
+			Invalid76,
 			VectorExtractDynamic,
 			VectorInsertDynamic,
 			VectorShuffle,
@@ -93,6 +106,7 @@ namespace bgfx
 			CompositeInsert,
 			CopyObject,
 			Transpose,
+			Invalid85,
 			SampledImage,
 			ImageSampleImplicitLod,
 			ImageSampleExplicitLod,
@@ -115,6 +129,7 @@ namespace bgfx
 			ImageQueryLod,
 			ImageQueryLevels,
 			ImageQuerySamples,
+			Invalid108,
 			ConvertFToU,
 			ConvertFToS,
 			ConvertSToF,
@@ -131,6 +146,7 @@ namespace bgfx
 			GenericCastToPtr,
 			GenericCastToPtrExplicit,
 			Bitcast,
+			Invalid125,
 			SNegate,
 			FNegate,
 			IAdd,
@@ -158,6 +174,7 @@ namespace bgfx
 			ISubBorrow,
 			UMulExtended,
 			SMulExtended,
+			Invalid153,
 			Any,
 			All,
 			IsNan,
@@ -196,6 +213,8 @@ namespace bgfx
 			FUnordLessThanEqual,
 			FOrdGreaterThanEqual,
 			FUnordGreaterThanEqual,
+			Invalid192,
+			Invalid193,
 			ShiftRightLogical,
 			ShiftRightArithmetic,
 			ShiftLeftLogical,
@@ -208,6 +227,7 @@ namespace bgfx
 			BitFieldUExtract,
 			BitReverse,
 			BitCount,
+			Invalid206,
 			DPdx,
 			DPdy,
 			Fwidth,
@@ -217,12 +237,17 @@ namespace bgfx
 			DPdxCoarse,
 			DPdyCoarse,
 			FwidthCoarse,
+			Invalid216,
+			Invalid217,
 			EmitVertex,
 			EndPrimitive,
 			EmitStreamVertex,
 			EndStreamPrimitive,
+			Invalid222,
+			Invalid223,
 			ControlBarrier,
 			MemoryBarrier,
+			Invalid226,
 			AtomicLoad,
 			AtomicStore,
 			AtomicExchange,
@@ -239,6 +264,8 @@ namespace bgfx
 			AtomicAnd,
 			AtomicOr,
 			AtomicXor,
+			Invalid243,
+			Invalid244,
 			Phi,
 			LoopMerge,
 			SelectionMerge,
@@ -252,6 +279,7 @@ namespace bgfx
 			Unreachable,
 			LifetimeStart,
 			LifetimeStop,
+			Invalid258,
 			GroupAsyncCopy,
 			GroupWaitEvents,
 			GroupAll,
@@ -265,6 +293,8 @@ namespace bgfx
 			GroupFMax,
 			GroupUMax,
 			GroupSMax,
+			Invalid272,
+			Invalid273,
 			ReadPipe,
 			WritePipe,
 			ReservedReadPipe,
@@ -280,6 +310,8 @@ namespace bgfx
 			GroupReserveWritePipePackets,
 			GroupCommitReadPipe,
 			GroupCommitWritePipe,
+			Invalid289,
+			Invalid290,
 			EnqueueMarker,
 			EnqueueKernel,
 			GetKernelNDrangeSubGroupCount,
@@ -315,7 +347,9 @@ namespace bgfx
 		};
 	};
 
-	struct SpirvBuiltin
+	const char* getName(SpvOpcode::Enum _opcode);
+
+	struct SpvBuiltin
 	{
 		enum Enum
 		{
@@ -360,10 +394,14 @@ namespace bgfx
 			SubgroupLocalInvocationId,
 			VertexIndex,
 			InstanceIndex,
+
+			Count
 		};
 	};
 
-	struct SpirvExecutionModel
+	const char* getName(SpvBuiltin::Enum _enum);
+
+	struct SpvExecutionModel
 	{
 		enum Enum
 		{
@@ -379,7 +417,19 @@ namespace bgfx
 		};
 	};
 
-	struct SpirvMemoryModel
+	struct SpvAddressingModel
+	{
+		enum Enum
+		{
+			Logical,
+			Physical32,
+			Physical64,
+
+			Count
+		};
+	};
+
+	struct SpvMemoryModel
 	{
 		enum Enum
 		{
@@ -391,7 +441,7 @@ namespace bgfx
 		};
 	};
 
-	struct SpirvStorageClass
+	struct SpvStorageClass
 	{
 		enum Enum
 		{
@@ -407,10 +457,14 @@ namespace bgfx
 			PushConstant,
 			AtomicCounter,
 			Image,
+
+			Count
 		};
 	};
 
-	struct SpirvResourceDim
+	const char* getName(SpvStorageClass::Enum _enum);
+
+	struct SpvResourceDim
 	{
 		enum Enum
 		{
@@ -424,7 +478,7 @@ namespace bgfx
 		};
 	};
 
-	struct SpirvDecoration
+	struct SpvDecoration
 	{
 		enum Enum
 		{
@@ -440,6 +494,7 @@ namespace bgfx
 			GLSLPacked,
 			CPacked,
 			BuiltIn,
+			Unknown12,
 			NoPerspective,
 			Flat,
 			Patch,
@@ -454,6 +509,7 @@ namespace bgfx
 			NonWritable,
 			NonReadable,
 			Uniform,
+			Unknown27,
 			SaturatedConversion,
 			Stream,
 			Location,
@@ -476,53 +532,102 @@ namespace bgfx
 		};
 	};
 
-	struct SpirvOperand
+	const char* getName(SpvDecoration::Enum _enum);
+
+	struct SpvOperand
 	{
-	};
+		SpvOperand() { /* not pod */ }
 
-	struct SpirvInstruction
-	{
-		SpirvOpcode::Enum opcode;
-		uint16_t length;
-
-		uint8_t numOperands;
-		SpirvOperand operand[6];
-
-		union
+		enum Enum
 		{
-			struct ResultTypeId
-			{
-				uint32_t resultType;
-				uint32_t id;
-			};
+			AccessQualifier,
+			AddressingModel,
+			Base,
+			Capability,
+			Component,
+			ComponentType,
+			Composite,
+			Condition,
+			Coordinate,
+			Decoration,
+			Dim,
+			Dref,
+			ElementType,
+			ExecutionModel,
+			Function,
+			FunctionControl,
+			Id,
+			IdRep,
+			ImageFormat,
+			ImageOperands,
+			LinkageType,
+			LiteralNumber,
+			LiteralRep,
+			LiteralString,
+			Matrix,
+			MemoryAccess,
+			MemoryModel,
+			Object,
+			Pointer,
+			SampledType,
+			SampledImage,
+			SamplerAddressingMode,
+			SamplerFilterMode,
+			Scalar,
+			SourceLanguage,
+			StorageClass,
+			StructureType,
+			Vector,
 
-			ResultTypeId constant;
-			ResultTypeId constantComposite;
+			Count
+		};
 
-			uint32_t value[8];
-		} un;
+		Enum type;
+		uint32_t data;
+
+		stl::string literalString;
 	};
 
-	int32_t read(bx::ReaderI* _reader, SpirvInstruction& _instruction);
-	int32_t write(bx::WriterI* _writer, const SpirvInstruction& _instruction);
-	int32_t toString(char* _out, int32_t _size, const SpirvInstruction& _instruction);
-
-	struct SpirvShader
+	struct SpvInstruction
 	{
+		SpvInstruction() { /* not pod */ }
+
+		SpvOpcode::Enum opcode;
+		uint16_t length;
+		uint16_t numOperands;
+
+		uint32_t type;
+		uint32_t result;
+		bool hasType;
+		bool hasResult;
+
+		SpvOperand operand[8];
+	};
+
+	int32_t read(bx::ReaderI* _reader, SpvInstruction& _instruction, bx::Error* _err);
+	int32_t write(bx::WriterI* _writer, const SpvInstruction& _instruction, bx::Error* _err);
+	int32_t toString(char* _out, int32_t _size, const SpvInstruction& _instruction);
+
+	struct SpvShader
+	{
+		SpvShader() { /* not pod */ }
+
 		stl::vector<uint8_t> byteCode;
 	};
 
-	int32_t read(bx::ReaderSeekerI* _reader, SpirvShader& _shader);
-	int32_t write(bx::WriterI* _writer, const SpirvShader& _shader);
+	int32_t read(bx::ReaderSeekerI* _reader, SpvShader& _shader, bx::Error* _err);
+	int32_t write(bx::WriterI* _writer, const SpvShader& _shader, bx::Error* _err);
 
-	typedef bool (*SpirvParseFn)(uint32_t _offset, const SpirvInstruction& _instruction, void* _userData);
-	void parse(const SpirvShader& _src, SpirvParseFn _fn, void* _userData);
+	typedef bool (*SpvParseFn)(uint32_t _offset, const SpvInstruction& _instruction, void* _userData);
+	void parse(const SpvShader& _src, SpvParseFn _fn, void* _userData, bx::Error* _err = NULL);
 
-	typedef void (*SpirvFilterFn)(SpirvInstruction& _instruction, void* _userData);
-	void filter(SpirvShader& _dst, const SpirvShader& _src, SpirvFilterFn _fn, void* _userData);
+	typedef void (*SpvFilterFn)(SpvInstruction& _instruction, void* _userData);
+	void filter(SpvShader& _dst, const SpvShader& _src, SpvFilterFn _fn, void* _userData, bx::Error* _err = NULL);
 
-	struct Spirv
+	struct SpirV
 	{
+		SpirV() { /* not pod */ }
+
 		struct Header
 		{
 			uint32_t magic;
@@ -533,11 +638,11 @@ namespace bgfx
 		};
 
 		Header header;
-		SpirvShader shader;
+		SpvShader shader;
 	};
 
-	int32_t read(bx::ReaderSeekerI* _reader, Spirv& _spirv);
-	int32_t write(bx::WriterSeekerI* _writer, const Spirv& _spirv);
+	int32_t read(bx::ReaderSeekerI* _reader, SpirV& _spirv, bx::Error* _err);
+	int32_t write(bx::WriterSeekerI* _writer, const SpirV& _spirv, bx::Error* _err);
 
 } // namespace bgfx
 
