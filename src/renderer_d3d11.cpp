@@ -800,7 +800,11 @@ namespace bgfx { namespace d3d11
 
 			errorState = ErrorState::LoadedDXGI;
 
-			CreateDXGIFactory = (PFN_CREATE_DXGI_FACTORY)bx::dlsym(m_dxgidll, "CreateDXGIFactory");
+			CreateDXGIFactory = (PFN_CREATE_DXGI_FACTORY)bx::dlsym(m_dxgidll, "CreateDXGIFactory1");
+			if (NULL == CreateDXGIFactory)
+			{
+				CreateDXGIFactory = (PFN_CREATE_DXGI_FACTORY)bx::dlsym(m_dxgidll, "CreateDXGIFactory");
+			}
 			if (NULL == CreateDXGIFactory)
 			{
 				BX_TRACE("Function CreateDXGIFactory not found.");
@@ -1342,7 +1346,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 				for (uint32_t ii = 0; ii < TextureFormat::Count; ++ii)
 				{
-					uint8_t support = BGFX_CAPS_FORMAT_TEXTURE_NONE;
+					uint16_t support = BGFX_CAPS_FORMAT_TEXTURE_NONE;
 
 					const DXGI_FORMAT fmt = isDepth(TextureFormat::Enum(ii) )
 						? s_textureFormat[ii].m_fmtDsv
@@ -1827,7 +1831,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			m_deviceCtx->Unmap(texture.m_ptr, 0);
 		}
 
-		void resizeTexture(TextureHandle _handle, uint16_t _width, uint16_t _height) BX_OVERRIDE
+		void resizeTexture(TextureHandle _handle, uint16_t _width, uint16_t _height, uint8_t _numMips) BX_OVERRIDE
 		{
 			TextureD3D11& texture = m_textures[_handle.idx];
 
@@ -1843,7 +1847,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			tc.m_height  = _height;
 			tc.m_sides   = 0;
 			tc.m_depth   = 0;
-			tc.m_numMips = 1;
+			tc.m_numMips = _numMips;
 			tc.m_format  = TextureFormat::Enum(texture.m_requestedFormat);
 			tc.m_cubeMap = false;
 			tc.m_mem     = NULL;
@@ -2343,18 +2347,18 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				m_rasterizerStateCache.invalidate();
 			}
 
-			uint32_t flags = _resolution.m_flags & ~(0
+			const uint32_t maskFlags = ~(0
 				| BGFX_RESET_HMD_RECENTER
 				| BGFX_RESET_MAXANISOTROPY
 				| BGFX_RESET_DEPTH_CLAMP
 				| BGFX_RESET_SUSPEND
 				);
 
-			if (m_resolution.m_width  != _resolution.m_width
-			||  m_resolution.m_height != _resolution.m_height
-			||  m_resolution.m_flags  != flags)
+			if (m_resolution.m_width            !=  _resolution.m_width
+			||  m_resolution.m_height           !=  _resolution.m_height
+			|| (m_resolution.m_flags&maskFlags) != (_resolution.m_flags&maskFlags) )
 			{
-				flags &= ~BGFX_RESET_INTERNAL_FORCE;
+				uint32_t flags = _resolution.m_flags & (~BGFX_RESET_INTERNAL_FORCE);
 
 				bool resize = true
 					&& !BX_ENABLED(BX_PLATFORM_XBOXONE || BX_PLATFORM_WINRT) // can't use ResizeBuffers on Windows Phone
@@ -2662,18 +2666,26 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		{
 			_state &= BGFX_D3D11_BLEND_STATE_MASK;
 
-			const uint64_t hash = _state;
+			bx::HashMurmur2A murmur;
+			murmur.begin();
+			murmur.add(_state);
+			murmur.add(!!(BGFX_STATE_BLEND_INDEPENDENT & _state)
+				? _rgba
+				: -1
+				);
+			const uint32_t hash = murmur.end();
+
 			ID3D11BlendState* bs = m_blendStateCache.find(hash);
 			if (NULL == bs)
 			{
 				D3D11_BLEND_DESC desc;
 				desc.AlphaToCoverageEnable  = !!(BGFX_STATE_BLEND_ALPHA_TO_COVERAGE & _state);
-				desc.IndependentBlendEnable = !!(BGFX_STATE_BLEND_INDEPENDENT & _state);
+				desc.IndependentBlendEnable = !!(BGFX_STATE_BLEND_INDEPENDENT       & _state);
 
 				D3D11_RENDER_TARGET_BLEND_DESC* drt = &desc.RenderTarget[0];
 				drt->BlendEnable = !!(BGFX_STATE_BLEND_MASK & _state);
 
-				const uint32_t blend    = uint32_t( (_state&BGFX_STATE_BLEND_MASK)>>BGFX_STATE_BLEND_SHIFT);
+				const uint32_t blend    = uint32_t( (_state&BGFX_STATE_BLEND_MASK         )>>BGFX_STATE_BLEND_SHIFT);
 				const uint32_t equation = uint32_t( (_state&BGFX_STATE_BLEND_EQUATION_MASK)>>BGFX_STATE_BLEND_EQUATION_SHIFT);
 
 				const uint32_t srcRGB = (blend      ) & 0xf;
@@ -2888,6 +2900,12 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		{
 			const uint32_t index = (_flags & BGFX_TEXTURE_BORDER_COLOR_MASK) >> BGFX_TEXTURE_BORDER_COLOR_SHIFT;
 			_flags &= BGFX_TEXTURE_SAMPLER_BITS_MASK;
+
+			// Force both min+max anisotropic, can't be set individually.
+			_flags |= 0 != (_flags & (BGFX_TEXTURE_MIN_ANISOTROPIC|BGFX_TEXTURE_MAG_ANISOTROPIC) )
+					? BGFX_TEXTURE_MIN_ANISOTROPIC|BGFX_TEXTURE_MAG_ANISOTROPIC
+					: 0
+					;
 
 			uint32_t hash;
 			ID3D11SamplerState* sampler;
@@ -4374,6 +4392,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					desc.Usage      = kk == 0 || blit ? D3D11_USAGE_DEFAULT : D3D11_USAGE_IMMUTABLE;
 					desc.BindFlags  = writeOnly ? 0 : D3D11_BIND_SHADER_RESOURCE;
 					desc.CPUAccessFlags = 0;
+					desc.MiscFlags      = 0;
 
 					if (isDepth( (TextureFormat::Enum)m_textureFormat) )
 					{
@@ -4384,6 +4403,9 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					{
 						desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
 						desc.Usage = D3D11_USAGE_DEFAULT;
+						desc.MiscFlags |= 0
+							| (1 < numMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0)
+							;
 					}
 
 					if (computeWrite)
@@ -4402,14 +4424,13 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					if (imageContainer.m_cubeMap)
 					{
 						desc.ArraySize = 6;
-						desc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
+						desc.MiscFlags |= D3D11_RESOURCE_MISC_TEXTURECUBE;
 						srvd.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
 						srvd.TextureCube.MipLevels = numMips;
 					}
 					else
 					{
 						desc.ArraySize = 1;
-						desc.MiscFlags = 0;
 						if (1 < msaa.Count
 						&&  msaaSample)
 						{
@@ -4550,8 +4571,14 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 									;
 	}
 
-	void TextureD3D11::resolve()
+	void TextureD3D11::resolve() const
 	{
+		const bool renderTarget = 0 != (m_flags&BGFX_TEXTURE_RT_MASK);
+		if (renderTarget
+		&&  1 < m_numMips)
+		{
+			s_renderD3D11->m_deviceCtx->GenerateMips(m_srv);
+		}
 	}
 
 	TextureHandle TextureD3D11::getHandle() const
@@ -4806,6 +4833,18 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 	void FrameBufferD3D11::resolve()
 	{
+		if (0 < m_numTh)
+		{
+			for (uint32_t ii = 0; ii < m_numTh; ++ii)
+			{
+				TextureHandle handle = m_attachment[ii].handle;
+				if (isValid(handle) )
+				{
+					const TextureD3D11& texture = s_renderD3D11->m_textures[handle.idx];
+					texture.resolve();
+				}
+			}
+		}
 	}
 
 	void FrameBufferD3D11::clear(const Clear& _clear, const float _palette[][4])
@@ -5018,6 +5057,11 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		if (updateResolution(_render->m_resolution) )
 		{
 			return;
+		}
+
+		if (_render->m_capture)
+		{
+			renderDocTriggerCapture();
 		}
 
 		PIX_BEGINEVENT(D3DCOLOR_RGBA(0xff, 0x00, 0x00, 0xff), L"rendererSubmit");
@@ -5953,12 +5997,14 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		{
 			m_gpuTimer.end();
 
-			while (m_gpuTimer.get() )
+			do
 			{
 				double toGpuMs = 1000.0 / double(m_gpuTimer.m_frequency);
 				elapsedGpuMs   = m_gpuTimer.m_elapsed * toGpuMs;
 				maxGpuElapsed  = elapsedGpuMs > maxGpuElapsed ? elapsedGpuMs : maxGpuElapsed;
 			}
+			while (m_gpuTimer.get() );
+
 			maxGpuLatency = bx::uint32_imax(maxGpuLatency, m_gpuTimer.m_control.available()-1);
 		}
 

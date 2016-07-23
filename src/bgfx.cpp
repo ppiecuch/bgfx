@@ -285,6 +285,7 @@ namespace bgfx
 	static bool s_renderFrameCalled = false;
 	InternalData g_internalData;
 	PlatformData g_platformData;
+	bool g_platformDataChangedSinceReset = false;
 
 	void AllocatorStub::checkLeaks()
 	{
@@ -305,13 +306,13 @@ namespace bgfx
 		{
 			BGFX_FATAL(true
 				&& g_platformData.ndt     == _data.ndt
-				&& g_platformData.nwh     == _data.nwh
 				&& g_platformData.context == _data.context
 				, Fatal::UnableToInitialize
-				, "Only backbuffer pointer can be changed after initialization!"
+				, "Only backbuffer pointer and native window handle can be changed after initialization!"
 				);
 		}
 		memcpy(&g_platformData, &_data, sizeof(PlatformData) );
+		g_platformDataChangedSinceReset = true;
 	}
 
 	const InternalData* getInternalData()
@@ -382,28 +383,38 @@ namespace bgfx
 
 	void fatal(Fatal::Enum _code, const char* _format, ...)
 	{
-		char temp[8192];
-
 		va_list argList;
 		va_start(argList, _format);
-		char* out = temp;
-		int32_t len = bx::vsnprintf(out, sizeof(temp), _format, argList);
-		if ( (int32_t)sizeof(temp) < len)
-		{
-			out = (char*)alloca(len+1);
-			len = bx::vsnprintf(out, len, _format, argList);
-		}
-		out[len] = '\0';
-		va_end(argList);
 
-		g_callback->fatal(_code, out);
+		if (BX_UNLIKELY(NULL == g_callback) )
+		{
+			dbgPrintfVargs(_format, argList);
+			abort();
+		}
+		else
+		{
+			char temp[8192];
+			char* out = temp;
+			int32_t len = bx::vsnprintf(out, sizeof(temp), _format, argList);
+			if ( (int32_t)sizeof(temp) < len)
+			{
+				out = (char*)alloca(len+1);
+				len = bx::vsnprintf(out, len, _format, argList);
+			}
+			out[len] = '\0';
+
+			g_callback->fatal(_code, out);
+		}
+
+		va_end(argList);
 	}
 
 	void trace(const char* _filePath, uint16_t _line, const char* _format, ...)
 	{
 		va_list argList;
 		va_start(argList, _format);
-		if (NULL == g_callback)
+
+		if (BX_UNLIKELY(NULL == g_callback) )
 		{
 			dbgPrintfVargs(_format, argList);
 		}
@@ -411,6 +422,7 @@ namespace bgfx
 		{
 			g_callback->traceVargs(_filePath, _line, _format, argList);
 		}
+
 		va_end(argList);
 	}
 
@@ -1470,7 +1482,7 @@ namespace bgfx
 		}
 	}
 
-	uint32_t Context::frame()
+	uint32_t Context::frame(bool _capture)
 	{
 		BX_CHECK(0 == m_instBufferCount, "Instance buffer allocated, but not used. This is incorrect, and causes memory leak.");
 
@@ -1478,6 +1490,8 @@ namespace bgfx
 		{
 			m_occlusionQuerySet.clear();
 		}
+
+		m_submit->m_capture = _capture;
 
 		BGFX_PROFILER_SCOPE(bgfx, main_thread_frame, 0xff2040ff);
 		// wait for render thread to finish
@@ -2234,7 +2248,10 @@ namespace bgfx
 					uint16_t height;
 					_cmdbuf.read(height);
 
-					m_renderCtx->resizeTexture(handle, width, height);
+					uint8_t numMips;
+					_cmdbuf.read(numMips);
+
+					m_renderCtx->resizeTexture(handle, width, height, numMips);
 				}
 				break;
 
@@ -2391,27 +2408,20 @@ namespace bgfx
 	{
 		if (NULL != s_ctx)
 		{
-			BX_CHECK(false, "bgfx is already initialized.");
+			BX_TRACE("bgfx is already initialized.");
 			return false;
 		}
 
-		if (!BX_ENABLED(BX_PLATFORM_EMSCRIPTEN || BX_PLATFORM_NACL)
-		&&  NULL == g_platformData.ndt
-		&&  NULL == g_platformData.nwh
-		&&  NULL == g_platformData.context
-		&&  NULL == g_platformData.backBuffer
-		&&  NULL == g_platformData.backBufferDS)
+		struct ErrorState
 		{
-			BX_CHECK(false, "bgfx platform data like window handle or backbuffer must be set.");
-			return false;
-		}
+			enum Enum
+			{
+				Default,
+				ContextAllocated,
+			};
+		};
 
-		memset(&g_caps, 0, sizeof(g_caps) );
-		g_caps.maxViews     = BGFX_CONFIG_MAX_VIEWS;
-		g_caps.maxDrawCalls = BGFX_CONFIG_MAX_DRAW_CALLS;
-		g_caps.maxFBAttachments = 1;
-		g_caps.vendorId = _vendorId;
-		g_caps.deviceId = _deviceId;
+		ErrorState::Enum errorState = ErrorState::Default;
 
 		if (NULL != _allocator)
 		{
@@ -2434,16 +2444,45 @@ namespace bgfx
 				s_callbackStub = BX_NEW(g_allocator, CallbackStub);
 		}
 
+		if (!BX_ENABLED(BX_PLATFORM_EMSCRIPTEN || BX_PLATFORM_NACL)
+		&&  NULL == g_platformData.ndt
+		&&  NULL == g_platformData.nwh
+		&&  NULL == g_platformData.context
+		&&  NULL == g_platformData.backBuffer
+		&&  NULL == g_platformData.backBufferDS)
+		{
+			BX_TRACE("bgfx platform data like window handle or backbuffer must be set.");
+			goto error;
+		}
+
+		memset(&g_caps, 0, sizeof(g_caps) );
+		g_caps.maxViews     = BGFX_CONFIG_MAX_VIEWS;
+		g_caps.maxDrawCalls = BGFX_CONFIG_MAX_DRAW_CALLS;
+		g_caps.maxFBAttachments = 1;
+		g_caps.vendorId = _vendorId;
+		g_caps.deviceId = _deviceId;
+
 		BX_TRACE("Init...");
 
-		s_ctx = BX_ALIGNED_NEW(g_allocator, Context, 16);
-		if (!s_ctx->init(_type) )
-		{
-			BX_TRACE("Init failed.");
+		errorState = ErrorState::ContextAllocated;
 
+		s_ctx = BX_ALIGNED_NEW(g_allocator, Context, 16);
+		if (s_ctx->init(_type) )
+		{
+			BX_TRACE("Init complete.");
+			return true;
+		}
+
+error:
+		BX_TRACE("Init failed.");
+
+		switch (errorState)
+		{
+		case ErrorState::ContextAllocated:
 			BX_ALIGNED_DELETE(g_allocator, s_ctx, 16);
 			s_ctx = NULL;
 
+		case ErrorState::Default:
 			if (NULL != s_callbackStub)
 			{
 				BX_DELETE(g_allocator, s_callbackStub);
@@ -2460,11 +2499,10 @@ namespace bgfx
 			s_threadIndex = 0;
 			g_callback    = NULL;
 			g_allocator   = NULL;
-			return false;
+			break;
 		}
 
-		BX_TRACE("Init complete.");
-		return true;
+		return false;
 	}
 
 	void shutdown()
@@ -2510,10 +2548,10 @@ namespace bgfx
 		s_ctx->reset(_width, _height, _flags);
 	}
 
-	uint32_t frame()
+	uint32_t frame(bool _capture)
 	{
 		BGFX_CHECK_MAIN_THREAD();
-		return s_ctx->frame();
+		return s_ctx->frame(_capture);
 	}
 
 	const Caps* getCaps()
@@ -2918,7 +2956,14 @@ namespace bgfx
 			, getName(_format)
 			);
 
-		_numMips = uint8_t(bx::uint32_max(1, _numMips) );
+		if (BackbufferRatio::Count != _ratio)
+		{
+			_width  = uint16_t(s_ctx->m_resolution.m_width);
+			_height = uint16_t(s_ctx->m_resolution.m_height);
+			getTextureSizeFromRatio(_ratio, _width, _height);
+		}
+
+		_numMips = calcNumMips(_numMips, _width, _height);
 
 		if (BX_ENABLED(BGFX_CONFIG_DEBUG)
 		&&  NULL != _mem)
@@ -2930,13 +2975,6 @@ namespace bgfx
 				, ti.storageSize
 				, _mem->size
 				);
-		}
-
-		if (BackbufferRatio::Count != _ratio)
-		{
-			_width  = uint16_t(s_ctx->m_resolution.m_width);
-			_height = uint16_t(s_ctx->m_resolution.m_height);
-			getTextureSizeFromRatio(_ratio, _width, _height);
 		}
 
 		uint32_t size = sizeof(uint32_t)+sizeof(TextureCreate);
@@ -2981,7 +3019,7 @@ namespace bgfx
 			, getName(_format)
 			);
 
-		_numMips = uint8_t(bx::uint32_max(1, _numMips) );
+		_numMips = calcNumMips(_numMips, _width, _height, _depth);
 
 		if (BX_ENABLED(BGFX_CONFIG_DEBUG)
 		&&  NULL != _mem)
@@ -3024,7 +3062,7 @@ namespace bgfx
 			, getName(_format)
 			);
 
-		_numMips = uint8_t(bx::uint32_max(1, _numMips) );
+		_numMips = calcNumMips(_numMips, _size, _size);
 
 		if (BX_ENABLED(BGFX_CONFIG_DEBUG)
 		&&  NULL != _mem)
@@ -3114,20 +3152,20 @@ namespace bgfx
 		}
 	}
 
-	void readTexture(TextureHandle _handle, void* _data)
+	uint32_t readTexture(TextureHandle _handle, void* _data)
 	{
 		BGFX_CHECK_MAIN_THREAD();
 		BX_CHECK(NULL != _data, "_data can't be NULL");
 		BGFX_CHECK_CAPS(BGFX_CAPS_TEXTURE_READ_BACK, "Texture read-back is not supported!");
-		s_ctx->readTexture(_handle, _data);
+		return s_ctx->readTexture(_handle, _data);
 	}
 
-	void readTexture(FrameBufferHandle _handle, uint8_t _attachment, void* _data)
+	uint32_t readTexture(FrameBufferHandle _handle, uint8_t _attachment, void* _data)
 	{
 		BGFX_CHECK_MAIN_THREAD();
 		BX_CHECK(NULL != _data, "_data can't be NULL");
 		BGFX_CHECK_CAPS(BGFX_CAPS_TEXTURE_READ_BACK, "Texture read-back is not supported!");
-		s_ctx->readTexture(_handle, _attachment, _data);
+		return s_ctx->readTexture(_handle, _attachment, _data);
 	}
 
 	FrameBufferHandle createFrameBuffer(uint16_t _width, uint16_t _height, TextureFormat::Enum _format, uint32_t _textureFlags)
@@ -3859,9 +3897,9 @@ BGFX_C_API void bgfx_reset(uint32_t _width, uint32_t _height, uint32_t _flags)
 	bgfx::reset(_width, _height, _flags);
 }
 
-BGFX_C_API uint32_t bgfx_frame()
+BGFX_C_API uint32_t bgfx_frame(bool _capture)
 {
-	return bgfx::frame();
+	return bgfx::frame(_capture);
 }
 
 BGFX_C_API bgfx_renderer_type_t bgfx_get_renderer_type()
@@ -4167,16 +4205,16 @@ BGFX_C_API void bgfx_update_texture_cube(bgfx_texture_handle_t _handle, uint8_t 
 	bgfx::updateTextureCube(handle.cpp, _side, _mip, _x, _y, _width, _height, (const bgfx::Memory*)_mem, _pitch);
 }
 
-BGFX_C_API void bgfx_read_texture(bgfx_texture_handle_t _handle, void* _data)
+BGFX_C_API uint32_t bgfx_read_texture(bgfx_texture_handle_t _handle, void* _data)
 {
 	union { bgfx_texture_handle_t c; bgfx::TextureHandle cpp; } handle = { _handle };
-	bgfx::readTexture(handle.cpp, _data);
+	return bgfx::readTexture(handle.cpp, _data);
 }
 
-BGFX_C_API void bgfx_read_frame_buffer(bgfx_frame_buffer_handle_t _handle, uint8_t _attachment, void* _data)
+BGFX_C_API uint32_t bgfx_read_frame_buffer(bgfx_frame_buffer_handle_t _handle, uint8_t _attachment, void* _data)
 {
 	union { bgfx_frame_buffer_handle_t c; bgfx::FrameBufferHandle cpp; } handle = { _handle };
-	bgfx::readTexture(handle.cpp, _attachment, _data);
+	return bgfx::readTexture(handle.cpp, _attachment, _data);
 }
 
 BGFX_C_API void bgfx_destroy_texture(bgfx_texture_handle_t _handle)

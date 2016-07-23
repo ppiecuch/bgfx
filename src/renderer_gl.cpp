@@ -218,8 +218,8 @@ namespace bgfx { namespace gl
 		{ GL_ZERO,                                     GL_ZERO,                                       GL_ZERO,                                     GL_ZERO,                         false }, // R1
 		{ GL_ALPHA,                                    GL_ZERO,                                       GL_ALPHA,                                    GL_UNSIGNED_BYTE,                false }, // A8
 		{ GL_R8,                                       GL_ZERO,                                       GL_RED,                                      GL_UNSIGNED_BYTE,                false }, // R8
-		{ GL_R8I,                                      GL_ZERO,                                       GL_RED,                                      GL_BYTE,                         false }, // R8S
-		{ GL_R8UI,                                     GL_ZERO,                                       GL_RED,                                      GL_UNSIGNED_BYTE,                false }, // R8S
+		{ GL_R8I,                                      GL_ZERO,                                       GL_RED,                                      GL_BYTE,                         false }, // R8I
+		{ GL_R8UI,                                     GL_ZERO,                                       GL_RED,                                      GL_UNSIGNED_BYTE,                false }, // R8U
 		{ GL_R8_SNORM,                                 GL_ZERO,                                       GL_RED,                                      GL_BYTE,                         false }, // R8S
 		{ GL_R16,                                      GL_ZERO,                                       GL_RED,                                      GL_UNSIGNED_SHORT,               false }, // R16
 		{ GL_R16I,                                     GL_ZERO,                                       GL_RED,                                      GL_SHORT,                        false }, // R16I
@@ -234,8 +234,8 @@ namespace bgfx { namespace gl
 		{ GL_RG8UI,                                    GL_ZERO,                                       GL_RG,                                       GL_UNSIGNED_BYTE,                false }, // RG8U
 		{ GL_RG8_SNORM,                                GL_ZERO,                                       GL_RG,                                       GL_BYTE,                         false }, // RG8S
 		{ GL_RG16,                                     GL_ZERO,                                       GL_RG,                                       GL_UNSIGNED_SHORT,               false }, // RG16
-		{ GL_RG16I,                                    GL_ZERO,                                       GL_RG,                                       GL_SHORT,                        false }, // RG16
-		{ GL_RG16UI,                                   GL_ZERO,                                       GL_RG,                                       GL_UNSIGNED_SHORT,               false }, // RG16
+		{ GL_RG16I,                                    GL_ZERO,                                       GL_RG,                                       GL_SHORT,                        false }, // RG16I
+		{ GL_RG16UI,                                   GL_ZERO,                                       GL_RG,                                       GL_UNSIGNED_SHORT,               false }, // RG16U
 		{ GL_RG16F,                                    GL_ZERO,                                       GL_RG,                                       GL_FLOAT,                        false }, // RG16F
 		{ GL_RG16_SNORM,                               GL_ZERO,                                       GL_RG,                                       GL_SHORT,                        false }, // RG16S
 		{ GL_RG32I,                                    GL_ZERO,                                       GL_RG,                                       GL_INT,                          false }, // RG32I
@@ -1681,7 +1681,7 @@ namespace bgfx { namespace gl
 
 			for (uint32_t ii = 0; ii < TextureFormat::Count; ++ii)
 			{
-				uint8_t supported = 0;
+				uint16_t supported = BGFX_CAPS_FORMAT_TEXTURE_NONE;
 				supported |= s_textureFormat[ii].m_supported
 					? BGFX_CAPS_FORMAT_TEXTURE_2D
 					| BGFX_CAPS_FORMAT_TEXTURE_3D
@@ -2264,7 +2264,7 @@ namespace bgfx { namespace gl
 			}
 		}
 
-		void resizeTexture(TextureHandle _handle, uint16_t _width, uint16_t _height) BX_OVERRIDE
+		void resizeTexture(TextureHandle _handle, uint16_t _width, uint16_t _height, uint8_t _numMips) BX_OVERRIDE
 		{
 			TextureGL& texture = m_textures[_handle.idx];
 
@@ -2280,7 +2280,7 @@ namespace bgfx { namespace gl
 			tc.m_height  = _height;
 			tc.m_sides   = 0;
 			tc.m_depth   = 0;
-			tc.m_numMips = 1;
+			tc.m_numMips = _numMips;
 			tc.m_format  = TextureFormat::Enum(texture.m_requestedFormat);
 			tc.m_cubeMap = false;
 			tc.m_mem     = NULL;
@@ -2502,18 +2502,18 @@ namespace bgfx { namespace gl
 				}
 			}
 
-			uint32_t flags = _resolution.m_flags & ~(0
+			const uint32_t maskFlags = ~(0
 				| BGFX_RESET_HMD_RECENTER
 				| BGFX_RESET_MAXANISOTROPY
 				| BGFX_RESET_DEPTH_CLAMP
 				| BGFX_RESET_SUSPEND
 				);
 
-			if (m_resolution.m_width  != _resolution.m_width
-			||  m_resolution.m_height != _resolution.m_height
-			||  m_resolution.m_flags  != flags)
+			if (m_resolution.m_width            !=  _resolution.m_width
+			||  m_resolution.m_height           !=  _resolution.m_height
+			|| (m_resolution.m_flags&maskFlags) != (_resolution.m_flags&maskFlags) )
 			{
-				flags &= ~BGFX_RESET_INTERNAL_FORCE;
+				uint32_t flags = _resolution.m_flags & (~BGFX_RESET_INTERNAL_FORCE);
 
 				m_resolution = _resolution;
 				m_resolution.m_flags = flags;
@@ -4310,9 +4310,10 @@ namespace bgfx { namespace gl
 			uint32_t msaaQuality = ( (m_flags&BGFX_TEXTURE_RT_MSAA_MASK)>>BGFX_TEXTURE_RT_MSAA_SHIFT);
 			msaaQuality = bx::uint32_satsub(msaaQuality, 1);
 			msaaQuality = bx::uint32_min(s_renderGL->m_maxMsaa, msaaQuality == 0 ? 0 : 1<<msaaQuality);
+			const bool msaaSample = 0 != (m_flags&BGFX_TEXTURE_MSAA_SAMPLE);
 
-			if (0 != msaaQuality
-			||  writeOnly)
+			if (!msaaSample
+			&& (0 != msaaQuality || writeOnly) )
 			{
 				GL_CHECK(glGenRenderbuffers(1, &m_rbo) );
 				BX_CHECK(0 != m_rbo, "Failed to generate renderbuffer id.");
@@ -4915,10 +4916,11 @@ namespace bgfx { namespace gl
 				if (BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES)
 				&&  BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES < 30) )
 				{
-					writeString(&writer
-						, "#define flat\n"
-						  "#define smooth\n"
-						  "#define noperspective\n"
+					writeString(&writer,
+						"#define centroid\n"
+						"#define flat\n"
+						"#define noperspective\n"
+						"#define smooth\n"
 						);
 
 					bool usesDerivatives = s_extension[Extension::OES_standard_derivatives].m_supported
@@ -5077,9 +5079,10 @@ namespace bgfx { namespace gl
 						&& s_extension[Extension::ARB_shader_texture_lod].m_supported
 						&& bx::findIdentifierMatch(code, s_ARB_shader_texture_lod)
 						;
+					const bool usesGpuShader5 = !!bx::findIdentifierMatch(code, s_ARB_gpu_shader5);
 					const bool usesIUsamplers = !!bx::findIdentifierMatch(code, s_uisamplers);
 					const bool usesTexelFetch = !!bx::findIdentifierMatch(code, s_texelFetch);
-					const bool usesGpuShader5 = !!bx::findIdentifierMatch(code, s_ARB_gpu_shader5);
+					const bool usesTextureMS  = !!bx::findIdentifierMatch(code, s_ARB_texture_multisample);
 					const bool usesPacking    = !!bx::findIdentifierMatch(code, s_ARB_shading_language_packing);
 
 					uint32_t version =
@@ -5109,6 +5112,11 @@ namespace bgfx { namespace gl
 					if (usesPacking)
 					{
 						writeString(&writer, "#extension GL_ARB_shading_language_packing : enable\n");
+					}
+
+					if (usesTextureMS)
+					{
+						writeString(&writer, "#extension GL_ARB_texture_multisample : enable\n");
 					}
 
 					if (130 <= version)
@@ -5161,13 +5169,14 @@ namespace bgfx { namespace gl
 						}
 					}
 
-					writeString(&writer
-							, "#define lowp\n"
-							  "#define mediump\n"
-							  "#define highp\n"
-							  "#define flat\n"
-							  "#define smooth\n"
-							  "#define noperspective\n"
+					writeString(&writer,
+							"#define lowp\n"
+							"#define mediump\n"
+							"#define highp\n"
+							"#define centroid\n"
+							"#define flat\n"
+							"#define noperspective\n"
+							"#define smooth\n"
 							);
 
 					bx::write(&writer, code, codeLen);
@@ -5634,6 +5643,11 @@ namespace bgfx { namespace gl
 	void RendererContextGL::submit(Frame* _render, ClearQuad& _clearQuad, TextVideoMemBlitter& _textVideoMemBlitter)
 	{
 		BGFX_GPU_PROFILER_BEGIN_DYNAMIC("rendererSubmit");
+
+		if (_render->m_capture)
+		{
+			renderDocTriggerCapture();
+		}
 
 		if (1 < m_numWindows
 		&&  m_vaoSupport)
@@ -6193,7 +6207,15 @@ namespace bgfx { namespace gl
 						}
 						else
 						{
-							GL_CHECK(glDisable(GL_DEPTH_TEST) );
+							if (BGFX_STATE_DEPTH_WRITE & newFlags)
+							{
+								GL_CHECK(glEnable(GL_DEPTH_TEST) );
+								GL_CHECK(glDepthFunc(GL_ALWAYS) );
+							}
+							else
+							{
+								GL_CHECK(glDisable(GL_DEPTH_TEST) );
+							}
 						}
 					}
 
@@ -6767,12 +6789,14 @@ namespace bgfx { namespace gl
 		if (m_timerQuerySupport)
 		{
 			m_gpuTimer.end();
-			while (m_gpuTimer.get() )
+			do
 			{
 				elapsedGl     = m_gpuTimer.m_elapsed;
 				elapsedGpuMs  = double(elapsedGl)/1e6;
 				maxGpuElapsed = elapsedGpuMs > maxGpuElapsed ? elapsedGpuMs : maxGpuElapsed;
 			}
+			while (m_gpuTimer.get() );
+
 			maxGpuLatency = bx::uint32_imax(maxGpuLatency, m_gpuTimer.m_control.available()-1);
 		}
 
