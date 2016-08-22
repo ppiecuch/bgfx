@@ -70,6 +70,35 @@ namespace bgfx { namespace mtl
 			[m_obj copyFromTexture:_sourceTexture sourceSlice:_sourceSlice sourceLevel:_sourceLevel sourceOrigin:_sourceOrigin sourceSize:_sourceSize
 						 toTexture:_destinationTexture destinationSlice:_destinationSlice destinationLevel:_destinationLevel destinationOrigin:_destinationOrigin];
 		}
+
+		void copyFromBuffer(id<MTLBuffer> _sourceBuffer, NSUInteger _sourceOffset, id<MTLBuffer> _destinationBuffer,
+							NSUInteger _destinationOffset, NSUInteger _size)
+		{
+			[m_obj copyFromBuffer:_sourceBuffer	sourceOffset:_sourceOffset toBuffer:_destinationBuffer
+				destinationOffset:_destinationOffset size:_size];
+		}
+
+		void copyFromBuffer(id<MTLBuffer> _sourceBuffer, NSUInteger _sourceOffset, NSUInteger _sourceBytesPerRow,
+							NSUInteger _sourceBytesPerImage, MTLSize _sourceSize, id<MTLTexture> _destinationTexture,
+							NSUInteger _destinationSlice, NSUInteger _destinationLevel, MTLOrigin _destinationOrigin)
+		{
+			[m_obj copyFromBuffer:_sourceBuffer sourceOffset:_sourceOffset sourceBytesPerRow:_sourceBytesPerRow
+			  sourceBytesPerImage:_sourceBytesPerImage sourceSize:_sourceSize toTexture:_destinationTexture
+				 destinationSlice:_destinationSlice destinationLevel:_destinationLevel destinationOrigin:_destinationOrigin];
+		}
+
+#if BX_PLATFORM_OSX
+		void synchronizeTexture(id<MTLTexture> _texture, NSUInteger _slice, NSUInteger _level)
+		{
+			[m_obj synchronizeTexture:_texture slice:_slice level:_level];
+		}
+
+		void synchronizeResource(id<MTLResource> _resource)
+		{
+			[m_obj synchronizeResource:_resource];
+		}
+#endif  // BX_PLATFORM_OSX
+
 		void endEncoding()
 		{
 			[m_obj endEncoding];
@@ -438,7 +467,7 @@ namespace bgfx { namespace mtl
 		}
 
 		// Copying Data from a Texture Image
-		void getBytes(void* _pixelBytes, NSUInteger _bytesPerRow, NSUInteger _bytesPerImage, MTLRegion _region, NSUInteger _mipmapLevel, NSUInteger _slice)
+		void getBytes(void* _pixelBytes, NSUInteger _bytesPerRow, NSUInteger _bytesPerImage, MTLRegion _region, NSUInteger _mipmapLevel, NSUInteger _slice) const
 		{
 			[m_obj getBytes:_pixelBytes bytesPerRow:_bytesPerRow bytesPerImage:_bytesPerImage fromRegion:_region mipmapLevel:_mipmapLevel slice:_slice];
 		}
@@ -450,12 +479,12 @@ namespace bgfx { namespace mtl
 		}
 
 		//properties
-		uint32_t width()
+		uint32_t width() const
 		{
 			return (uint32_t)m_obj.width;
 		}
 
-		uint32_t height()
+		uint32_t height() const
 		{
 			return (uint32_t)m_obj.height;
 		}
@@ -465,7 +494,7 @@ namespace bgfx { namespace mtl
 			return m_obj.pixelFormat;
 		}
 
-		uint32_t sampleCount()
+		uint32_t sampleCount() const
 		{
 			return (uint32_t)m_obj.sampleCount;
 		}
@@ -702,6 +731,8 @@ namespace bgfx { namespace mtl
 			, m_vshConstantBufferAlignmentMask(0)
 			, m_fshConstantBufferSize(0)
 			, m_fshConstantBufferAlignmentMask(0)
+			, m_usedVertexSamplerStages(0)
+			, m_usedFragmentSamplerStages(0)
 			, m_numPredefined(0)
 			, m_processedUniforms(false)
 		{
@@ -727,6 +758,8 @@ namespace bgfx { namespace mtl
 		uint32_t m_vshConstantBufferAlignmentMask;
 		uint32_t m_fshConstantBufferSize;
 		uint32_t m_fshConstantBufferAlignmentMask;
+		uint32_t m_usedVertexSamplerStages;
+		uint32_t m_usedFragmentSamplerStages;
 		PredefinedUniform m_predefined[PredefinedUniform::Count*2];
 		uint8_t m_numPredefined;
 		bool m_processedUniforms;
@@ -736,6 +769,7 @@ namespace bgfx { namespace mtl
 	{
 		TextureMtl()
 			: m_ptr(NULL)
+			, m_ptrMSAA(NULL)
 			, m_ptrStencil(NULL)
 			, m_sampler(NULL)
 			, m_flags(0)
@@ -753,9 +787,10 @@ namespace bgfx { namespace mtl
 			MTL_RELEASE(m_ptrStencil);
 		}
 		void update(uint8_t _side, uint8_t _mip, const Rect& _rect, uint16_t _z, uint16_t _depth, uint16_t _pitch, const Memory* _mem);
-		void commit(uint8_t _stage, uint32_t _flags = BGFX_TEXTURE_INTERNAL_DEFAULT_SAMPLER);
+		void commit(uint8_t _stage, bool _vertex, bool _fragment, uint32_t _flags = BGFX_TEXTURE_INTERNAL_DEFAULT_SAMPLER);
 
 		Texture m_ptr;
+		Texture m_ptrMSAA;
 		Texture m_ptrStencil; // for emulating packed depth/stencil formats - only for iOS8...
 		SamplerState m_sampler;
 		uint32_t m_flags;

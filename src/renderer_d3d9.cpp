@@ -702,6 +702,14 @@ namespace bgfx { namespace d3d9
 					, NULL
 					) ) ? BGFX_CAPS_FORMAT_TEXTURE_FRAMEBUFFER_MSAA : BGFX_CAPS_FORMAT_TEXTURE_NONE;
 
+				support |= SUCCEEDED(m_d3d9->CheckDeviceFormat(m_adapter
+					, m_deviceType
+					, adapterFormat
+					, isDepth(TextureFormat::Enum(ii) ) ? D3DUSAGE_DEPTHSTENCIL : D3DUSAGE_RENDERTARGET
+					, D3DRTYPE_TEXTURE
+					, s_textureFormat[ii].m_fmt
+					) ) ? BGFX_CAPS_FORMAT_TEXTURE_MIP_AUTOGEN : BGFX_CAPS_FORMAT_TEXTURE_NONE;
+
 				g_caps.formats[ii] = support;
 			}
 
@@ -1023,17 +1031,17 @@ namespace bgfx { namespace d3d9
 			bx::write(&writer, magic);
 
 			TextureCreate tc;
-			tc.m_width   = _width;
-			tc.m_height  = _height;
-			tc.m_sides   = 0;
-			tc.m_depth   = 0;
-			tc.m_numMips = _numMips;
-			tc.m_format  = TextureFormat::Enum(texture.m_requestedFormat);
-			tc.m_cubeMap = false;
-			tc.m_mem     = NULL;
+			tc.m_width     = _width;
+			tc.m_height    = _height;
+			tc.m_depth     = 0;
+			tc.m_numLayers = 1;
+			tc.m_numMips   = _numMips;
+			tc.m_format    = TextureFormat::Enum(texture.m_requestedFormat);
+			tc.m_cubeMap   = false;
+			tc.m_mem       = NULL;
 			bx::write(&writer, tc);
 
-			texture.destroy();
+			texture.destroy(true);
 			texture.create(mem, texture.m_flags, 0);
 
 			release(mem);
@@ -1340,8 +1348,7 @@ namespace bgfx { namespace d3d9
 		void setFrameBuffer(FrameBufferHandle _fbh, bool _msaa = true)
 		{
 			if (isValid(m_fbh)
-			&&  m_fbh.idx != _fbh.idx
-			&&  m_rtMsaa)
+			&&  m_fbh.idx != _fbh.idx)
 			{
 				FrameBufferD3D9& frameBuffer = m_frameBuffers[m_fbh.idx];
 				frameBuffer.resolve();

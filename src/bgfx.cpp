@@ -352,14 +352,14 @@ namespace bgfx
 		bx::write(&writer, magic);
 
 		TextureCreate tc;
-		tc.m_width   = _width;
-		tc.m_height  = _height;
-		tc.m_sides   = 0;
-		tc.m_depth   = 0;
-		tc.m_numMips = uint8_t(bx::uint16_max(1, _numMips) );
-		tc.m_format  = _format;
-		tc.m_cubeMap = false;
-		tc.m_mem     = NULL;
+		tc.m_width     = _width;
+		tc.m_height    = _height;
+		tc.m_depth     = 0;
+		tc.m_numLayers = 1;
+		tc.m_numMips   = uint8_t(bx::uint16_max(1, _numMips) );
+		tc.m_format    = _format;
+		tc.m_cubeMap   = false;
+		tc.m_mem       = NULL;
 		bx::write(&writer, tc);
 
 		rci->destroyTexture(_handle);
@@ -472,7 +472,7 @@ namespace bgfx
 		uint8_t* rgba = mem->data;
 		charsetFillTexture(vga8x8, rgba, 8, pitch, bpp);
 		charsetFillTexture(vga8x16, &rgba[8*pitch], 16, pitch, bpp);
-		m_texture = createTexture2D(width, height, 1, TextureFormat::R8
+		m_texture = createTexture2D(width, height, false, 1, TextureFormat::R8
 						, BGFX_TEXTURE_MIN_POINT
 						| BGFX_TEXTURE_MAG_POINT
 						| BGFX_TEXTURE_MIP_POINT
@@ -1101,6 +1101,8 @@ namespace bgfx
 		CAPS_FLAGS(BGFX_CAPS_OCCLUSION_QUERY),
 		CAPS_FLAGS(BGFX_CAPS_ALPHA_TO_COVERAGE),
 		CAPS_FLAGS(BGFX_CAPS_CONSERVATIVE_RASTER),
+		CAPS_FLAGS(BGFX_CAPS_TEXTURE_2D_ARRAY),
+		CAPS_FLAGS(BGFX_CAPS_TEXTURE_CUBE_ARRAY),
 #undef CAPS_FLAGS
 	};
 
@@ -1129,25 +1131,26 @@ namespace bgfx
 		}
 
 		BX_TRACE("Supported texture formats:");
-		BX_TRACE("\t +---------------   2D: x = supported / * = emulated");
-		BX_TRACE("\t |+--------------   2D: sRGB format");
-		BX_TRACE("\t ||+-------------   3D: x = supported / * = emulated");
-		BX_TRACE("\t |||+------------   3D: sRGB format");
-		BX_TRACE("\t ||||+----------- Cube: x = supported / * = emulated");
-		BX_TRACE("\t |||||+---------- Cube: sRGB format");
-		BX_TRACE("\t ||||||+--------- vertex format");
-		BX_TRACE("\t |||||||+-------- image");
-		BX_TRACE("\t ||||||||+------- framebuffer");
-		BX_TRACE("\t |||||||||+------ MSAA framebuffer");
-		BX_TRACE("\t ||||||||||+----- MSAA texture");
-		BX_TRACE("\t |||||||||||  +-- name");
+		BX_TRACE("\t +----------------   2D: x = supported / * = emulated");
+		BX_TRACE("\t |+---------------   2D: sRGB format");
+		BX_TRACE("\t ||+--------------   3D: x = supported / * = emulated");
+		BX_TRACE("\t |||+-------------   3D: sRGB format");
+		BX_TRACE("\t ||||+------------ Cube: x = supported / * = emulated");
+		BX_TRACE("\t |||||+----------- Cube: sRGB format");
+		BX_TRACE("\t ||||||+---------- vertex format");
+		BX_TRACE("\t |||||||+--------- image");
+		BX_TRACE("\t ||||||||+-------- framebuffer");
+		BX_TRACE("\t |||||||||+------- MSAA framebuffer");
+		BX_TRACE("\t ||||||||||+------ MSAA texture");
+		BX_TRACE("\t |||||||||||+----- Auto-generated mips");
+		BX_TRACE("\t ||||||||||||  +-- name");
 		for (uint32_t ii = 0; ii < TextureFormat::Count; ++ii)
 		{
 			if (TextureFormat::Unknown != ii
 			&&  TextureFormat::UnknownDepth != ii)
 			{
 				uint16_t flags = g_caps.formats[ii];
-				BX_TRACE("\t[%c%c%c%c%c%c%c%c%c%c%c] %s"
+				BX_TRACE("\t[%c%c%c%c%c%c%c%c%c%c%c%c] %s"
 					, flags&BGFX_CAPS_FORMAT_TEXTURE_2D               ? 'x' : flags&BGFX_CAPS_FORMAT_TEXTURE_2D_EMULATED ? '*' : ' '
 					, flags&BGFX_CAPS_FORMAT_TEXTURE_2D_SRGB          ? 'l' : ' '
 					, flags&BGFX_CAPS_FORMAT_TEXTURE_3D               ? 'x' : flags&BGFX_CAPS_FORMAT_TEXTURE_3D_EMULATED ? '*' : ' '
@@ -1159,6 +1162,7 @@ namespace bgfx
 					, flags&BGFX_CAPS_FORMAT_TEXTURE_FRAMEBUFFER      ? 'f' : ' '
 					, flags&BGFX_CAPS_FORMAT_TEXTURE_FRAMEBUFFER_MSAA ? '+' : ' '
 					, flags&BGFX_CAPS_FORMAT_TEXTURE_MSAA             ? 'm' : ' '
+					, flags&BGFX_CAPS_FORMAT_TEXTURE_MIP_AUTOGEN      ? 'M' : ' '
 					, getName(TextureFormat::Enum(ii) )
 					);
 				BX_UNUSED(flags);
@@ -2378,6 +2382,11 @@ namespace bgfx
 		return topologyConvert(_conversion, _dst, _dstSize, _indices, _numIndices, _index32, g_allocator);
 	}
 
+	void topologySortTriList(TopologySort::Enum _sort, void* _dst, uint32_t _dstSize, const float _dir[3], const float _pos[3], const void* _vertices, uint32_t _stride, const void* _indices, uint32_t _numIndices, bool _index32)
+	{
+		topologySortTriList(_sort, _dst, _dstSize, _dir, _pos, _vertices, _stride, _indices, _numIndices, _index32, g_allocator);
+	}
+
 	uint8_t getSupportedRenderers(RendererType::Enum _enum[RendererType::Count])
 	{
 		uint8_t num = 0;
@@ -2876,7 +2885,7 @@ error:
 		s_ctx->destroyProgram(_handle);
 	}
 
-	void calcTextureSize(TextureInfo& _info, uint16_t _width, uint16_t _height, uint16_t _depth, bool _cubeMap, uint8_t _numMips, TextureFormat::Enum _format)
+	void calcTextureSize(TextureInfo& _info, uint16_t _width, uint16_t _height, uint16_t _depth, bool _cubeMap, bool _hasMips, uint16_t _numLayers, TextureFormat::Enum _format)
 	{
 		const ImageBlockInfo& blockInfo = getBlockInfo(_format);
 		const uint8_t  bpp         = blockInfo.bitsPerPixel;
@@ -2888,32 +2897,15 @@ error:
 		_width   = bx::uint16_max(blockWidth  * minBlockX, ( (_width  + blockWidth  - 1) / blockWidth)*blockWidth);
 		_height  = bx::uint16_max(blockHeight * minBlockY, ( (_height + blockHeight - 1) / blockHeight)*blockHeight);
 		_depth   = bx::uint16_max(1, _depth);
-		_numMips = uint8_t(bx::uint16_max(1, _numMips) );
-
-		uint32_t width  = _width;
-		uint32_t height = _height;
-		uint32_t depth  = _depth;
-		uint32_t sides  = _cubeMap ? 6 : 1;
-		uint32_t size   = 0;
-
-		for (uint32_t lod = 0; lod < _numMips; ++lod)
-		{
-			width  = bx::uint32_max(blockWidth  * minBlockX, ( (width  + blockWidth  - 1) / blockWidth )*blockWidth);
-			height = bx::uint32_max(blockHeight * minBlockY, ( (height + blockHeight - 1) / blockHeight)*blockHeight);
-			depth  = bx::uint32_max(1, depth);
-
-			size += width*height*depth*bpp/8 * sides;
-
-			width  >>= 1;
-			height >>= 1;
-			depth  >>= 1;
-		}
+		const uint8_t  numMips = calcNumMips(_hasMips, _width, _height, _depth);
+		const uint32_t sides   = _cubeMap ? 6 : 1;
+		const uint32_t size    = _width*_height*_depth*numMips*bpp/8 * sides * _numLayers;
 
 		_info.format  = _format;
 		_info.width   = _width;
 		_info.height  = _height;
 		_info.depth   = _depth;
-		_info.numMips = _numMips;
+		_info.numMips = numMips;
 		_info.cubeMap = _cubeMap;
 		_info.storageSize  = size;
 		_info.bitsPerPixel = bpp;
@@ -2944,7 +2936,7 @@ error:
 		_height = bx::uint16_max(1, _height);
 	}
 
-	static TextureHandle createTexture2D(BackbufferRatio::Enum _ratio, uint16_t _width, uint16_t _height, uint8_t _numMips, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
+	static TextureHandle createTexture2D(BackbufferRatio::Enum _ratio, uint16_t _width, uint16_t _height, bool _hasMips, uint16_t _numLayers, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
 	{
 		BGFX_CHECK_MAIN_THREAD();
 
@@ -2963,13 +2955,13 @@ error:
 			getTextureSizeFromRatio(_ratio, _width, _height);
 		}
 
-		_numMips = calcNumMips(_numMips, _width, _height);
+		const uint8_t numMips = calcNumMips(_hasMips, _width, _height);
 
 		if (BX_ENABLED(BGFX_CONFIG_DEBUG)
 		&&  NULL != _mem)
 		{
 			TextureInfo ti;
-			calcTextureSize(ti, _width, _height, 1, false, _numMips, _format);
+			calcTextureSize(ti, _width, _height, 1, false, _hasMips, _numLayers, _format);
 			BX_CHECK(ti.storageSize == _mem->size
 				, "createTexture2D: Texture storage size doesn't match passed memory size (storage size: %d, memory size: %d)"
 				, ti.storageSize
@@ -2985,32 +2977,32 @@ error:
 		bx::write(&writer, magic);
 
 		TextureCreate tc;
-		tc.m_width   = _width;
-		tc.m_height  = _height;
-		tc.m_sides   = 0;
-		tc.m_depth   = 0;
-		tc.m_numMips = _numMips;
-		tc.m_format  = _format;
-		tc.m_cubeMap = false;
-		tc.m_mem     = _mem;
+		tc.m_width     = _width;
+		tc.m_height    = _height;
+		tc.m_depth     = 0;
+		tc.m_numLayers = _numLayers;
+		tc.m_numMips   = numMips;
+		tc.m_format    = _format;
+		tc.m_cubeMap   = false;
+		tc.m_mem       = _mem;
 		bx::write(&writer, tc);
 
 		return s_ctx->createTexture(mem, _flags, 0, NULL, _ratio);
 	}
 
-	TextureHandle createTexture2D(uint16_t _width, uint16_t _height, uint8_t _numMips, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
+	TextureHandle createTexture2D(uint16_t _width, uint16_t _height, bool _hasMips, uint16_t _numLayers, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
 	{
 		BX_CHECK(_width > 0 && _height > 0, "Invalid texture size (width %d, height %d).", _width, _height);
-		return createTexture2D(BackbufferRatio::Count, _width, _height, _numMips, _format, _flags, _mem);
+		return createTexture2D(BackbufferRatio::Count, _width, _height, _hasMips, _numLayers, _format, _flags, _mem);
 	}
 
-	TextureHandle createTexture2D(BackbufferRatio::Enum _ratio, uint8_t _numMips, TextureFormat::Enum _format, uint32_t _flags)
+	TextureHandle createTexture2D(BackbufferRatio::Enum _ratio, bool _hasMips, uint16_t _numLayers, TextureFormat::Enum _format, uint32_t _flags)
 	{
 		BX_CHECK(_ratio < BackbufferRatio::Count, "Invalid back buffer ratio.");
-		return createTexture2D(_ratio, 0, 0, _numMips, _format, _flags, NULL);
+		return createTexture2D(_ratio, 0, 0, _hasMips, _numLayers, _format, _flags, NULL);
 	}
 
-	TextureHandle createTexture3D(uint16_t _width, uint16_t _height, uint16_t _depth, uint8_t _numMips, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
+	TextureHandle createTexture3D(uint16_t _width, uint16_t _height, uint16_t _depth, bool _hasMips, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
 	{
 		BGFX_CHECK_MAIN_THREAD();
 		BGFX_CHECK_CAPS(BGFX_CAPS_TEXTURE_3D, "Texture3D is not supported!");
@@ -3019,13 +3011,13 @@ error:
 			, getName(_format)
 			);
 
-		_numMips = calcNumMips(_numMips, _width, _height, _depth);
+		const uint8_t numMips = calcNumMips(_hasMips, _width, _height, _depth);
 
 		if (BX_ENABLED(BGFX_CONFIG_DEBUG)
 		&&  NULL != _mem)
 		{
 			TextureInfo ti;
-			calcTextureSize(ti, _width, _height, _depth, false, _numMips, _format);
+			calcTextureSize(ti, _width, _height, _depth, false, _hasMips, 1, _format);
 			BX_CHECK(ti.storageSize == _mem->size
 				, "createTexture3D: Texture storage size doesn't match passed memory size (storage size: %d, memory size: %d)"
 				, ti.storageSize
@@ -3041,20 +3033,20 @@ error:
 		bx::write(&writer, magic);
 
 		TextureCreate tc;
-		tc.m_width   = _width;
-		tc.m_height  = _height;
-		tc.m_sides   = 0;
-		tc.m_depth   = _depth;
-		tc.m_numMips = _numMips;
-		tc.m_format  = _format;
-		tc.m_cubeMap = false;
-		tc.m_mem     = _mem;
+		tc.m_width     = _width;
+		tc.m_height    = _height;
+		tc.m_depth     = _depth;
+		tc.m_numLayers = 1;
+		tc.m_numMips   = numMips;
+		tc.m_format    = _format;
+		tc.m_cubeMap   = false;
+		tc.m_mem       = _mem;
 		bx::write(&writer, tc);
 
 		return s_ctx->createTexture(mem, _flags, 0, NULL, BackbufferRatio::Count);
 	}
 
-	TextureHandle createTextureCube(uint16_t _size, uint8_t _numMips, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
+	TextureHandle createTextureCube(uint16_t _size, bool _hasMips, uint16_t _numLayers, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
 	{
 		BGFX_CHECK_MAIN_THREAD();
 		BX_CHECK(0 != (g_caps.formats[_format] & (BGFX_CAPS_FORMAT_TEXTURE_CUBE|BGFX_CAPS_FORMAT_TEXTURE_CUBE_EMULATED|BGFX_CAPS_FORMAT_TEXTURE_CUBE_SRGB) )
@@ -3062,13 +3054,13 @@ error:
 			, getName(_format)
 			);
 
-		_numMips = calcNumMips(_numMips, _size, _size);
+		const uint8_t numMips = calcNumMips(_hasMips, _size, _size);
 
 		if (BX_ENABLED(BGFX_CONFIG_DEBUG)
 		&&  NULL != _mem)
 		{
 			TextureInfo ti;
-			calcTextureSize(ti, _size, _size, 1, true, _numMips, _format);
+			calcTextureSize(ti, _size, _size, 1, true, _hasMips, _numLayers, _format);
 			BX_CHECK(ti.storageSize == _mem->size
 				, "createTextureCube: Texture storage size doesn't match passed memory size (storage size: %d, memory size: %d)"
 				, ti.storageSize
@@ -3084,14 +3076,14 @@ error:
 		bx::write(&writer, magic);
 
 		TextureCreate tc;
-		tc.m_width   = _size;
-		tc.m_height  = _size;
-		tc.m_sides   = 6;
-		tc.m_depth   = 0;
-		tc.m_numMips = _numMips;
-		tc.m_format  = _format;
-		tc.m_cubeMap = true;
-		tc.m_mem     = _mem;
+		tc.m_width     = _size;
+		tc.m_height    = _size;
+		tc.m_depth     = 0;
+		tc.m_numLayers = _numLayers;
+		tc.m_numMips   = numMips;
+		tc.m_format    = _format;
+		tc.m_cubeMap   = true;
+		tc.m_mem       = _mem;
 		bx::write(&writer, tc);
 
 		return s_ctx->createTexture(mem, _flags, 0, NULL, BackbufferRatio::Count);
@@ -3103,7 +3095,7 @@ error:
 		s_ctx->destroyTexture(_handle);
 	}
 
-	void updateTexture2D(TextureHandle _handle, uint8_t _mip, uint16_t _x, uint16_t _y, uint16_t _width, uint16_t _height, const Memory* _mem, uint16_t _pitch)
+	void updateTexture2D(TextureHandle _handle, uint16_t _layer, uint8_t _mip, uint16_t _x, uint16_t _y, uint16_t _width, uint16_t _height, const Memory* _mem, uint16_t _pitch)
 	{
 		BGFX_CHECK_MAIN_THREAD();
 		BX_CHECK(NULL != _mem, "_mem can't be NULL");
@@ -3114,7 +3106,7 @@ error:
 		}
 		else
 		{
-			s_ctx->updateTexture(_handle, 0, _mip, _x, _y, 0, _width, _height, 1, _pitch, _mem);
+			s_ctx->updateTexture(_handle, 0, _mip, _x, _y, _layer, _width, _height, 1, _pitch, _mem);
 		}
 	}
 
@@ -3136,7 +3128,7 @@ error:
 		}
 	}
 
-	void updateTextureCube(TextureHandle _handle, uint8_t _side, uint8_t _mip, uint16_t _x, uint16_t _y, uint16_t _width, uint16_t _height, const Memory* _mem, uint16_t _pitch)
+	void updateTextureCube(TextureHandle _handle, uint16_t _layer, uint8_t _side, uint8_t _mip, uint16_t _x, uint16_t _y, uint16_t _width, uint16_t _height, const Memory* _mem, uint16_t _pitch)
 	{
 		BGFX_CHECK_MAIN_THREAD();
 		BX_CHECK(NULL != _mem, "_mem can't be NULL");
@@ -3148,7 +3140,7 @@ error:
 		}
 		else
 		{
-			s_ctx->updateTexture(_handle, _side, _mip, _x, _y, 0, _width, _height, 1, _pitch, _mem);
+			s_ctx->updateTexture(_handle, _side, _mip, _x, _y, _layer, _width, _height, 1, _pitch, _mem);
 		}
 	}
 
@@ -3171,7 +3163,7 @@ error:
 	FrameBufferHandle createFrameBuffer(uint16_t _width, uint16_t _height, TextureFormat::Enum _format, uint32_t _textureFlags)
 	{
 		_textureFlags |= _textureFlags&BGFX_TEXTURE_RT_MSAA_MASK ? 0 : BGFX_TEXTURE_RT;
-		TextureHandle th = createTexture2D(_width, _height, 1, _format, _textureFlags);
+		TextureHandle th = createTexture2D(_width, _height, false, 1, _format, _textureFlags);
 		return createFrameBuffer(1, &th, true);
 	}
 
@@ -3179,7 +3171,7 @@ error:
 	{
 		BX_CHECK(_ratio < BackbufferRatio::Count, "Invalid back buffer ratio.");
 		_textureFlags |= _textureFlags&BGFX_TEXTURE_RT_MSAA_MASK ? 0 : BGFX_TEXTURE_RT;
-		TextureHandle th = createTexture2D(_ratio, 1, _format, _textureFlags);
+		TextureHandle th = createTexture2D(_ratio, false, 1, _format, _textureFlags);
 		return createFrameBuffer(1, &th, true);
 	}
 
@@ -3851,6 +3843,11 @@ uint32_t bgfx_topology_convert(bgfx_topology_convert_t _conversion, void* _dst, 
 	return bgfx::topologyConvert(bgfx::TopologyConvert::Enum(_conversion), _dst, _dstSize, _indices, _numIndices, _index32);
 }
 
+void bgfx_topology_sort_tri_list(bgfx_topology_sort_t _sort, void* _dst, uint32_t _dstSize, const float _dir[3], const float _pos[3], const void* _vertices, uint32_t _stride, const void* _indices, uint32_t _numIndices, bool _index32)
+{
+	bgfx::topologySortTriList(bgfx::TopologySort::Enum(_sort), _dst, _dstSize, _dir, _pos, _vertices, _stride, _indices, _numIndices, _index32);
+}
+
 BGFX_C_API void bgfx_image_swizzle_bgra8(uint32_t _width, uint32_t _height, uint32_t _pitch, const void* _src, void* _dst)
 {
 	bgfx::imageSwizzleBgra8(_width, _height, _pitch, _src, _dst);
@@ -3958,6 +3955,11 @@ BGFX_C_API void bgfx_dbg_text_printf(uint16_t _x, uint16_t _y, uint8_t _attr, co
 	va_start(argList, _format);
 	bgfx::dbgTextPrintfVargs(_x, _y, _attr, _format, argList);
 	va_end(argList);
+}
+
+BGFX_C_API void bgfx_dbg_text_vprintf(uint16_t _x, uint16_t _y, uint8_t _attr, const char* _format, va_list _argList)
+{
+	bgfx::dbgTextPrintfVargs(_x, _y, _attr, _format, _argList);
 }
 
 BGFX_C_API void bgfx_dbg_text_image(uint16_t _x, uint16_t _y, uint16_t _width, uint16_t _height, const void* _data, uint16_t _pitch)
@@ -4145,10 +4147,10 @@ BGFX_C_API void bgfx_destroy_program(bgfx_program_handle_t _handle)
 	bgfx::destroyProgram(handle.cpp);
 }
 
-BGFX_C_API void bgfx_calc_texture_size(bgfx_texture_info_t* _info, uint16_t _width, uint16_t _height, uint16_t _depth, bool _cubeMap, uint8_t _numMips, bgfx_texture_format_t _format)
+BGFX_C_API void bgfx_calc_texture_size(bgfx_texture_info_t* _info, uint16_t _width, uint16_t _height, uint16_t _depth, bool _cubeMap, bool _hasMips, uint16_t _numLayers, bgfx_texture_format_t _format)
 {
 	bgfx::TextureInfo& info = *(bgfx::TextureInfo*)_info;
-	bgfx::calcTextureSize(info, _width, _height, _depth, _cubeMap, _numMips, bgfx::TextureFormat::Enum(_format) );
+	bgfx::calcTextureSize(info, _width, _height, _depth, _cubeMap, _hasMips, _numLayers, bgfx::TextureFormat::Enum(_format) );
 }
 
 BGFX_C_API bgfx_texture_handle_t bgfx_create_texture(const bgfx_memory_t* _mem, uint32_t _flags, uint8_t _skip, bgfx_texture_info_t* _info)
@@ -4159,38 +4161,38 @@ BGFX_C_API bgfx_texture_handle_t bgfx_create_texture(const bgfx_memory_t* _mem, 
 	return handle.c;
 }
 
-BGFX_C_API bgfx_texture_handle_t bgfx_create_texture_2d(uint16_t _width, uint16_t _height, uint8_t _numMips, bgfx_texture_format_t _format, uint32_t _flags, const bgfx_memory_t* _mem)
+BGFX_C_API bgfx_texture_handle_t bgfx_create_texture_2d(uint16_t _width, uint16_t _height, bool _hasMips, uint16_t _numLayers, bgfx_texture_format_t _format, uint32_t _flags, const bgfx_memory_t* _mem)
 {
 	union { bgfx_texture_handle_t c; bgfx::TextureHandle cpp; } handle;
-	handle.cpp = bgfx::createTexture2D(_width, _height, _numMips, bgfx::TextureFormat::Enum(_format), _flags, (const bgfx::Memory*)_mem);
+	handle.cpp = bgfx::createTexture2D(_width, _height, _hasMips, _numLayers, bgfx::TextureFormat::Enum(_format), _flags, (const bgfx::Memory*)_mem);
 	return handle.c;
 }
 
-BGFX_C_API bgfx_texture_handle_t bgfx_create_texture_2d_scaled(bgfx_backbuffer_ratio_t _ratio, uint8_t _numMips, bgfx_texture_format_t _format, uint32_t _flags)
+BGFX_C_API bgfx_texture_handle_t bgfx_create_texture_2d_scaled(bgfx_backbuffer_ratio_t _ratio, bool _hasMips, uint16_t _numLayers, bgfx_texture_format_t _format, uint32_t _flags)
 {
 	union { bgfx_texture_handle_t c; bgfx::TextureHandle cpp; } handle;
-	handle.cpp = bgfx::createTexture2D(bgfx::BackbufferRatio::Enum(_ratio), _numMips, bgfx::TextureFormat::Enum(_format), _flags);
+	handle.cpp = bgfx::createTexture2D(bgfx::BackbufferRatio::Enum(_ratio), _hasMips, _numLayers, bgfx::TextureFormat::Enum(_format), _flags);
 	return handle.c;
 }
 
-BGFX_C_API bgfx_texture_handle_t bgfx_create_texture_3d(uint16_t _width, uint16_t _height, uint16_t _depth, uint8_t _numMips, bgfx_texture_format_t _format, uint32_t _flags, const bgfx_memory_t* _mem)
+BGFX_C_API bgfx_texture_handle_t bgfx_create_texture_3d(uint16_t _width, uint16_t _height, uint16_t _depth, bool _hasMips, bgfx_texture_format_t _format, uint32_t _flags, const bgfx_memory_t* _mem)
 {
 	union { bgfx_texture_handle_t c; bgfx::TextureHandle cpp; } handle;
-	handle.cpp = bgfx::createTexture3D(_width, _height, _depth, _numMips, bgfx::TextureFormat::Enum(_format), _flags, (const bgfx::Memory*)_mem);
+	handle.cpp = bgfx::createTexture3D(_width, _height, _depth, _hasMips, bgfx::TextureFormat::Enum(_format), _flags, (const bgfx::Memory*)_mem);
 	return handle.c;
 }
 
-BGFX_C_API bgfx_texture_handle_t bgfx_create_texture_cube(uint16_t _size, uint8_t _numMips, bgfx_texture_format_t _format, uint32_t _flags, const bgfx_memory_t* _mem)
+BGFX_C_API bgfx_texture_handle_t bgfx_create_texture_cube(uint16_t _size, bool _hasMips, uint16_t _numLayers, bgfx_texture_format_t _format, uint32_t _flags, const bgfx_memory_t* _mem)
 {
 	union { bgfx_texture_handle_t c; bgfx::TextureHandle cpp; } handle;
-	handle.cpp = bgfx::createTextureCube(_size, _numMips, bgfx::TextureFormat::Enum(_format), _flags, (const bgfx::Memory*)_mem);
+	handle.cpp = bgfx::createTextureCube(_size, _hasMips, _numLayers, bgfx::TextureFormat::Enum(_format), _flags, (const bgfx::Memory*)_mem);
 	return handle.c;
 }
 
-BGFX_C_API void bgfx_update_texture_2d(bgfx_texture_handle_t _handle, uint8_t _mip, uint16_t _x, uint16_t _y, uint16_t _width, uint16_t _height, const bgfx_memory_t* _mem, uint16_t _pitch)
+BGFX_C_API void bgfx_update_texture_2d(bgfx_texture_handle_t _handle, uint16_t _layer, uint8_t _mip, uint16_t _x, uint16_t _y, uint16_t _width, uint16_t _height, const bgfx_memory_t* _mem, uint16_t _pitch)
 {
 	union { bgfx_texture_handle_t c; bgfx::TextureHandle cpp; } handle = { _handle };
-	bgfx::updateTexture2D(handle.cpp, _mip, _x, _y, _width, _height, (const bgfx::Memory*)_mem, _pitch);
+	bgfx::updateTexture2D(handle.cpp, _layer, _mip, _x, _y, _width, _height, (const bgfx::Memory*)_mem, _pitch);
 }
 
 BGFX_C_API void bgfx_update_texture_3d(bgfx_texture_handle_t _handle, uint8_t _mip, uint16_t _x, uint16_t _y, uint16_t _z, uint16_t _width, uint16_t _height, uint16_t _depth, const bgfx_memory_t* _mem)
@@ -4199,10 +4201,10 @@ BGFX_C_API void bgfx_update_texture_3d(bgfx_texture_handle_t _handle, uint8_t _m
 	bgfx::updateTexture3D(handle.cpp, _mip, _x, _y, _z, _width, _height, _depth, (const bgfx::Memory*)_mem);
 }
 
-BGFX_C_API void bgfx_update_texture_cube(bgfx_texture_handle_t _handle, uint8_t _side, uint8_t _mip, uint16_t _x, uint16_t _y, uint16_t _width, uint16_t _height, const bgfx_memory_t* _mem, uint16_t _pitch)
+BGFX_C_API void bgfx_update_texture_cube(bgfx_texture_handle_t _handle, uint16_t _layer, uint8_t _side, uint8_t _mip, uint16_t _x, uint16_t _y, uint16_t _width, uint16_t _height, const bgfx_memory_t* _mem, uint16_t _pitch)
 {
 	union { bgfx_texture_handle_t c; bgfx::TextureHandle cpp; } handle = { _handle };
-	bgfx::updateTextureCube(handle.cpp, _side, _mip, _x, _y, _width, _height, (const bgfx::Memory*)_mem, _pitch);
+	bgfx::updateTextureCube(handle.cpp, _layer, _side, _mip, _x, _y, _width, _height, (const bgfx::Memory*)_mem, _pitch);
 }
 
 BGFX_C_API uint32_t bgfx_read_texture(bgfx_texture_handle_t _handle, void* _data)
@@ -4234,6 +4236,13 @@ BGFX_C_API bgfx_frame_buffer_handle_t bgfx_create_frame_buffer_scaled(bgfx_backb
 {
 	union { bgfx_frame_buffer_handle_t c; bgfx::FrameBufferHandle cpp; } handle;
 	handle.cpp = bgfx::createFrameBuffer(bgfx::BackbufferRatio::Enum(_ratio), bgfx::TextureFormat::Enum(_format), _textureFlags);
+	return handle.c;
+}
+
+BGFX_C_API bgfx_frame_buffer_handle_t bgfx_create_frame_buffer_from_handles(uint8_t _num, const bgfx_texture_handle_t* _handles, bool _destroyTextures)
+{
+	union { bgfx_frame_buffer_handle_t c; bgfx::FrameBufferHandle cpp; } handle;
+	handle.cpp = bgfx::createFrameBuffer(_num, (const bgfx::TextureHandle*)_handles, _destroyTextures);
 	return handle.c;
 }
 
@@ -4624,6 +4633,7 @@ BGFX_C_API bgfx_interface_vtbl_t* bgfx_get_interface(uint32_t _version)
 	BGFX_IMPORT_FUNC(vertex_convert) \
 	BGFX_IMPORT_FUNC(weld_vertices) \
 	BGFX_IMPORT_FUNC(topology_convert) \
+	BGFX_IMPORT_FUNC(topology_sort_tri_list) \
 	BGFX_IMPORT_FUNC(image_swizzle_bgra8) \
 	BGFX_IMPORT_FUNC(image_rgba8_downsample_2x2) \
 	BGFX_IMPORT_FUNC(get_supported_renderers) \
@@ -4643,6 +4653,7 @@ BGFX_C_API bgfx_interface_vtbl_t* bgfx_get_interface(uint32_t _version)
 	BGFX_IMPORT_FUNC(set_debug) \
 	BGFX_IMPORT_FUNC(dbg_text_clear) \
 	BGFX_IMPORT_FUNC(dbg_text_printf) \
+	BGFX_IMPORT_FUNC(dbg_text_vprintf) \
 	BGFX_IMPORT_FUNC(dbg_text_image) \
 	BGFX_IMPORT_FUNC(create_index_buffer) \
 	BGFX_IMPORT_FUNC(destroy_index_buffer) \

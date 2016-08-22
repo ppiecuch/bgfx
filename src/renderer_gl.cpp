@@ -495,6 +495,7 @@ namespace bgfx { namespace gl
 			ARB_shader_texture_lod,
 			ARB_texture_compression_bptc,
 			ARB_texture_compression_rgtc,
+			ARB_texture_cube_map_array,
 			ARB_texture_float,
 			ARB_texture_multisample,
 			ARB_texture_rg,
@@ -550,6 +551,7 @@ namespace bgfx { namespace gl
 			EXT_texture_compression_latc,
 			EXT_texture_compression_rgtc,
 			EXT_texture_compression_s3tc,
+			EXT_texture_cube_map_array,
 			EXT_texture_filter_anisotropic,
 			EXT_texture_format_BGRA8888,
 			EXT_texture_rg,
@@ -609,6 +611,7 @@ namespace bgfx { namespace gl
 			OES_texture_half_float,
 			OES_texture_half_float_linear,
 			OES_texture_stencil8,
+			OES_texture_storage_multisample_2d_array,
 			OES_vertex_array_object,
 			OES_vertex_half_float,
 			OES_vertex_type_10_10_10_2,
@@ -654,185 +657,188 @@ namespace bgfx { namespace gl
 	//
 	static Extension s_extension[] =
 	{
-		{ "AMD_conservative_depth",                false,                             true  },
-		{ "AMD_multi_draw_indirect",               false,                             true  },
+		{ "AMD_conservative_depth",                   false,                             true  },
+		{ "AMD_multi_draw_indirect",                  false,                             true  },
 
-		{ "ANGLE_depth_texture",                   false,                             true  },
-		{ "ANGLE_framebuffer_blit",                false,                             true  },
-		{ "ANGLE_framebuffer_multisample",         false,                             false },
-		{ "ANGLE_instanced_arrays",                false,                             true  },
-		{ "ANGLE_texture_compression_dxt1",        false,                             true  },
-		{ "ANGLE_texture_compression_dxt3",        false,                             true  },
-		{ "ANGLE_texture_compression_dxt5",        false,                             true  },
-		{ "ANGLE_timer_query",                     false,                             true  },
-		{ "ANGLE_translated_shader_source",        false,                             true  },
+		{ "ANGLE_depth_texture",                      false,                             true  },
+		{ "ANGLE_framebuffer_blit",                   false,                             true  },
+		{ "ANGLE_framebuffer_multisample",            false,                             false },
+		{ "ANGLE_instanced_arrays",                   false,                             true  },
+		{ "ANGLE_texture_compression_dxt1",           false,                             true  },
+		{ "ANGLE_texture_compression_dxt3",           false,                             true  },
+		{ "ANGLE_texture_compression_dxt5",           false,                             true  },
+		{ "ANGLE_timer_query",                        false,                             true  },
+		{ "ANGLE_translated_shader_source",           false,                             true  },
 
-		{ "APPLE_texture_format_BGRA8888",         false,                             true  },
-		{ "APPLE_texture_max_level",               false,                             true  },
+		{ "APPLE_texture_format_BGRA8888",            false,                             true  },
+		{ "APPLE_texture_max_level",                  false,                             true  },
 
-		{ "ARB_clip_control",                      BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
-		{ "ARB_compute_shader",                    BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
-		{ "ARB_conservative_depth",                BGFX_CONFIG_RENDERER_OPENGL >= 42, true  },
-		{ "ARB_copy_image",                        BGFX_CONFIG_RENDERER_OPENGL >= 42, true  },
-		{ "ARB_debug_label",                       false,                             true  },
-		{ "ARB_debug_output",                      BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
-		{ "ARB_depth_buffer_float",                BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
-		{ "ARB_depth_clamp",                       BGFX_CONFIG_RENDERER_OPENGL >= 32, true  },
-		{ "ARB_draw_buffers_blend",                BGFX_CONFIG_RENDERER_OPENGL >= 40, true  },
-		{ "ARB_draw_indirect",                     BGFX_CONFIG_RENDERER_OPENGL >= 40, true  },
-		{ "ARB_draw_instanced",                    BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
-		{ "ARB_ES3_compatibility",                 BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
-		{ "ARB_framebuffer_object",                BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "ARB_framebuffer_sRGB",                  BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "ARB_get_program_binary",                BGFX_CONFIG_RENDERER_OPENGL >= 41, true  },
-		{ "ARB_half_float_pixel",                  BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "ARB_half_float_vertex",                 BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "ARB_instanced_arrays",                  BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
-		{ "ARB_internalformat_query",              BGFX_CONFIG_RENDERER_OPENGL >= 42, true  },
-		{ "ARB_internalformat_query2",             BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
-		{ "ARB_invalidate_subdata",                BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
-		{ "ARB_map_buffer_range",                  BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "ARB_multi_draw_indirect",               BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
-		{ "ARB_multisample",                       false,                             true  },
-		{ "ARB_occlusion_query",                   BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
-		{ "ARB_occlusion_query2",                  BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
-		{ "ARB_program_interface_query",           BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
-		{ "ARB_sampler_objects",                   BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
-		{ "ARB_seamless_cube_map",                 BGFX_CONFIG_RENDERER_OPENGL >= 32, true  },
-		{ "ARB_shader_bit_encoding",               BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
-		{ "ARB_shader_image_load_store",           BGFX_CONFIG_RENDERER_OPENGL >= 42, true  },
-		{ "ARB_shader_storage_buffer_object",      BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
-		{ "ARB_shader_texture_lod",                BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "ARB_texture_compression_bptc",          BGFX_CONFIG_RENDERER_OPENGL >= 44, true  },
-		{ "ARB_texture_compression_rgtc",          BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "ARB_texture_float",                     BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "ARB_texture_multisample",               BGFX_CONFIG_RENDERER_OPENGL >= 32, true  },
-		{ "ARB_texture_rg",                        BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "ARB_texture_rgb10_a2ui",                BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
-		{ "ARB_texture_stencil8",                  false,                             true  },
-		{ "ARB_texture_storage",                   BGFX_CONFIG_RENDERER_OPENGL >= 42, true  },
-		{ "ARB_texture_swizzle",                   BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
-		{ "ARB_timer_query",                       BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
-		{ "ARB_uniform_buffer_object",             BGFX_CONFIG_RENDERER_OPENGL >= 31, true  },
-		{ "ARB_vertex_array_object",               BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "ARB_vertex_type_2_10_10_10_rev",        false,                             true  },
+		{ "ARB_clip_control",                         BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
+		{ "ARB_compute_shader",                       BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
+		{ "ARB_conservative_depth",                   BGFX_CONFIG_RENDERER_OPENGL >= 42, true  },
+		{ "ARB_copy_image",                           BGFX_CONFIG_RENDERER_OPENGL >= 42, true  },
+		{ "ARB_debug_label",                          false,                             true  },
+		{ "ARB_debug_output",                         BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
+		{ "ARB_depth_buffer_float",                   BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
+		{ "ARB_depth_clamp",                          BGFX_CONFIG_RENDERER_OPENGL >= 32, true  },
+		{ "ARB_draw_buffers_blend",                   BGFX_CONFIG_RENDERER_OPENGL >= 40, true  },
+		{ "ARB_draw_indirect",                        BGFX_CONFIG_RENDERER_OPENGL >= 40, true  },
+		{ "ARB_draw_instanced",                       BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
+		{ "ARB_ES3_compatibility",                    BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
+		{ "ARB_framebuffer_object",                   BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "ARB_framebuffer_sRGB",                     BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "ARB_get_program_binary",                   BGFX_CONFIG_RENDERER_OPENGL >= 41, true  },
+		{ "ARB_half_float_pixel",                     BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "ARB_half_float_vertex",                    BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "ARB_instanced_arrays",                     BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
+		{ "ARB_internalformat_query",                 BGFX_CONFIG_RENDERER_OPENGL >= 42, true  },
+		{ "ARB_internalformat_query2",                BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
+		{ "ARB_invalidate_subdata",                   BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
+		{ "ARB_map_buffer_range",                     BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "ARB_multi_draw_indirect",                  BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
+		{ "ARB_multisample",                          false,                             true  },
+		{ "ARB_occlusion_query",                      BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
+		{ "ARB_occlusion_query2",                     BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
+		{ "ARB_program_interface_query",              BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
+		{ "ARB_sampler_objects",                      BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
+		{ "ARB_seamless_cube_map",                    BGFX_CONFIG_RENDERER_OPENGL >= 32, true  },
+		{ "ARB_shader_bit_encoding",                  BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
+		{ "ARB_shader_image_load_store",              BGFX_CONFIG_RENDERER_OPENGL >= 42, true  },
+		{ "ARB_shader_storage_buffer_object",         BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
+		{ "ARB_shader_texture_lod",                   BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "ARB_texture_compression_bptc",             BGFX_CONFIG_RENDERER_OPENGL >= 44, true  },
+		{ "ARB_texture_compression_rgtc",             BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "ARB_texture_cube_map_array",               BGFX_CONFIG_RENDERER_OPENGL >= 40, true  },
+		{ "ARB_texture_float",                        BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "ARB_texture_multisample",                  BGFX_CONFIG_RENDERER_OPENGL >= 32, true  },
+		{ "ARB_texture_rg",                           BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "ARB_texture_rgb10_a2ui",                   BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
+		{ "ARB_texture_stencil8",                     false,                             true  },
+		{ "ARB_texture_storage",                      BGFX_CONFIG_RENDERER_OPENGL >= 42, true  },
+		{ "ARB_texture_swizzle",                      BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
+		{ "ARB_timer_query",                          BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
+		{ "ARB_uniform_buffer_object",                BGFX_CONFIG_RENDERER_OPENGL >= 31, true  },
+		{ "ARB_vertex_array_object",                  BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "ARB_vertex_type_2_10_10_10_rev",           false,                             true  },
 
-		{ "ATI_meminfo",                           false,                             true  },
+		{ "ATI_meminfo",                              false,                             true  },
 
-		{ "CHROMIUM_color_buffer_float_rgb",       false,                             true  },
-		{ "CHROMIUM_color_buffer_float_rgba",      false,                             true  },
-		{ "CHROMIUM_depth_texture",                false,                             true  },
-		{ "CHROMIUM_framebuffer_multisample",      false,                             true  },
-		{ "CHROMIUM_texture_compression_dxt3",     false,                             true  },
-		{ "CHROMIUM_texture_compression_dxt5",     false,                             true  },
+		{ "CHROMIUM_color_buffer_float_rgb",          false,                             true  },
+		{ "CHROMIUM_color_buffer_float_rgba",         false,                             true  },
+		{ "CHROMIUM_depth_texture",                   false,                             true  },
+		{ "CHROMIUM_framebuffer_multisample",         false,                             true  },
+		{ "CHROMIUM_texture_compression_dxt3",        false,                             true  },
+		{ "CHROMIUM_texture_compression_dxt5",        false,                             true  },
 
-		{ "EXT_bgra",                              false,                             true  },
-		{ "EXT_blend_color",                       BGFX_CONFIG_RENDERER_OPENGL >= 31, true  },
-		{ "EXT_blend_minmax",                      BGFX_CONFIG_RENDERER_OPENGL >= 14, true  },
-		{ "EXT_blend_subtract",                    BGFX_CONFIG_RENDERER_OPENGL >= 14, true  },
-		{ "EXT_color_buffer_half_float",           false,                             true  }, // GLES2 extension.
-		{ "EXT_color_buffer_float",                false,                             true  }, // GLES2 extension.
-		{ "EXT_copy_image",                        false,                             true  }, // GLES2 extension.
-		{ "EXT_compressed_ETC1_RGB8_sub_texture",  false,                             true  }, // GLES2 extension.
-		{ "EXT_debug_label",                       false,                             true  },
-		{ "EXT_debug_marker",                      false,                             true  },
-		{ "EXT_debug_tool",                        false,                             true  }, // RenderDoc extension.
-		{ "EXT_discard_framebuffer",               false,                             true  }, // GLES2 extension.
-		{ "EXT_disjoint_timer_query",              false,                             true  }, // GLES2 extension.
-		{ "EXT_draw_buffers",                      false,                             true  }, // GLES2 extension.
-		{ "EXT_draw_instanced",                    false,                             true  }, // GLES2 extension.
-		{ "EXT_instanced_arrays",                  false,                             true  }, // GLES2 extension.
-		{ "EXT_frag_depth",                        false,                             true  }, // GLES2 extension.
-		{ "EXT_framebuffer_blit",                  BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "EXT_framebuffer_object",                BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "EXT_framebuffer_sRGB",                  BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "EXT_gpu_shader4",                       false,                             true  },
-		{ "EXT_multi_draw_indirect",               false,                             true  }, // GLES3.1 extension.
-		{ "EXT_occlusion_query_boolean",           false,                             true  }, // GLES2 extension.
-		{ "EXT_packed_float",                      BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
-		{ "EXT_read_format_bgra",                  false,                             true  },
-		{ "EXT_shader_image_load_store",           false,                             true  },
-		{ "EXT_shader_texture_lod",                false,                             true  }, // GLES2 extension.
-		{ "EXT_shadow_samplers",                   false,                             true  },
-		{ "EXT_sRGB_write_control",                false,                             true  }, // GLES2 extension.
-		{ "EXT_texture_array",                     BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "EXT_texture_compression_dxt1",          false,                             true  },
-		{ "EXT_texture_compression_latc",          false,                             true  },
-		{ "EXT_texture_compression_rgtc",          BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "EXT_texture_compression_s3tc",          false,                             true  },
-		{ "EXT_texture_filter_anisotropic",        false,                             true  },
-		{ "EXT_texture_format_BGRA8888",           false,                             true  },
-		{ "EXT_texture_rg",                        false,                             true  }, // GLES2 extension.
-		{ "EXT_texture_shared_exponent",           false,                             true  },
-		{ "EXT_texture_snorm",                     BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
-		{ "EXT_texture_sRGB",                      false,                             true  },
-		{ "EXT_texture_storage",                   false,                             true  },
-		{ "EXT_texture_swizzle",                   false,                             true  },
-		{ "EXT_texture_type_2_10_10_10_REV",       false,                             true  },
-		{ "EXT_timer_query",                       BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
-		{ "EXT_unpack_subimage",                   false,                             true  },
+		{ "EXT_bgra",                                 false,                             true  },
+		{ "EXT_blend_color",                          BGFX_CONFIG_RENDERER_OPENGL >= 31, true  },
+		{ "EXT_blend_minmax",                         BGFX_CONFIG_RENDERER_OPENGL >= 14, true  },
+		{ "EXT_blend_subtract",                       BGFX_CONFIG_RENDERER_OPENGL >= 14, true  },
+		{ "EXT_color_buffer_half_float",              false,                             true  }, // GLES2 extension.
+		{ "EXT_color_buffer_float",                   false,                             true  }, // GLES2 extension.
+		{ "EXT_copy_image",                           false,                             true  }, // GLES2 extension.
+		{ "EXT_compressed_ETC1_RGB8_sub_texture",     false,                             true  }, // GLES2 extension.
+		{ "EXT_debug_label",                          false,                             true  },
+		{ "EXT_debug_marker",                         false,                             true  },
+		{ "EXT_debug_tool",                           false,                             true  }, // RenderDoc extension.
+		{ "EXT_discard_framebuffer",                  false,                             true  }, // GLES2 extension.
+		{ "EXT_disjoint_timer_query",                 false,                             true  }, // GLES2 extension.
+		{ "EXT_draw_buffers",                         false,                             true  }, // GLES2 extension.
+		{ "EXT_draw_instanced",                       false,                             true  }, // GLES2 extension.
+		{ "EXT_instanced_arrays",                     false,                             true  }, // GLES2 extension.
+		{ "EXT_frag_depth",                           false,                             true  }, // GLES2 extension.
+		{ "EXT_framebuffer_blit",                     BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "EXT_framebuffer_object",                   BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "EXT_framebuffer_sRGB",                     BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "EXT_gpu_shader4",                          false,                             true  },
+		{ "EXT_multi_draw_indirect",                  false,                             true  }, // GLES3.1 extension.
+		{ "EXT_occlusion_query_boolean",              false,                             true  }, // GLES2 extension.
+		{ "EXT_packed_float",                         BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
+		{ "EXT_read_format_bgra",                     false,                             true  },
+		{ "EXT_shader_image_load_store",              false,                             true  },
+		{ "EXT_shader_texture_lod",                   false,                             true  }, // GLES2 extension.
+		{ "EXT_shadow_samplers",                      false,                             true  },
+		{ "EXT_sRGB_write_control",                   false,                             true  }, // GLES2 extension.
+		{ "EXT_texture_array",                        BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "EXT_texture_compression_dxt1",             false,                             true  },
+		{ "EXT_texture_compression_latc",             false,                             true  },
+		{ "EXT_texture_compression_rgtc",             BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "EXT_texture_compression_s3tc",             false,                             true  },
+		{ "EXT_texture_cube_map_array",               false,                             true  }, // GLES3.1 extension.
+		{ "EXT_texture_filter_anisotropic",           false,                             true  },
+		{ "EXT_texture_format_BGRA8888",              false,                             true  },
+		{ "EXT_texture_rg",                           false,                             true  }, // GLES2 extension.
+		{ "EXT_texture_shared_exponent",              false,                             true  },
+		{ "EXT_texture_snorm",                        BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+		{ "EXT_texture_sRGB",                         false,                             true  },
+		{ "EXT_texture_storage",                      false,                             true  },
+		{ "EXT_texture_swizzle",                      false,                             true  },
+		{ "EXT_texture_type_2_10_10_10_REV",          false,                             true  },
+		{ "EXT_timer_query",                          BGFX_CONFIG_RENDERER_OPENGL >= 33, true  },
+		{ "EXT_unpack_subimage",                      false,                             true  },
 
-		{ "GOOGLE_depth_texture",                  false,                             true  },
+		{ "GOOGLE_depth_texture",                     false,                             true  },
 
-		{ "GREMEDY_string_marker",                 false,                             true  },
-		{ "GREMEDY_frame_terminator",              false,                             true  },
+		{ "GREMEDY_string_marker",                    false,                             true  },
+		{ "GREMEDY_frame_terminator",                 false,                             true  },
 
-		{ "IMG_multisampled_render_to_texture",    false,                             true  },
-		{ "IMG_read_format",                       false,                             true  },
-		{ "IMG_shader_binary",                     false,                             true  },
-		{ "IMG_texture_compression_pvrtc",         false,                             true  },
-		{ "IMG_texture_compression_pvrtc2",        false,                             true  },
-		{ "IMG_texture_format_BGRA8888",           false,                             true  },
+		{ "IMG_multisampled_render_to_texture",       false,                             true  },
+		{ "IMG_read_format",                          false,                             true  },
+		{ "IMG_shader_binary",                        false,                             true  },
+		{ "IMG_texture_compression_pvrtc",            false,                             true  },
+		{ "IMG_texture_compression_pvrtc2",           false,                             true  },
+		{ "IMG_texture_format_BGRA8888",              false,                             true  },
 
-		{ "INTEL_fragment_shader_ordering",        false,                             true  },
+		{ "INTEL_fragment_shader_ordering",           false,                             true  },
 
-		{ "KHR_debug",                             BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
-		{ "KHR_no_error",                          false,                             true  },
+		{ "KHR_debug",                                BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
+		{ "KHR_no_error",                             false,                             true  },
 
-		{ "MOZ_WEBGL_compressed_texture_s3tc",     false,                             true  },
-		{ "MOZ_WEBGL_depth_texture",               false,                             true  },
+		{ "MOZ_WEBGL_compressed_texture_s3tc",        false,                             true  },
+		{ "MOZ_WEBGL_depth_texture",                  false,                             true  },
 
-		{ "NV_conservative_raster",                false,                             true  },
-		{ "NV_copy_image",                         false,                             true  },
-		{ "NV_draw_buffers",                       false,                             true  }, // GLES2 extension.
-		{ "NV_occlusion_query",                    false,                             true  },
-		{ "NV_texture_border_clamp",               false,                             true  }, // GLES2 extension.
-		{ "NVX_gpu_memory_info",                   false,                             true  },
+		{ "NV_conservative_raster",                   false,                             true  },
+		{ "NV_copy_image",                            false,                             true  },
+		{ "NV_draw_buffers",                          false,                             true  }, // GLES2 extension.
+		{ "NV_occlusion_query",                       false,                             true  },
+		{ "NV_texture_border_clamp",                  false,                             true  }, // GLES2 extension.
+		{ "NVX_gpu_memory_info",                      false,                             true  },
 
-		{ "OES_copy_image",                        false,                             true  },
-		{ "OES_compressed_ETC1_RGB8_texture",      false,                             true  },
-		{ "OES_depth24",                           false,                             true  },
-		{ "OES_depth32",                           false,                             true  },
-		{ "OES_depth_texture",                     false,                             true  },
-		{ "OES_element_index_uint",                false,                             true  },
-		{ "OES_fragment_precision_high",           false,                             true  },
-		{ "OES_get_program_binary",                false,                             true  },
-		{ "OES_required_internalformat",           false,                             true  },
-		{ "OES_packed_depth_stencil",              false,                             true  },
-		{ "OES_read_format",                       false,                             true  },
-		{ "OES_rgb8_rgba8",                        false,                             true  },
-		{ "OES_standard_derivatives",              false,                             true  },
-		{ "OES_texture_3D",                        false,                             true  },
-		{ "OES_texture_float",                     false,                             true  },
-		{ "OES_texture_float_linear",              false,                             true  },
-		{ "OES_texture_npot",                      false,                             true  },
-		{ "OES_texture_half_float",                false,                             true  },
-		{ "OES_texture_half_float_linear",         false,                             true  },
-		{ "OES_texture_stencil8",                  false,                             true  },
-		{ "OES_vertex_array_object",               false,                             !BX_PLATFORM_IOS },
-		{ "OES_vertex_half_float",                 false,                             true  },
-		{ "OES_vertex_type_10_10_10_2",            false,                             true  },
+		{ "OES_copy_image",                           false,                             true  },
+		{ "OES_compressed_ETC1_RGB8_texture",         false,                             true  },
+		{ "OES_depth24",                              false,                             true  },
+		{ "OES_depth32",                              false,                             true  },
+		{ "OES_depth_texture",                        false,                             true  },
+		{ "OES_element_index_uint",                   false,                             true  },
+		{ "OES_fragment_precision_high",              false,                             true  },
+		{ "OES_get_program_binary",                   false,                             true  },
+		{ "OES_required_internalformat",              false,                             true  },
+		{ "OES_packed_depth_stencil",                 false,                             true  },
+		{ "OES_read_format",                          false,                             true  },
+		{ "OES_rgb8_rgba8",                           false,                             true  },
+		{ "OES_standard_derivatives",                 false,                             true  },
+		{ "OES_texture_3D",                           false,                             true  },
+		{ "OES_texture_float",                        false,                             true  },
+		{ "OES_texture_float_linear",                 false,                             true  },
+		{ "OES_texture_npot",                         false,                             true  },
+		{ "OES_texture_half_float",                   false,                             true  },
+		{ "OES_texture_half_float_linear",            false,                             true  },
+		{ "OES_texture_stencil8",                     false,                             true  },
+		{ "OES_texture_storage_multisample_2d_array", false,                             true  },
+		{ "OES_vertex_array_object",                  false,                             !BX_PLATFORM_IOS },
+		{ "OES_vertex_half_float",                    false,                             true  },
+		{ "OES_vertex_type_10_10_10_2",               false,                             true  },
 
-		{ "WEBGL_color_buffer_float",              false,                             true  },
-		{ "WEBGL_compressed_texture_etc1",         false,                             true  },
-		{ "WEBGL_compressed_texture_s3tc",         false,                             true  },
-		{ "WEBGL_compressed_texture_pvrtc",        false,                             true  },
-		{ "WEBGL_depth_texture",                   false,                             true  },
-		{ "WEBGL_draw_buffers",                    false,                             true  },
+		{ "WEBGL_color_buffer_float",                 false,                             true  },
+		{ "WEBGL_compressed_texture_etc1",            false,                             true  },
+		{ "WEBGL_compressed_texture_s3tc",            false,                             true  },
+		{ "WEBGL_compressed_texture_pvrtc",           false,                             true  },
+		{ "WEBGL_depth_texture",                      false,                             true  },
+		{ "WEBGL_draw_buffers",                       false,                             true  },
 
-		{ "WEBKIT_EXT_texture_filter_anisotropic", false,                             true  },
-		{ "WEBKIT_WEBGL_compressed_texture_s3tc",  false,                             true  },
-		{ "WEBKIT_WEBGL_depth_texture",            false,                             true  },
+		{ "WEBKIT_EXT_texture_filter_anisotropic",    false,                             true  },
+		{ "WEBKIT_WEBGL_compressed_texture_s3tc",     false,                             true  },
+		{ "WEBKIT_WEBGL_depth_texture",               false,                             true  },
 	};
 	BX_STATIC_ASSERT(Extension::Count == BX_COUNTOF(s_extension) );
 
@@ -902,6 +908,15 @@ namespace bgfx { namespace gl
 	{
 		"texelFetch",
 		"texelFetchOffset",
+		NULL
+	};
+
+	static const char* s_textureArray[] =
+	{
+		"sampler2DArray",
+		"sampler2DMSArray",
+		"samplerCubeArray",
+		"sampler2DArrayShadow",
 		NULL
 	};
 
@@ -1069,6 +1084,7 @@ namespace bgfx { namespace gl
 		case GL_DEBUG_SEVERITY_HIGH:            return "High";
 		case GL_DEBUG_SEVERITY_MEDIUM:          return "Medium";
 		case GL_DEBUG_SEVERITY_LOW:             return "Low";
+		case GL_DEBUG_SEVERITY_NOTIFICATION:    return "SPAM";
 		default:
 			break;
 		}
@@ -1078,14 +1094,17 @@ namespace bgfx { namespace gl
 
 	void GL_APIENTRY debugProcCb(GLenum _source, GLenum _type, GLuint _id, GLenum _severity, GLsizei /*_length*/, const GLchar* _message, const void* /*_userParam*/)
 	{
-		BX_TRACE("src %s, type %s, id %d, severity %s, '%s'"
-				, toString(_source)
-				, toString(_type)
-				, _id
-				, toString(_severity)
-				, _message
-				);
-		BX_UNUSED(_source, _type, _id, _severity, _message);
+		if (GL_DEBUG_SEVERITY_NOTIFICATION != _severity)
+		{
+			BX_TRACE("src %s, type %s, id %d, severity %s, '%s'"
+					, toString(_source)
+					, toString(_type)
+					, _id
+					, toString(_severity)
+					, _message
+					);
+			BX_UNUSED(_source, _type, _id, _severity, _message);
+		}
 	}
 
 	GLint glGet(GLenum _pname)
@@ -1105,10 +1124,10 @@ namespace bgfx { namespace gl
 		tfi.m_type        = _type;
 	}
 
-	void initTestTexture(TextureFormat::Enum _format, bool srgb = false)
+	GLenum initTestTexture(TextureFormat::Enum _format, bool _srgb, bool _mipmaps)
 	{
 		const TextureFormatInfo& tfi = s_textureFormat[_format];
-		GLenum internalFmt = srgb
+		GLenum internalFmt = _srgb
 			? tfi.m_internalFmtSrgb
 			: tfi.m_internalFmt
 			;
@@ -1116,20 +1135,48 @@ namespace bgfx { namespace gl
 		GLsizei size = (16*16*getBitsPerPixel(_format) )/8;
 		void* data = bx::alignPtr(alloca(size+16), 0, 16);
 
+		GLenum err = 0;
+
 		if (isCompressed(_format) )
 		{
 			glCompressedTexImage2D(GL_TEXTURE_2D, 0, internalFmt, 16, 16, 0, size, data);
+			err |= glGetError();
+			if (_mipmaps)
+			{
+				glCompressedTexImage2D(GL_TEXTURE_2D, 1, internalFmt,  8,  8, 0, size, data);
+				err |= glGetError();
+				glCompressedTexImage2D(GL_TEXTURE_2D, 2, internalFmt,  4,  4, 0, size, data);
+				err |= glGetError();
+				glCompressedTexImage2D(GL_TEXTURE_2D, 3, internalFmt,  2,  2, 0, size, data);
+				err |= glGetError();
+				glCompressedTexImage2D(GL_TEXTURE_2D, 4, internalFmt,  1,  1, 0, size, data);
+				err |= glGetError();
+			}
 		}
 		else
 		{
 			glTexImage2D(GL_TEXTURE_2D, 0, internalFmt, 16, 16, 0, tfi.m_fmt, tfi.m_type, data);
+			err |= glGetError();
+			if (_mipmaps)
+			{
+				glTexImage2D(GL_TEXTURE_2D, 1, internalFmt,  8,  8, 0, tfi.m_fmt, tfi.m_type, data);
+				err |= glGetError();
+				glTexImage2D(GL_TEXTURE_2D, 2, internalFmt,  4,  4, 0, tfi.m_fmt, tfi.m_type, data);
+				err |= glGetError();
+				glTexImage2D(GL_TEXTURE_2D, 3, internalFmt,  2,  2, 0, tfi.m_fmt, tfi.m_type, data);
+				err |= glGetError();
+				glTexImage2D(GL_TEXTURE_2D, 4, internalFmt,  1,  1, 0, tfi.m_fmt, tfi.m_type, data);
+				err |= glGetError();
+			}
 		}
+
+		return err;
 	}
 
-	static bool isTextureFormatValid(TextureFormat::Enum _format, bool srgb = false)
+	static bool isTextureFormatValid(TextureFormat::Enum _format, bool _srgb = false, bool _mipAutogen = false)
 	{
 		const TextureFormatInfo& tfi = s_textureFormat[_format];
-		GLenum internalFmt = srgb
+		GLenum internalFmt = _srgb
 			? tfi.m_internalFmtSrgb
 			: tfi.m_internalFmt
 			;
@@ -1141,10 +1188,16 @@ namespace bgfx { namespace gl
 		GLuint id;
 		GL_CHECK(glGenTextures(1, &id) );
 		GL_CHECK(glBindTexture(GL_TEXTURE_2D, id) );
-		initTestTexture(_format);
 
-		GLenum err = glGetError();
+		GLenum err = initTestTexture(_format, _srgb, _mipAutogen);
 		BX_WARN(0 == err, "TextureFormat::%s is not supported (%x: %s).", getName(_format), err, glEnumName(err) );
+
+		if (0 == err
+		&&  _mipAutogen)
+		{
+			glGenerateMipmap(GL_TEXTURE_2D);
+			err = glGetError();
+		}
 
 		GL_CHECK(glDeleteTextures(1, &id) );
 
@@ -1181,10 +1234,10 @@ namespace bgfx { namespace gl
 		return 0 == err;
 	}
 
-	static bool isFramebufferFormatValid(TextureFormat::Enum _format, bool srgb = false)
+	static bool isFramebufferFormatValid(TextureFormat::Enum _format, bool _srgb = false)
 	{
 		const TextureFormatInfo& tfi = s_textureFormat[_format];
-		GLenum internalFmt = srgb
+		GLenum internalFmt = _srgb
 			? tfi.m_internalFmtSrgb
 			: tfi.m_internalFmt
 			;
@@ -1202,9 +1255,7 @@ namespace bgfx { namespace gl
 		GL_CHECK(glGenTextures(1, &id) );
 		GL_CHECK(glBindTexture(GL_TEXTURE_2D, id) );
 
-		initTestTexture(_format);
-
-		GLenum err = glGetError();
+		GLenum err = initTestTexture(_format, _srgb, false);
 
 		GLenum attachment;
 		if (isDepth(_format) )
@@ -1696,6 +1747,11 @@ namespace bgfx { namespace gl
 					: BGFX_CAPS_FORMAT_TEXTURE_NONE
 					;
 
+				supported |= isTextureFormatValid(TextureFormat::Enum(ii), false, true)
+					? BGFX_CAPS_FORMAT_TEXTURE_MIP_AUTOGEN
+					: BGFX_CAPS_FORMAT_TEXTURE_NONE
+					;
+
 				supported |= computeSupport
 					&& isImageFormatValid(TextureFormat::Enum(ii) )
 					? BGFX_CAPS_FORMAT_TEXTURE_IMAGE
@@ -1814,6 +1870,21 @@ namespace bgfx { namespace gl
 
 			g_caps.supported |= m_readBackSupported
 				? BGFX_CAPS_TEXTURE_READ_BACK
+				: 0
+				;
+
+			g_caps.supported |= false
+				|| s_extension[Extension::EXT_texture_array].m_supported
+				|| s_extension[Extension::EXT_gpu_shader4].m_supported
+				|| !!(BGFX_CONFIG_RENDERER_OPENGLES >= 30)
+				? BGFX_CAPS_TEXTURE_2D_ARRAY
+				: 0
+				;
+
+			g_caps.supported |= false
+				|| s_extension[Extension::ARB_texture_cube_map_array].m_supported
+				|| s_extension[Extension::EXT_texture_cube_map_array].m_supported
+				? BGFX_CAPS_TEXTURE_CUBE_ARRAY
 				: 0
 				;
 
@@ -2276,14 +2347,14 @@ namespace bgfx { namespace gl
 			bx::write(&writer, magic);
 
 			TextureCreate tc;
-			tc.m_width   = _width;
-			tc.m_height  = _height;
-			tc.m_sides   = 0;
-			tc.m_depth   = 0;
-			tc.m_numMips = _numMips;
-			tc.m_format  = TextureFormat::Enum(texture.m_requestedFormat);
-			tc.m_cubeMap = false;
-			tc.m_mem     = NULL;
+			tc.m_width     = _width;
+			tc.m_height    = _height;
+			tc.m_depth     = 0;
+			tc.m_numLayers = 1;
+			tc.m_numMips   = _numMips;
+			tc.m_format    = TextureFormat::Enum(texture.m_requestedFormat);
+			tc.m_cubeMap   = false;
+			tc.m_mem       = NULL;
 			bx::write(&writer, tc);
 
 			texture.destroy();
@@ -2568,21 +2639,16 @@ namespace bgfx { namespace gl
 		uint32_t setFrameBuffer(FrameBufferHandle _fbh, uint32_t _height, uint16_t _discard = BGFX_CLEAR_NONE, bool _msaa = true)
 		{
 			if (isValid(m_fbh)
-			&&  m_fbh.idx != _fbh.idx
-			&& (BGFX_CLEAR_NONE != m_fbDiscard || m_rtMsaa) )
+			&&  m_fbh.idx != _fbh.idx)
 			{
 				FrameBufferGL& frameBuffer = m_frameBuffers[m_fbh.idx];
-				if (m_rtMsaa)
-				{
-					frameBuffer.resolve();
-				}
+				frameBuffer.resolve();
 
 				if (BGFX_CLEAR_NONE != m_fbDiscard)
 				{
 					frameBuffer.discard(m_fbDiscard);
+					m_fbDiscard = BGFX_CLEAR_NONE;
 				}
-
-				m_fbDiscard = BGFX_CLEAR_NONE;
 			}
 
 			m_glctx.makeCurrent(NULL);
@@ -3580,8 +3646,19 @@ namespace bgfx { namespace gl
 			GLSL_TYPE(GL_FLOAT_MAT4);
 
 			GLSL_TYPE(GL_SAMPLER_2D);
+			GLSL_TYPE(GL_SAMPLER_2D_ARRAY);
+			GLSL_TYPE(GL_SAMPLER_2D_MULTISAMPLE);
+
 			GLSL_TYPE(GL_INT_SAMPLER_2D);
+			GLSL_TYPE(GL_INT_SAMPLER_2D_ARRAY);
+			GLSL_TYPE(GL_INT_SAMPLER_2D_MULTISAMPLE);
+
 			GLSL_TYPE(GL_UNSIGNED_INT_SAMPLER_2D);
+			GLSL_TYPE(GL_UNSIGNED_INT_SAMPLER_2D_ARRAY);
+			GLSL_TYPE(GL_UNSIGNED_INT_SAMPLER_2D_MULTISAMPLE);
+
+			GLSL_TYPE(GL_SAMPLER_2D_SHADOW);
+			GLSL_TYPE(GL_SAMPLER_2D_ARRAY_SHADOW);
 
 			GLSL_TYPE(GL_SAMPLER_3D);
 			GLSL_TYPE(GL_INT_SAMPLER_3D);
@@ -3590,12 +3667,6 @@ namespace bgfx { namespace gl
 			GLSL_TYPE(GL_SAMPLER_CUBE);
 			GLSL_TYPE(GL_INT_SAMPLER_CUBE);
 			GLSL_TYPE(GL_UNSIGNED_INT_SAMPLER_CUBE);
-
-			GLSL_TYPE(GL_SAMPLER_2D_MULTISAMPLE);
-			GLSL_TYPE(GL_INT_SAMPLER_2D_MULTISAMPLE);
-			GLSL_TYPE(GL_UNSIGNED_INT_SAMPLER_2D_MULTISAMPLE);
-
-			GLSL_TYPE(GL_SAMPLER_2D_SHADOW);
 
 			GLSL_TYPE(GL_IMAGE_1D);
 			GLSL_TYPE(GL_INT_IMAGE_1D);
@@ -3672,8 +3743,19 @@ namespace bgfx { namespace gl
 			return UniformType::Mat4;
 
 		case GL_SAMPLER_2D:
+		case GL_SAMPLER_2D_ARRAY:
+		case GL_SAMPLER_2D_MULTISAMPLE:
+
 		case GL_INT_SAMPLER_2D:
+		case GL_INT_SAMPLER_2D_ARRAY:
+		case GL_INT_SAMPLER_2D_MULTISAMPLE:
+
 		case GL_UNSIGNED_INT_SAMPLER_2D:
+		case GL_UNSIGNED_INT_SAMPLER_2D_ARRAY:
+		case GL_UNSIGNED_INT_SAMPLER_2D_MULTISAMPLE:
+
+		case GL_SAMPLER_2D_SHADOW:
+		case GL_SAMPLER_2D_ARRAY_SHADOW:
 
 		case GL_SAMPLER_3D:
 		case GL_INT_SAMPLER_3D:
@@ -3682,12 +3764,6 @@ namespace bgfx { namespace gl
 		case GL_SAMPLER_CUBE:
 		case GL_INT_SAMPLER_CUBE:
 		case GL_UNSIGNED_INT_SAMPLER_CUBE:
-
-		case GL_SAMPLER_2D_SHADOW:
-
-		case GL_SAMPLER_2D_MULTISAMPLE:
-		case GL_INT_SAMPLER_2D_MULTISAMPLE:
-		case GL_UNSIGNED_INT_SAMPLER_2D_MULTISAMPLE:
 
 		case GL_IMAGE_1D:
 		case GL_INT_IMAGE_1D:
@@ -3927,8 +4003,19 @@ namespace bgfx { namespace gl
 			switch (gltype)
 			{
 			case GL_SAMPLER_2D:
+			case GL_SAMPLER_2D_ARRAY:
+			case GL_SAMPLER_2D_MULTISAMPLE:
+
 			case GL_INT_SAMPLER_2D:
+			case GL_INT_SAMPLER_2D_ARRAY:
+			case GL_INT_SAMPLER_2D_MULTISAMPLE:
+
 			case GL_UNSIGNED_INT_SAMPLER_2D:
+			case GL_UNSIGNED_INT_SAMPLER_2D_ARRAY:
+			case GL_UNSIGNED_INT_SAMPLER_2D_MULTISAMPLE:
+
+			case GL_SAMPLER_2D_SHADOW:
+			case GL_SAMPLER_2D_ARRAY_SHADOW:
 
 			case GL_SAMPLER_3D:
 			case GL_INT_SAMPLER_3D:
@@ -3937,8 +4024,6 @@ namespace bgfx { namespace gl
 			case GL_SAMPLER_CUBE:
 			case GL_INT_SAMPLER_CUBE:
 			case GL_UNSIGNED_INT_SAMPLER_CUBE:
-
-			case GL_SAMPLER_2D_SHADOW:
 
 			case GL_IMAGE_1D:
 			case GL_INT_IMAGE_1D:
@@ -4170,60 +4255,214 @@ namespace bgfx { namespace gl
 		m_vcref.invalidate(s_renderGL->m_vaoStateCache);
 	}
 
-	static void texImage(GLenum _target, uint32_t _msaaQuality, GLint _level, GLint _internalFormat, GLsizei _width, GLsizei _height, GLsizei _depth, GLint _border, GLenum _format, GLenum _type, const GLvoid* _data)
+	static void texImage(
+		  GLenum _target
+		, uint32_t _msaaQuality
+		, GLint _level
+		, GLint _internalFormat
+		, GLsizei _width
+		, GLsizei _height
+		, GLsizei _depth
+		, GLint _border
+		, GLenum _format
+		, GLenum _type
+		, const GLvoid* _data
+	)
 	{
-		if (_target == GL_TEXTURE_3D)
+		if (_target == GL_TEXTURE_3D
+		||  _target == GL_TEXTURE_2D_ARRAY
+		||  _target == GL_TEXTURE_CUBE_MAP_ARRAY)
 		{
-			GL_CHECK(glTexImage3D(_target, _level, _internalFormat, _width, _height, _depth, _border, _format, _type, _data) );
+			GL_CHECK(glTexImage3D(
+				  _target
+				, _level
+				, _internalFormat
+				, _width
+				, _height
+				, _depth
+				, _border
+				, _format
+				, _type
+				, _data
+				) );
+		}
+		else if (_target == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
+		{
 		}
 		else if (_target == GL_TEXTURE_2D_MULTISAMPLE)
 		{
-			GL_CHECK(glTexImage2DMultisample(_target, _msaaQuality, _internalFormat, _width, _height, false) );
+			GL_CHECK(glTexImage2DMultisample(
+				  _target
+				, _msaaQuality
+				, _internalFormat
+				, _width
+				, _height
+				, false
+				) );
 		}
 		else
 		{
-			GL_CHECK(glTexImage2D(_target, _level, _internalFormat, _width, _height, _border, _format, _type, _data) );
+			GL_CHECK(glTexImage2D(
+				  _target
+				, _level
+				, _internalFormat
+				, _width
+				, _height
+				, _border
+				, _format
+				, _type
+				, _data
+				) );
 		}
 
 		BX_UNUSED(_msaaQuality, _depth, _border, _data);
 	}
 
-	static void texSubImage(GLenum _target, GLint _level, GLint _xoffset, GLint _yoffset, GLint _zoffset, GLsizei _width, GLsizei _height, GLsizei _depth, GLenum _format, GLenum _type, const GLvoid* _data)
+	static void texSubImage(
+		  GLenum _target
+		, GLint _level
+		, GLint _xoffset
+		, GLint _yoffset
+		, GLint _zoffset
+		, GLsizei _width
+		, GLsizei _height
+		, GLsizei _depth
+		, GLenum _format
+		, GLenum _type
+		, const GLvoid* _data
+	)
 	{
-		if (_target == GL_TEXTURE_3D)
+		if (_target == GL_TEXTURE_3D
+		||  _target == GL_TEXTURE_2D_ARRAY
+		||  _target == GL_TEXTURE_CUBE_MAP_ARRAY)
 		{
-			GL_CHECK(glTexSubImage3D(_target, _level, _xoffset, _yoffset, _zoffset, _width, _height, _depth, _format, _type, _data) );
+BX_TRACE("zoffset %d, depth %d", _zoffset, _depth);
+
+			GL_CHECK(glTexSubImage3D(
+				  _target
+				, _level
+				, _xoffset
+				, _yoffset
+				, _zoffset
+				, _width
+				, _height
+				, _depth
+				, _format
+				, _type
+				, _data
+				) );
+		}
+		else if (_target == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
+		{
 		}
 		else
 		{
 			BX_UNUSED(_zoffset, _depth);
-			GL_CHECK(glTexSubImage2D(_target, _level, _xoffset, _yoffset, _width, _height, _format, _type, _data) );
+			GL_CHECK(glTexSubImage2D(
+				  _target
+				, _level
+				, _xoffset
+				, _yoffset
+				, _width
+				, _height
+				, _format
+				, _type
+				, _data
+				) );
 		}
 	}
 
-	static void compressedTexImage(GLenum _target, GLint _level, GLenum _internalformat, GLsizei _width, GLsizei _height, GLsizei _depth, GLint _border, GLsizei _imageSize, const GLvoid* _data)
+	static void compressedTexImage(
+		  GLenum _target
+		, GLint _level
+		, GLenum _internalformat
+		, GLsizei _width
+		, GLsizei _height
+		, GLsizei _depth
+		, GLint _border
+		, GLsizei _imageSize
+		, const GLvoid* _data
+	)
 	{
-		if (_target == GL_TEXTURE_3D)
+		if (_target == GL_TEXTURE_3D
+		||  _target == GL_TEXTURE_2D_ARRAY
+		||  _target == GL_TEXTURE_CUBE_MAP_ARRAY)
 		{
-			GL_CHECK(glCompressedTexImage3D(_target, _level, _internalformat, _width, _height, _depth, _border, _imageSize, _data) );
+			GL_CHECK(glCompressedTexImage3D(
+				  _target
+				, _level
+				, _internalformat
+				, _width
+				, _height
+				, _depth
+				, _border
+				, _imageSize
+				, _data
+				) );
+		}
+		else if (_target == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
+		{
 		}
 		else
 		{
 			BX_UNUSED(_depth);
-			GL_CHECK(glCompressedTexImage2D(_target, _level, _internalformat, _width, _height, _border, _imageSize, _data) );
+			GL_CHECK(glCompressedTexImage2D(
+				  _target
+				, _level
+				, _internalformat
+				, _width
+				, _height
+				, _border
+				, _imageSize
+				, _data
+				) );
 		}
 	}
 
-	static void compressedTexSubImage(GLenum _target, GLint _level, GLint _xoffset, GLint _yoffset, GLint _zoffset, GLsizei _width, GLsizei _height, GLsizei _depth, GLenum _format, GLsizei _imageSize, const GLvoid* _data)
+	static void compressedTexSubImage(
+		  GLenum _target
+		, GLint _level
+		, GLint _xoffset
+		, GLint _yoffset
+		, GLint _zoffset
+		, GLsizei _width
+		, GLsizei _height
+		, GLsizei _depth
+		, GLenum _format
+		, GLsizei _imageSize
+		, const GLvoid* _data
+	)
 	{
 		if (_target == GL_TEXTURE_3D)
 		{
-			GL_CHECK(glCompressedTexSubImage3D(_target, _level, _xoffset, _yoffset, _zoffset, _width, _height, _depth, _format, _imageSize, _data) );
+			GL_CHECK(glCompressedTexSubImage3D(
+				  _target
+				, _level
+				, _xoffset
+				, _yoffset
+				, _zoffset
+				, _width
+				, _height
+				, _depth
+				, _format
+				, _imageSize
+				, _data
+				) );
 		}
 		else
 		{
 			BX_UNUSED(_zoffset, _depth);
-			GL_CHECK(glCompressedTexSubImage2D(_target, _level, _xoffset, _yoffset, _width, _height, _format, _imageSize, _data) );
+			GL_CHECK(glCompressedTexSubImage2D(
+				  _target
+				, _level
+				, _xoffset
+				, _yoffset
+				, _width
+				, _height
+				, _format
+				, _imageSize
+				, _data
+				) );
 		}
 	}
 
@@ -4367,7 +4606,10 @@ namespace bgfx { namespace gl
 				const ImageBlockInfo& ibi = getBlockInfo(TextureFormat::Enum(imageContainer.m_format) );
 				textureWidth  = bx::uint32_max(ibi.blockWidth,  imageContainer.m_width >>startLod);
 				textureHeight = bx::uint32_max(ibi.blockHeight, imageContainer.m_height>>startLod);
-				textureDepth  = imageContainer.m_depth;
+				textureDepth  = 1 < imageContainer.m_depth
+					? imageContainer.m_depth
+					: imageContainer.m_numLayers
+					;
 			}
 
 			m_requestedFormat  = uint8_t(imageContainer.m_format);
@@ -4390,6 +4632,16 @@ namespace bgfx { namespace gl
 				target = GL_TEXTURE_3D;
 			}
 
+			if (1 < imageContainer.m_numLayers)
+			{
+				switch (target)
+				{
+				case GL_TEXTURE_CUBE_MAP:       target = GL_TEXTURE_CUBE_MAP_ARRAY;
+				case GL_TEXTURE_2D_MULTISAMPLE: target = GL_TEXTURE_2D_MULTISAMPLE_ARRAY;
+				default:                        target = GL_TEXTURE_2D_ARRAY;
+				}
+			}
+
 			if (!init(target
 					, textureWidth
 					, textureHeight
@@ -4401,7 +4653,10 @@ namespace bgfx { namespace gl
 				return;
 			}
 
-			target = GL_TEXTURE_CUBE_MAP == m_target ? GL_TEXTURE_CUBE_MAP_POSITIVE_X : m_target;
+			target = isCubeMap()
+				? GL_TEXTURE_CUBE_MAP_POSITIVE_X
+				: m_target
+				;
 
 			const GLenum internalFmt = srgb
 				? s_textureFormat[m_textureFormat].m_internalFmtSrgb
@@ -4419,11 +4674,12 @@ namespace bgfx { namespace gl
 				|| swizzle
 				;
 
-			BX_TRACE("Texture%-4s %3d: %s (requested: %s), %dx%dx%d%s."
+			BX_TRACE("Texture%-4s %3d: %s (requested: %s), layers %d, %dx%dx%d%s."
 				, imageContainer.m_cubeMap ? "Cube" : (1 < imageContainer.m_depth ? "3D" : "2D")
 				, this - s_renderGL->m_textures
 				, getName( (TextureFormat::Enum)m_textureFormat)
 				, getName( (TextureFormat::Enum)m_requestedFormat)
+				, imageContainer.m_numLayers
 				, textureWidth
 				, textureHeight
 				, imageContainer.m_cubeMap ? 6 : (1 < imageContainer.m_depth ? imageContainer.m_depth : 0)
@@ -4454,7 +4710,10 @@ namespace bgfx { namespace gl
 				{
 					width  = bx::uint32_max(1, width);
 					height = bx::uint32_max(1, height);
-					depth  = bx::uint32_max(1, depth);
+					depth  = 1 < imageContainer.m_depth
+						? bx::uint32_max(1, depth)
+						: imageContainer.m_numLayers
+						;
 
 					ImageMip mip;
 					if (imageGetRawData(imageContainer, side, lod+startLod, _mem->data, _mem->size, mip) )
@@ -4581,8 +4840,6 @@ namespace bgfx { namespace gl
 
 	void TextureGL::update(uint8_t _side, uint8_t _mip, const Rect& _rect, uint16_t _z, uint16_t _depth, uint16_t _pitch, const Memory* _mem)
 	{
-		BX_UNUSED(_z, _depth);
-
 		const uint32_t bpp = getBitsPerPixel(TextureFormat::Enum(m_textureFormat) );
 		const uint32_t rectpitch = _rect.m_width*bpp/8;
 		uint32_t srcpitch  = UINT16_MAX == _pitch ? rectpitch : _pitch;
@@ -4590,7 +4847,10 @@ namespace bgfx { namespace gl
 		GL_CHECK(glBindTexture(m_target, m_id) );
 		GL_CHECK(glPixelStorei(GL_UNPACK_ALIGNMENT, 1) );
 
-		GLenum target = GL_TEXTURE_CUBE_MAP == m_target ? GL_TEXTURE_CUBE_MAP_POSITIVE_X : m_target;
+		GLenum target = isCubeMap()
+			? GL_TEXTURE_CUBE_MAP_POSITIVE_X
+			: m_target
+			;
 
 		const bool swizzle = true
 			&& TextureFormat::BGRA8 == m_requestedFormat
@@ -4815,6 +5075,18 @@ namespace bgfx { namespace gl
 		{
 			// Everything else has sampler object.
 			s_renderGL->setSamplerState(_stage, m_numMips, flags, _palette[index]);
+		}
+	}
+
+	void TextureGL::resolve() const
+	{
+		const bool renderTarget = 0 != (m_flags&BGFX_TEXTURE_RT_MASK);
+		if (renderTarget
+		&&  1 < m_numMips)
+		{
+			GL_CHECK(glBindTexture(m_target, m_id) );
+			GL_CHECK(glGenerateMipmap(m_target) );
+			GL_CHECK(glBindTexture(m_target, 0) );
 		}
 	}
 
@@ -5079,11 +5351,12 @@ namespace bgfx { namespace gl
 						&& s_extension[Extension::ARB_shader_texture_lod].m_supported
 						&& bx::findIdentifierMatch(code, s_ARB_shader_texture_lod)
 						;
-					const bool usesGpuShader5 = !!bx::findIdentifierMatch(code, s_ARB_gpu_shader5);
-					const bool usesIUsamplers = !!bx::findIdentifierMatch(code, s_uisamplers);
-					const bool usesTexelFetch = !!bx::findIdentifierMatch(code, s_texelFetch);
-					const bool usesTextureMS  = !!bx::findIdentifierMatch(code, s_ARB_texture_multisample);
-					const bool usesPacking    = !!bx::findIdentifierMatch(code, s_ARB_shading_language_packing);
+					const bool usesGpuShader5   = !!bx::findIdentifierMatch(code, s_ARB_gpu_shader5);
+					const bool usesIUsamplers   = !!bx::findIdentifierMatch(code, s_uisamplers);
+					const bool usesTexelFetch   = !!bx::findIdentifierMatch(code, s_texelFetch);
+					const bool usesTextureArray = !!bx::findIdentifierMatch(code, s_textureArray);
+					const bool usesTextureMS    = !!bx::findIdentifierMatch(code, s_ARB_texture_multisample);
+					const bool usesPacking      = !!bx::findIdentifierMatch(code, s_ARB_shading_language_packing);
 
 					uint32_t version =
 						  usesIUsamplers || usesTexelFetch ? 130
@@ -5117,6 +5390,11 @@ namespace bgfx { namespace gl
 					if (usesTextureMS)
 					{
 						writeString(&writer, "#extension GL_ARB_texture_multisample : enable\n");
+					}
+
+					if (usesTextureArray)
+					{
+						writeString(&writer, "#extension GL_EXT_texture_array : enable\n");
 					}
 
 					if (130 <= version)
@@ -5407,7 +5685,7 @@ namespace bgfx { namespace gl
 					}
 					else
 					{
-						GLenum target = GL_TEXTURE_CUBE_MAP == texture.m_target
+						GLenum target = texture.isCubeMap()
 							? GL_TEXTURE_CUBE_MAP_POSITIVE_X + m_attachment[ii].layer
 							: texture.m_target
 							;
@@ -5468,7 +5746,7 @@ namespace bgfx { namespace gl
 							{
 								++colorIdx;
 
-								GLenum target = GL_TEXTURE_CUBE_MAP == texture.m_target
+								GLenum target = texture.isCubeMap()
 									? GL_TEXTURE_CUBE_MAP_POSITIVE_X + m_attachment[ii].layer
 									: texture.m_target
 									;
@@ -5542,6 +5820,19 @@ namespace bgfx { namespace gl
 			GL_CHECK(glBindFramebuffer(GL_READ_FRAMEBUFFER, m_fbo[0]) );
 			GL_CHECK(glReadBuffer(GL_NONE) );
 			GL_CHECK(glBindFramebuffer(GL_FRAMEBUFFER, s_renderGL->m_msaaBackBufferFbo) );
+		}
+
+		if (0 < m_numTh)
+		{
+			for (uint32_t ii = 0; ii < m_numTh; ++ii)
+			{
+				TextureHandle handle = m_attachment[ii].handle;
+				if (isValid(handle) )
+				{
+					const TextureGL& texture = s_renderGL->m_textures[handle.idx];
+					texture.resolve();
+				}
+			}
 		}
 	}
 
@@ -5873,6 +6164,7 @@ namespace bgfx { namespace gl
 					if (BGFX_CLEAR_NONE != (clear.m_flags & BGFX_CLEAR_MASK) )
 					{
 						clearQuad(_clearQuad, viewState.m_rect, clear, resolutionHeight, _render->m_colorPalette);
+						currentVao = UINT32_MAX; // clearQuad will mess with VAO, invalidate it.
 					}
 
 					GL_CHECK(glDisable(GL_STENCIL_TEST) );

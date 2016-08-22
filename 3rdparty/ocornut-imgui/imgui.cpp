@@ -150,6 +150,7 @@
  Here is a change-log of API breaking changes, if you are using one of the functions listed, expect to have to fix some code.
  Also read releases logs https://github.com/ocornut/imgui/releases for more details.
 
+ - 2016/07/30 (1.50) - SameLine(x) with x>0.0f is now relative to left of column/group if any, and not always to left of window. This was sort of always the intent and hopefully breakage should be minimal.
  - 2016/05/12 (1.49) - title bar (using ImGuiCol_TitleBg/ImGuiCol_TitleBgActive colors) isn't rendered over a window background (ImGuiCol_WindowBg color) anymore. 
                        If your TitleBg/TitleBgActive alpha was 1.0f or you are using the default theme it will not affect you. 
                        However if your TitleBg/TitleBgActive alpha was <1.0f you need to tweak your custom theme to readjust for the fact that we don't draw a WindowBg background behind the title bar.
@@ -208,15 +209,15 @@
  - 2015/05/27 (1.40) - removed the third 'repeat_if_held' parameter from Button() - sorry! it was rarely used and inconsistent. Use PushButtonRepeat(true) / PopButtonRepeat() to enable repeat on desired buttons.
  - 2015/05/11 (1.40) - changed BeginPopup() API, takes a string identifier instead of a bool. ImGui needs to manage the open/closed state of popups. Call OpenPopup() to actually set the "open" state of a popup. BeginPopup() returns true if the popup is opened.
  - 2015/05/03 (1.40) - removed style.AutoFitPadding, using style.WindowPadding makes more sense (the default values were already the same).
- - 2015/04/13 (1.38) - renamed IsClipped() to IsRectClipped(). Kept inline redirection function (will obsolete).
+ - 2015/04/13 (1.38) - renamed IsClipped() to IsRectClipped(). Kept inline redirection function until 1.50.
  - 2015/04/09 (1.38) - renamed ImDrawList::AddArc() to ImDrawList::AddArcFast() for compatibility with future API
  - 2015/04/03 (1.38) - removed ImGuiCol_CheckHovered, ImGuiCol_CheckActive, replaced with the more general ImGuiCol_FrameBgHovered, ImGuiCol_FrameBgActive.
  - 2014/04/03 (1.38) - removed support for passing -FLT_MAX..+FLT_MAX as the range for a SliderFloat(). Use DragFloat() or Inputfloat() instead.
- - 2015/03/17 (1.36) - renamed GetItemBoxMin()/GetItemBoxMax()/IsMouseHoveringBox() to GetItemRectMin()/GetItemRectMax()/IsMouseHoveringRect(). Kept inline redirection function (will obsolete).
+ - 2015/03/17 (1.36) - renamed GetItemBoxMin()/GetItemBoxMax()/IsMouseHoveringBox() to GetItemRectMin()/GetItemRectMax()/IsMouseHoveringRect(). Kept inline redirection function until 1.50.
  - 2015/03/15 (1.36) - renamed style.TreeNodeSpacing to style.IndentSpacing, ImGuiStyleVar_TreeNodeSpacing to ImGuiStyleVar_IndentSpacing
- - 2015/03/13 (1.36) - renamed GetWindowIsFocused() to IsWindowFocused(). Kept inline redirection function (will obsolete).
+ - 2015/03/13 (1.36) - renamed GetWindowIsFocused() to IsWindowFocused(). Kept inline redirection function until 1.50.
  - 2015/03/08 (1.35) - renamed style.ScrollBarWidth to style.ScrollbarWidth (casing)
- - 2015/02/27 (1.34) - renamed OpenNextNode(bool) to SetNextTreeNodeOpened(bool, ImGuiSetCond). Kept inline redirection function (will obsolete).
+ - 2015/02/27 (1.34) - renamed OpenNextNode(bool) to SetNextTreeNodeOpened(bool, ImGuiSetCond). Kept inline redirection function until 1.50.
  - 2015/02/27 (1.34) - renamed ImGuiSetCondition_*** to ImGuiSetCond_***, and _FirstUseThisSession becomes _Once.
  - 2015/02/11 (1.32) - changed text input callback ImGuiTextEditCallback return type from void-->int. reserved for future use, return 0 for now.
  - 2015/02/10 (1.32) - renamed GetItemWidth() to CalcItemWidth() to clarify its evolving behavior
@@ -835,10 +836,7 @@ ImGuiIO::ImGuiIO()
 
     // Set OS X style defaults based on __APPLE__ compile time flag
 #ifdef __APPLE__
-    WordMovementUsesAltKey = true;      // OS X style: Text editing cursor movement using Alt instead of Ctrl
-    ShortcutsUseSuperKey = true;        // OS X style: Shortcuts using Cmd/Super instead of Ctrl
-    DoubleClickSelectsWord = true;      // OS X style: Double click selects by word instead of selecting whole text
-    MultiSelectUsesSuperKey = true;     // OS X style: Multi-selection in lists uses Cmd/Super instead of Ctrl 
+    OSXBehaviors = true;
 #endif
 }
 
@@ -1006,7 +1004,6 @@ ImU32 ImHash(const void* data, int data_size, ImU32 seed)
             // - We don't do 'current += 2; continue;' after handling ### to keep the code smaller.
             if (c == '#' && current[0] == '#' && current[1] == '#')
                 crc = seed;
-
             crc = (crc >> 8) ^ crc32_lut[(crc & 0xFF) ^ c];
         }
     }
@@ -1205,6 +1202,20 @@ ImU32 ImGui::ColorConvertFloat4ToU32(const ImVec4& in)
     return out;
 }
 
+ImU32 ImGui::GetColorU32(ImGuiCol idx, float alpha_mul)  
+{ 
+    ImVec4 c = GImGui->Style.Colors[idx]; 
+    c.w *= GImGui->Style.Alpha * alpha_mul; 
+    return ImGui::ColorConvertFloat4ToU32(c); 
+}
+
+ImU32 ImGui::GetColorU32(const ImVec4& col)
+{ 
+    ImVec4 c = col; 
+    c.w *= GImGui->Style.Alpha; 
+    return ImGui::ColorConvertFloat4ToU32(c); 
+}
+
 // Convert rgb floats ([0-1],[0-1],[0-1]) to hsv floats ([0-1],[0-1],[0-1]), from Foley & van Dam p592
 // Optimized http://lolengine.net/blog/2013/01/13/fast-rgb-to-hsv
 void ImGui::ColorConvertRGBtoHSV(float r, float g, float b, float& out_h, float& out_s, float& out_v)
@@ -1309,7 +1320,7 @@ void ImGuiStorage::Clear()
 }
 
 // std::lower_bound but without the bullshit
-static ImVector<ImGuiStorage::Pair>::iterator LowerBound(ImVector<ImGuiStorage::Pair>& data, ImU32 key)
+static ImVector<ImGuiStorage::Pair>::iterator LowerBound(ImVector<ImGuiStorage::Pair>& data, ImGuiID key)
 {
     ImVector<ImGuiStorage::Pair>::iterator first = data.begin();
     ImVector<ImGuiStorage::Pair>::iterator last = data.end();
@@ -1331,7 +1342,7 @@ static ImVector<ImGuiStorage::Pair>::iterator LowerBound(ImVector<ImGuiStorage::
     return first;
 }
 
-int ImGuiStorage::GetInt(ImU32 key, int default_val) const
+int ImGuiStorage::GetInt(ImGuiID key, int default_val) const
 {
     ImVector<Pair>::iterator it = LowerBound(const_cast<ImVector<ImGuiStorage::Pair>&>(Data), key);
     if (it == Data.end() || it->key != key)
@@ -1339,12 +1350,12 @@ int ImGuiStorage::GetInt(ImU32 key, int default_val) const
     return it->val_i;
 }
 
-bool ImGuiStorage::GetBool(ImU32 key, bool default_val) const
+bool ImGuiStorage::GetBool(ImGuiID key, bool default_val) const
 {
     return GetInt(key, default_val ? 1 : 0) != 0;
 }
 
-float ImGuiStorage::GetFloat(ImU32 key, float default_val) const
+float ImGuiStorage::GetFloat(ImGuiID key, float default_val) const
 {
     ImVector<Pair>::iterator it = LowerBound(const_cast<ImVector<ImGuiStorage::Pair>&>(Data), key);
     if (it == Data.end() || it->key != key)
@@ -1391,7 +1402,7 @@ void** ImGuiStorage::GetVoidPtrRef(ImGuiID key, void* default_val)
 }
 
 // FIXME-OPT: Need a way to reuse the result of lower_bound when doing GetInt()/SetInt() - not too bad because it only happens on explicit interaction (maximum one a frame)
-void ImGuiStorage::SetInt(ImU32 key, int val)
+void ImGuiStorage::SetInt(ImGuiID key, int val)
 {
     ImVector<Pair>::iterator it = LowerBound(Data, key);
     if (it == Data.end() || it->key != key)
@@ -1402,12 +1413,12 @@ void ImGuiStorage::SetInt(ImU32 key, int val)
     it->val_i = val;
 }
 
-void ImGuiStorage::SetBool(ImU32 key, bool val)
+void ImGuiStorage::SetBool(ImGuiID key, bool val)
 {
     SetInt(key, val ? 1 : 0);
 }
 
-void ImGuiStorage::SetFloat(ImU32 key, float val)
+void ImGuiStorage::SetFloat(ImGuiID key, float val)
 {
     ImVector<Pair>::iterator it = LowerBound(Data, key);
     if (it == Data.end() || it->key != key)
@@ -1418,7 +1429,7 @@ void ImGuiStorage::SetFloat(ImU32 key, float val)
     it->val_f = val;
 }
 
-void ImGuiStorage::SetVoidPtr(ImU32 key, void* val)
+void ImGuiStorage::SetVoidPtr(ImGuiID key, void* val)
 {
     ImVector<Pair>::iterator it = LowerBound(Data, key);
     if (it == Data.end() || it->key != key)
@@ -1844,7 +1855,7 @@ void ImGui::ItemSize(const ImVec2& size, float text_offset_y)
     window->DC.CursorMaxPos.x = ImMax(window->DC.CursorMaxPos.x, window->DC.CursorPosPrevLine.x);
     window->DC.CursorMaxPos.y = ImMax(window->DC.CursorMaxPos.y, window->DC.CursorPos.y);
 
-    //window->DrawList->AddCircle(window->DC.CursorMaxPos, 3.0f, 0xFF0000FF, 4); // Debug
+    //window->DrawList->AddCircle(window->DC.CursorMaxPos, 3.0f, IM_COL32(255,0,0,255), 4); // Debug
 
     window->DC.PrevLineHeight = line_height;
     window->DC.PrevLineTextBaseOffset = text_base_offset;
@@ -2696,10 +2707,10 @@ void ImGui::Render()
             const ImVec2 size = cursor_data.Size;
             const ImTextureID tex_id = g.IO.Fonts->TexID;
             g.OverlayDrawList.PushTextureID(tex_id);
-            g.OverlayDrawList.AddImage(tex_id, pos+ImVec2(1,0), pos+ImVec2(1,0) + size, cursor_data.TexUvMin[1], cursor_data.TexUvMax[1], 0x30000000); // Shadow
-            g.OverlayDrawList.AddImage(tex_id, pos+ImVec2(2,0), pos+ImVec2(2,0) + size, cursor_data.TexUvMin[1], cursor_data.TexUvMax[1], 0x30000000); // Shadow
-            g.OverlayDrawList.AddImage(tex_id, pos,             pos + size,             cursor_data.TexUvMin[1], cursor_data.TexUvMax[1], 0xFF000000); // Black border
-            g.OverlayDrawList.AddImage(tex_id, pos,             pos + size,             cursor_data.TexUvMin[0], cursor_data.TexUvMax[0], 0xFFFFFFFF); // White fill
+            g.OverlayDrawList.AddImage(tex_id, pos+ImVec2(1,0), pos+ImVec2(1,0) + size, cursor_data.TexUvMin[1], cursor_data.TexUvMax[1], IM_COL32(0,0,0,48));        // Shadow
+            g.OverlayDrawList.AddImage(tex_id, pos+ImVec2(2,0), pos+ImVec2(2,0) + size, cursor_data.TexUvMin[1], cursor_data.TexUvMax[1], IM_COL32(0,0,0,48));        // Shadow
+            g.OverlayDrawList.AddImage(tex_id, pos,             pos + size,             cursor_data.TexUvMin[1], cursor_data.TexUvMax[1], IM_COL32(0,0,0,255));       // Black border
+            g.OverlayDrawList.AddImage(tex_id, pos,             pos + size,             cursor_data.TexUvMin[0], cursor_data.TexUvMax[0], IM_COL32(255,255,255,255)); // White fill
             g.OverlayDrawList.PopTextureID();
         }
         if (!g.OverlayDrawList.VtxBuffer.empty())
@@ -4229,6 +4240,7 @@ bool ImGui::Begin(const char* name, bool* p_open, const ImVec2& size_on_first_us
 
         // Setup drawing context
         window->DC.IndentX = 0.0f + window->WindowPadding.x - window->Scroll.x;
+        window->DC.GroupOffsetX = 0.0f;
         window->DC.ColumnsOffsetX = 0.0f;
         window->DC.CursorStartPos = window->Pos + ImVec2(window->DC.IndentX + window->DC.ColumnsOffsetX, window->TitleBarHeight() + window->MenuBarHeight() + window->WindowPadding.y - window->Scroll.y);
         window->DC.CursorPos = window->DC.CursorStartPos;
@@ -4246,10 +4258,9 @@ bool ImGui::Begin(const char* name, bool* p_open, const ImVec2& size_on_first_us
         window->DC.AllowKeyboardFocus = true;
         window->DC.ButtonRepeat = false;
         window->DC.ItemWidthStack.resize(0);
-        window->DC.TextWrapPosStack.resize(0);
         window->DC.AllowKeyboardFocusStack.resize(0);
         window->DC.ButtonRepeatStack.resize(0);
-        window->DC.ColorEditMode = ImGuiColorEditMode_UserSelect;
+        window->DC.TextWrapPosStack.resize(0);
         window->DC.ColumnsCurrent = 0;
         window->DC.ColumnsCount = 1;
         window->DC.ColumnsStartPosY = window->DC.CursorPos.y;
@@ -4257,6 +4268,7 @@ bool ImGui::Begin(const char* name, bool* p_open, const ImVec2& size_on_first_us
         window->DC.TreeDepth = 0;
         window->DC.StateStorage = &window->StateStorage;
         window->DC.GroupStack.resize(0);
+        window->DC.ColorEditMode = ImGuiColorEditMode_UserSelect;
         window->MenuColumns.Update(3, style.ItemSpacing.x, !window_was_active);
 
         if (window->AutoFitFramesX > 0)
@@ -6174,7 +6186,7 @@ void ImGui::BulletTextV(const char* fmt, va_list args)
 
     const char* text_begin = g.TempBuffer;
     const char* text_end = text_begin + ImFormatStringV(g.TempBuffer, IM_ARRAYSIZE(g.TempBuffer), fmt, args);
-    const ImVec2 label_size = CalcTextSize(text_begin, text_end, true);
+    const ImVec2 label_size = CalcTextSize(text_begin, text_end, false);
     const float text_base_offset_y = ImMax(0.0f, window->DC.CurrentLineTextBaseOffset); // Latch before ItemSize changes it
     const float line_height = ImMax(ImMin(window->DC.CurrentLineHeight, g.FontSize + g.Style.FramePadding.y*2), g.FontSize);
     const ImRect bb(window->DC.CursorPos, window->DC.CursorPos + ImVec2(g.FontSize + (label_size.x > 0.0f ? (label_size.x + style.FramePadding.x*2) : 0.0f), ImMax(line_height, label_size.y)));  // Empty text doesn't add padding
@@ -6184,7 +6196,7 @@ void ImGui::BulletTextV(const char* fmt, va_list args)
 
     // Render
     RenderBullet(bb.Min + ImVec2(style.FramePadding.x + g.FontSize*0.5f, line_height*0.5f));
-    RenderText(bb.Min+ImVec2(g.FontSize + style.FramePadding.x*2, text_base_offset_y), text_begin, text_end);
+    RenderText(bb.Min+ImVec2(g.FontSize + style.FramePadding.x*2, text_base_offset_y), text_begin, text_end, false);
 }
 
 void ImGui::BulletText(const char* fmt, ...)
@@ -7634,10 +7646,6 @@ bool ImGui::InputTextEx(const char* label, char* buf, int buf_size, const ImVec2
     // NB: we are only allowed to access 'edit_state' if we are the active widget.
     ImGuiTextEditState& edit_state = g.InputTextState;
 
-    const bool is_ctrl_down = io.KeyCtrl;
-    const bool is_shift_down = io.KeyShift;
-    const bool is_alt_down = io.KeyAlt;
-    const bool is_super_down = io.KeySuper;
     const bool focus_requested = FocusableItemRegister(window, g.ActiveId == id, (flags & (ImGuiInputTextFlags_CallbackCompletion|ImGuiInputTextFlags_AllowTabInput)) == 0);    // Using completion callback disable keyboard tabbing
     const bool focus_requested_by_code = focus_requested && (window->FocusIdxAllCounter == window->FocusIdxAllRequestCurrent);
     const bool focus_requested_by_tab = focus_requested && !focus_requested_by_code;
@@ -7687,7 +7695,7 @@ bool ImGui::InputTextEx(const char* label, char* buf, int buf_size, const ImVec2
             }
             if (flags & ImGuiInputTextFlags_AlwaysInsertMode)
                 edit_state.StbState.insert_mode = true;
-            if (!is_multiline && (focus_requested_by_tab || (user_clicked && is_ctrl_down)))
+            if (!is_multiline && (focus_requested_by_tab || (user_clicked && io.KeyCtrl)))
                 select_all = true;
         }
         SetActiveID(id, window);
@@ -7722,15 +7730,16 @@ bool ImGui::InputTextEx(const char* label, char* buf, int buf_size, const ImVec2
         g.ActiveIdAllowOverlap = !io.MouseDown[0];
 
         // Edit in progress
-        const float mouse_x = (g.IO.MousePos.x - frame_bb.Min.x - style.FramePadding.x) + edit_state.ScrollX;
-        const float mouse_y = (is_multiline ? (g.IO.MousePos.y - draw_window->DC.CursorPos.y - style.FramePadding.y) : (g.FontSize*0.5f));
+        const float mouse_x = (io.MousePos.x - frame_bb.Min.x - style.FramePadding.x) + edit_state.ScrollX;
+        const float mouse_y = (is_multiline ? (io.MousePos.y - draw_window->DC.CursorPos.y - style.FramePadding.y) : (g.FontSize*0.5f));
 
-        if (select_all || (hovered && !io.DoubleClickSelectsWord && io.MouseDoubleClicked[0]))
+        const bool osx_double_click_selects_words = io.OSXBehaviors;      // OS X style: Double click selects by word instead of selecting whole text
+        if (select_all || (hovered && !osx_double_click_selects_words && io.MouseDoubleClicked[0]))
         {
             edit_state.SelectAll();
             edit_state.SelectedAllMouseLock = true;
         }
-        else if (hovered && io.DoubleClickSelectsWord && io.MouseDoubleClicked[0])
+        else if (hovered && osx_double_click_selects_words && io.MouseDoubleClicked[0])
         {
             // Select a word only, OS X style (by simulating keystrokes)
             edit_state.OnKeyPressed(STB_TEXTEDIT_K_WORDLEFT);
@@ -7750,14 +7759,14 @@ bool ImGui::InputTextEx(const char* label, char* buf, int buf_size, const ImVec2
         if (edit_state.SelectedAllMouseLock && !io.MouseDown[0])
             edit_state.SelectedAllMouseLock = false;
 
-        if (g.IO.InputCharacters[0])
+        if (io.InputCharacters[0])
         {
             // Process text input (before we check for Return because using some IME will effectively send a Return?)
             // We ignore CTRL inputs, but need to allow CTRL+ALT as some keyboards (e.g. German) use AltGR - which is Alt+Ctrl - to input certain characters.
-            if (!(is_ctrl_down && !is_alt_down) && is_editable)
+            if (!(io.KeyCtrl && !io.KeyAlt) && is_editable)
             {
-                for (int n = 0; n < IM_ARRAYSIZE(g.IO.InputCharacters) && g.IO.InputCharacters[n]; n++)
-                    if (unsigned int c = (unsigned int)g.IO.InputCharacters[n])
+                for (int n = 0; n < IM_ARRAYSIZE(io.InputCharacters) && io.InputCharacters[n]; n++)
+                    if (unsigned int c = (unsigned int)io.InputCharacters[n])
                     {
                         // Insert character if they pass filtering
                         if (!InputTextFilterCharacter(&c, flags, callback, user_data))
@@ -7772,22 +7781,31 @@ bool ImGui::InputTextEx(const char* label, char* buf, int buf_size, const ImVec2
 
         // Handle various key-presses
         bool cancel_edit = false;
-        const int k_mask = (is_shift_down ? STB_TEXTEDIT_K_SHIFT : 0);
-        const bool is_shortcutkey_only = (io.ShortcutsUseSuperKey ? (is_super_down && !is_alt_down && !is_shift_down && !is_ctrl_down) : (is_ctrl_down && !is_alt_down && !is_shift_down && !is_super_down));
-        const bool is_wordmove_key_down = (io.WordMovementUsesAltKey ? io.KeyAlt : io.KeyCtrl);
+        const int k_mask = (io.KeyShift ? STB_TEXTEDIT_K_SHIFT : 0);
+        const bool is_shortcut_key_only = (io.OSXBehaviors ? (io.KeySuper && !io.KeyCtrl) : (io.KeyCtrl && !io.KeySuper)) && !io.KeyAlt && !io.KeyShift; // OS X style: Shortcuts using Cmd/Super instead of Ctrl
+        const bool is_wordmove_key_down = io.OSXBehaviors ? io.KeyAlt : io.KeyCtrl;                     // OS X style: Text editing cursor movement using Alt instead of Ctrl
+        const bool is_startend_key_down = io.OSXBehaviors && io.KeySuper && !io.KeyCtrl && !io.KeyAlt;  // OS X style: Line/Text Start and End using Cmd+Arrows instead of Home/End
 
-        if (IsKeyPressedMap(ImGuiKey_LeftArrow))                        { edit_state.OnKeyPressed(is_wordmove_key_down ? STB_TEXTEDIT_K_WORDLEFT | k_mask : STB_TEXTEDIT_K_LEFT | k_mask); }
-        else if (IsKeyPressedMap(ImGuiKey_RightArrow))                  { edit_state.OnKeyPressed(is_wordmove_key_down ? STB_TEXTEDIT_K_WORDRIGHT | k_mask  : STB_TEXTEDIT_K_RIGHT | k_mask); }
-        else if (is_multiline && IsKeyPressedMap(ImGuiKey_UpArrow))     { if (is_ctrl_down) SetWindowScrollY(draw_window, ImMax(draw_window->Scroll.y - g.FontSize, 0.0f)); else edit_state.OnKeyPressed(STB_TEXTEDIT_K_UP | k_mask); }
-        else if (is_multiline && IsKeyPressedMap(ImGuiKey_DownArrow))   { if (is_ctrl_down) SetWindowScrollY(draw_window, ImMin(draw_window->Scroll.y + g.FontSize, GetScrollMaxY())); else edit_state.OnKeyPressed(STB_TEXTEDIT_K_DOWN| k_mask); }
-        else if (IsKeyPressedMap(ImGuiKey_Home))                        { edit_state.OnKeyPressed(is_ctrl_down ? STB_TEXTEDIT_K_TEXTSTART | k_mask : STB_TEXTEDIT_K_LINESTART | k_mask); }
-        else if (IsKeyPressedMap(ImGuiKey_End))                         { edit_state.OnKeyPressed(is_ctrl_down ? STB_TEXTEDIT_K_TEXTEND | k_mask : STB_TEXTEDIT_K_LINEEND | k_mask); }
+        if (IsKeyPressedMap(ImGuiKey_LeftArrow))                        { edit_state.OnKeyPressed((is_startend_key_down ? STB_TEXTEDIT_K_LINESTART : is_wordmove_key_down ? STB_TEXTEDIT_K_WORDLEFT : STB_TEXTEDIT_K_LEFT) | k_mask); }
+        else if (IsKeyPressedMap(ImGuiKey_RightArrow))                  { edit_state.OnKeyPressed((is_startend_key_down ? STB_TEXTEDIT_K_LINEEND : is_wordmove_key_down ? STB_TEXTEDIT_K_WORDRIGHT : STB_TEXTEDIT_K_RIGHT) | k_mask); }
+        else if (IsKeyPressedMap(ImGuiKey_UpArrow) && is_multiline)     { if (io.KeyCtrl) SetWindowScrollY(draw_window, ImMax(draw_window->Scroll.y - g.FontSize, 0.0f)); else edit_state.OnKeyPressed((is_startend_key_down ? STB_TEXTEDIT_K_TEXTSTART : STB_TEXTEDIT_K_UP) | k_mask); }
+        else if (IsKeyPressedMap(ImGuiKey_DownArrow) && is_multiline)   { if (io.KeyCtrl) SetWindowScrollY(draw_window, ImMin(draw_window->Scroll.y + g.FontSize, GetScrollMaxY())); else edit_state.OnKeyPressed((is_startend_key_down ? STB_TEXTEDIT_K_TEXTEND : STB_TEXTEDIT_K_DOWN) | k_mask); }
+        else if (IsKeyPressedMap(ImGuiKey_Home))                        { edit_state.OnKeyPressed(io.KeyCtrl ? STB_TEXTEDIT_K_TEXTSTART | k_mask : STB_TEXTEDIT_K_LINESTART | k_mask); }
+        else if (IsKeyPressedMap(ImGuiKey_End))                         { edit_state.OnKeyPressed(io.KeyCtrl ? STB_TEXTEDIT_K_TEXTEND | k_mask : STB_TEXTEDIT_K_LINEEND | k_mask); }
         else if (IsKeyPressedMap(ImGuiKey_Delete) && is_editable)       { edit_state.OnKeyPressed(STB_TEXTEDIT_K_DELETE | k_mask); }
-        else if (IsKeyPressedMap(ImGuiKey_Backspace) && is_editable)    { if (is_ctrl_down && !edit_state.HasSelection()) edit_state.OnKeyPressed(STB_TEXTEDIT_K_WORDLEFT|STB_TEXTEDIT_K_SHIFT); edit_state.OnKeyPressed(STB_TEXTEDIT_K_BACKSPACE | k_mask); }
+        else if (IsKeyPressedMap(ImGuiKey_Backspace) && is_editable)
+        {
+            if (!edit_state.HasSelection())
+            {
+                if (is_wordmove_key_down) edit_state.OnKeyPressed(STB_TEXTEDIT_K_WORDLEFT|STB_TEXTEDIT_K_SHIFT);
+                else if (io.OSXBehaviors && io.KeySuper && !io.KeyAlt && !io.KeyCtrl) edit_state.OnKeyPressed(STB_TEXTEDIT_K_LINESTART|STB_TEXTEDIT_K_SHIFT);
+            }
+            edit_state.OnKeyPressed(STB_TEXTEDIT_K_BACKSPACE | k_mask);
+        }
         else if (IsKeyPressedMap(ImGuiKey_Enter))
         {
             bool ctrl_enter_for_new_line = (flags & ImGuiInputTextFlags_CtrlEnterForNewLine) != 0;
-            if (!is_multiline || (ctrl_enter_for_new_line && !is_ctrl_down) || (!ctrl_enter_for_new_line && is_ctrl_down))
+            if (!is_multiline || (ctrl_enter_for_new_line && !io.KeyCtrl) || (!ctrl_enter_for_new_line && io.KeyCtrl))
             {
                 SetActiveID(0);
                 enter_pressed = true;
@@ -7799,30 +7817,30 @@ bool ImGui::InputTextEx(const char* label, char* buf, int buf_size, const ImVec2
                     edit_state.OnKeyPressed((int)c);
             }
         }
-        else if ((flags & ImGuiInputTextFlags_AllowTabInput) && IsKeyPressedMap(ImGuiKey_Tab) && !is_ctrl_down && !is_shift_down && !is_alt_down && is_editable)
+        else if ((flags & ImGuiInputTextFlags_AllowTabInput) && IsKeyPressedMap(ImGuiKey_Tab) && !io.KeyCtrl && !io.KeyShift && !io.KeyAlt && is_editable)
         {
             unsigned int c = '\t'; // Insert TAB
             if (InputTextFilterCharacter(&c, flags, callback, user_data))
                 edit_state.OnKeyPressed((int)c);
         }
         else if (IsKeyPressedMap(ImGuiKey_Escape))                                     { SetActiveID(0); cancel_edit = true; }
-        else if (is_shortcutkey_only && IsKeyPressedMap(ImGuiKey_Z) && is_editable)    { edit_state.OnKeyPressed(STB_TEXTEDIT_K_UNDO); edit_state.ClearSelection(); }
-        else if (is_shortcutkey_only && IsKeyPressedMap(ImGuiKey_Y) && is_editable)    { edit_state.OnKeyPressed(STB_TEXTEDIT_K_REDO); edit_state.ClearSelection(); }
-        else if (is_shortcutkey_only && IsKeyPressedMap(ImGuiKey_A))                   { edit_state.SelectAll(); edit_state.CursorFollow = true; }
-        else if (is_shortcutkey_only && !is_password && ((IsKeyPressedMap(ImGuiKey_X) && is_editable) || IsKeyPressedMap(ImGuiKey_C)) && (!is_multiline || edit_state.HasSelection()))
+        else if (is_shortcut_key_only && IsKeyPressedMap(ImGuiKey_Z) && is_editable)   { edit_state.OnKeyPressed(STB_TEXTEDIT_K_UNDO); edit_state.ClearSelection(); }
+        else if (is_shortcut_key_only && IsKeyPressedMap(ImGuiKey_Y) && is_editable)   { edit_state.OnKeyPressed(STB_TEXTEDIT_K_REDO); edit_state.ClearSelection(); }
+        else if (is_shortcut_key_only && IsKeyPressedMap(ImGuiKey_A))                  { edit_state.SelectAll(); edit_state.CursorFollow = true; }
+        else if (is_shortcut_key_only && !is_password && ((IsKeyPressedMap(ImGuiKey_X) && is_editable) || IsKeyPressedMap(ImGuiKey_C)) && (!is_multiline || edit_state.HasSelection()))
         {
             // Cut, Copy
             const bool cut = IsKeyPressedMap(ImGuiKey_X);
             if (cut && !edit_state.HasSelection())
                 edit_state.SelectAll();
 
-            if (g.IO.SetClipboardTextFn)
+            if (io.SetClipboardTextFn)
             {
                 const int ib = edit_state.HasSelection() ? ImMin(edit_state.StbState.select_start, edit_state.StbState.select_end) : 0;
                 const int ie = edit_state.HasSelection() ? ImMax(edit_state.StbState.select_start, edit_state.StbState.select_end) : edit_state.CurLenW;
                 edit_state.TempTextBuffer.resize((ie-ib) * 4 + 1);
                 ImTextStrToUtf8(edit_state.TempTextBuffer.Data, edit_state.TempTextBuffer.Size, edit_state.Text.Data+ib, edit_state.Text.Data+ie);
-                g.IO.SetClipboardTextFn(edit_state.TempTextBuffer.Data);
+                io.SetClipboardTextFn(edit_state.TempTextBuffer.Data);
             }
 
             if (cut)
@@ -7831,35 +7849,32 @@ bool ImGui::InputTextEx(const char* label, char* buf, int buf_size, const ImVec2
                 stb_textedit_cut(&edit_state, &edit_state.StbState);
             }
         }
-        else if (is_shortcutkey_only && IsKeyPressedMap(ImGuiKey_V) && is_editable)
+        else if (is_shortcut_key_only && IsKeyPressedMap(ImGuiKey_V) && is_editable)
         {
             // Paste
-            if (g.IO.GetClipboardTextFn)
+            if (const char* clipboard = io.GetClipboardTextFn ? io.GetClipboardTextFn() : NULL)
             {
-                if (const char* clipboard = g.IO.GetClipboardTextFn())
+                // Filter pasted buffer
+                const int clipboard_len = (int)strlen(clipboard);
+                ImWchar* clipboard_filtered = (ImWchar*)ImGui::MemAlloc((clipboard_len+1) * sizeof(ImWchar));
+                int clipboard_filtered_len = 0;
+                for (const char* s = clipboard; *s; )
                 {
-                    // Remove new-line from pasted buffer
-                    const int clipboard_len = (int)strlen(clipboard);
-                    ImWchar* clipboard_filtered = (ImWchar*)ImGui::MemAlloc((clipboard_len+1) * sizeof(ImWchar));
-                    int clipboard_filtered_len = 0;
-                    for (const char* s = clipboard; *s; )
-                    {
-                        unsigned int c;
-                        s += ImTextCharFromUtf8(&c, s, NULL);
-                        if (c == 0)
-                            break;
-                        if (c >= 0x10000 || !InputTextFilterCharacter(&c, flags, callback, user_data))
-                            continue;
-                        clipboard_filtered[clipboard_filtered_len++] = (ImWchar)c;
-                    }
-                    clipboard_filtered[clipboard_filtered_len] = 0;
-                    if (clipboard_filtered_len > 0) // If everything was filtered, ignore the pasting operation
-                    {
-                        stb_textedit_paste(&edit_state, &edit_state.StbState, clipboard_filtered, clipboard_filtered_len);
-                        edit_state.CursorFollow = true;
-                    }
-                    ImGui::MemFree(clipboard_filtered);
+                    unsigned int c;
+                    s += ImTextCharFromUtf8(&c, s, NULL);
+                    if (c == 0)
+                        break;
+                    if (c >= 0x10000 || !InputTextFilterCharacter(&c, flags, callback, user_data))
+                        continue;
+                    clipboard_filtered[clipboard_filtered_len++] = (ImWchar)c;
                 }
+                clipboard_filtered[clipboard_filtered_len] = 0;
+                if (clipboard_filtered_len > 0) // If everything was filtered, ignore the pasting operation
+                {
+                    stb_textedit_paste(&edit_state, &edit_state.StbState, clipboard_filtered, clipboard_filtered_len);
+                    edit_state.CursorFollow = true;
+                }
+                ImGui::MemFree(clipboard_filtered);
             }
         }
 
@@ -7973,7 +7988,7 @@ bool ImGui::InputTextEx(const char* label, char* buf, int buf_size, const ImVec2
     const bool is_currently_scrolling = (edit_state.Id == id && is_multiline && g.ActiveId == draw_window->GetIDNoKeepAlive("#SCROLLY"));
     if (g.ActiveId == id || is_currently_scrolling)
     {
-        edit_state.CursorAnim += g.IO.DeltaTime;
+        edit_state.CursorAnim += io.DeltaTime;
 
         // This is going to be messy. We need to:
         // - Display the text (this alone can be more easily clipped)
@@ -9107,6 +9122,12 @@ bool ImGui::IsRectVisible(const ImVec2& size)
     return window->ClipRect.Overlaps(ImRect(window->DC.CursorPos, window->DC.CursorPos + size));
 }
 
+bool ImGui::IsRectVisible(const ImVec2& rect_min, const ImVec2& rect_max)
+{
+    ImGuiWindow* window = GetCurrentWindowRead();
+    return window->ClipRect.Overlaps(ImRect(rect_min, rect_max));
+}
+
 // Lock horizontal starting position + capture group bounding box into one "item" (so you can use IsItemHovered() or layout primitives such as SameLine() on whole group, etc.)
 void ImGui::BeginGroup()
 {
@@ -9122,7 +9143,8 @@ void ImGui::BeginGroup()
     group_data.BackupLogLinePosY = window->DC.LogLinePosY;
     group_data.AdvanceCursor = true;
 
-    window->DC.IndentX = window->DC.CursorPos.x - window->Pos.x - window->DC.ColumnsOffsetX;
+    window->DC.GroupOffsetX = window->DC.CursorPos.x - window->Pos.x - window->DC.ColumnsOffsetX;
+    window->DC.IndentX = window->DC.GroupOffsetX;
     window->DC.CursorMaxPos = window->DC.CursorPos;
     window->DC.CurrentLineHeight = 0.0f;
     window->DC.LogLinePosY = window->DC.CursorPos.y - 9999.0f;
@@ -9146,6 +9168,7 @@ void ImGui::EndGroup()
     window->DC.CurrentLineHeight = group_data.BackupCurrentLineHeight;
     window->DC.CurrentLineTextBaseOffset = group_data.BackupCurrentLineTextBaseOffset;
     window->DC.IndentX = group_data.BackupIndentX;
+    window->DC.GroupOffsetX = window->DC.IndentX;
     window->DC.LogLinePosY = window->DC.CursorPos.y - 9999.0f;
 
     if (group_data.AdvanceCursor)
@@ -9162,7 +9185,7 @@ void ImGui::EndGroup()
 
 // Gets back to previous line and continue with horizontal layout
 //      pos_x == 0      : follow right after previous item
-//      pos_x != 0      : align to specified x position
+//      pos_x != 0      : align to specified x position (relative to window/group left)
 //      spacing_w < 0   : use default spacing if pos_x == 0, no spacing if pos_x != 0
 //      spacing_w >= 0  : enforce spacing amount
 void ImGui::SameLine(float pos_x, float spacing_w)
@@ -9175,7 +9198,7 @@ void ImGui::SameLine(float pos_x, float spacing_w)
     if (pos_x != 0.0f)
     {
         if (spacing_w < 0.0f) spacing_w = 0.0f;
-        window->DC.CursorPos.x = window->Pos.x - window->Scroll.x + pos_x + spacing_w;
+        window->DC.CursorPos.x = window->Pos.x - window->Scroll.x + pos_x + spacing_w + window->DC.GroupOffsetX + window->DC.ColumnsOffsetX;
         window->DC.CursorPos.y = window->DC.CursorPosPrevLine.y;
     }
     else
@@ -9358,7 +9381,7 @@ void ImGui::Columns(int columns_count, const char* id, bool border)
             if (held)
             {
                 if (g.ActiveIdIsJustActivated)
-                    g.ActiveIdClickOffset.x -= 4;   // Store from center of column line
+                    g.ActiveIdClickOffset.x -= 4;   // Store from center of column line (we used a 8 wide rect for columns clicking)
                 x = GetDraggedColumnOffset(i);
                 SetColumnOffset(i, x);
             }
