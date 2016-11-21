@@ -605,7 +605,6 @@ namespace entry
 									modifiers = translateKeyModifierPress(kev.keysym.scancode);
 								}
 
-								/// TODO: These keys are not captured by SDL_TEXTINPUT. Should be probably handled by SDL_TEXTEDITING. This is a workaround for now.
 								if (Key::Esc == key)
 								{
 									uint8_t pressedChar[4];
@@ -820,8 +819,8 @@ namespace entry
 									void* nwh = sdlNativeWindowHandle(m_window[handle.idx]);
 									if (NULL != nwh)
 									{
-										m_eventQueue.postWindowEvent(handle, nwh);
 										m_eventQueue.postSizeEvent(handle, msg->m_width, msg->m_height);
+										m_eventQueue.postWindowEvent(handle, nwh);
 									}
 
 									delete msg;

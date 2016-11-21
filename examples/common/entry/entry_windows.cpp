@@ -34,11 +34,8 @@ namespace entry
 	inline void winSetHwnd(::HWND _window)
 	{
 		bgfx::PlatformData pd;
-		pd.ndt          = NULL;
-		pd.nwh          = _window;
-		pd.context      = NULL;
-		pd.backBuffer   = NULL;
-		pd.backBufferDS = NULL;
+		memset(&pd, 0, sizeof(pd) );
+		pd.nwh = _window;
 		bgfx::setPlatformData(pd);
 	}
 
@@ -446,13 +443,13 @@ namespace entry
 
 		int32_t run(int _argc, char** _argv)
 		{
-			SetDllDirectory(".");
+			SetDllDirectoryA(".");
 
 			s_xinput.init();
 
 			HINSTANCE instance = (HINSTANCE)GetModuleHandle(NULL);
 
-			WNDCLASSEX wnd;
+			WNDCLASSEXA wnd;
 			memset(&wnd, 0, sizeof(wnd) );
 			wnd.cbSize = sizeof(wnd);
 			wnd.style = CS_HREDRAW | CS_VREDRAW;
@@ -563,10 +560,15 @@ namespace entry
 				case WM_USER_WINDOW_DESTROY:
 					{
 						WindowHandle handle = { (uint16_t)_wparam };
-						PostMessageA(m_hwnd[_wparam], WM_CLOSE, 0, 0);
 						m_eventQueue.postWindowEvent(handle);
 						DestroyWindow(m_hwnd[_wparam]);
 						m_hwnd[_wparam] = 0;
+
+						if (0 == handle.idx)
+						{
+							m_exit = true;
+							m_eventQueue.postExitEvent();
+						}
 					}
 					break;
 
@@ -618,15 +620,7 @@ namespace entry
 
 				case WM_QUIT:
 				case WM_CLOSE:
-					if (_hwnd == m_hwnd[0])
-					{
-						m_exit = true;
-						m_eventQueue.postExitEvent();
-					}
-					else
-					{
-						destroyWindow(findHandle(_hwnd) );
-					}
+					destroyWindow(findHandle(_hwnd) );
 					// Don't process message. Window will be destroyed later.
 					return 0;
 

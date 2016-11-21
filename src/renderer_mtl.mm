@@ -310,9 +310,9 @@ namespace bgfx { namespace mtl
 		{ MTLPixelFormatRG32Sint,						MTLPixelFormatInvalid                        }, // RG32I
 		{ MTLPixelFormatRG32Uint,						MTLPixelFormatInvalid                        }, // RG32U
 		{ MTLPixelFormatRG32Float,						MTLPixelFormatInvalid                        }, // RG32F
-        { MTLPixelFormatInvalid,						MTLPixelFormatInvalid                        }, // RGB8
-        { MTLPixelFormatInvalid,						MTLPixelFormatInvalid                        }, // RGB8I
-        { MTLPixelFormatInvalid,						MTLPixelFormatInvalid                        }, // RGB8U
+		{ MTLPixelFormatInvalid,						MTLPixelFormatInvalid                        }, // RGB8
+		{ MTLPixelFormatInvalid,						MTLPixelFormatInvalid                        }, // RGB8I
+		{ MTLPixelFormatInvalid,						MTLPixelFormatInvalid                        }, // RGB8U
 		{ MTLPixelFormatInvalid,						MTLPixelFormatInvalid                        }, // RGB8S
 		{ MTLPixelFormatRGB9E5Float,					MTLPixelFormatInvalid                        }, // RGB9E5F
 		{ MTLPixelFormatBGRA8Unorm,						MTLPixelFormatBGRA8Unorm_sRGB                }, // BGRA8
@@ -378,8 +378,18 @@ namespace bgfx { namespace mtl
 			memset(m_uniforms, 0, sizeof(m_uniforms) );
 			memset(&m_resolution, 0, sizeof(m_resolution) );
 
+			if (NULL != NSClassFromString(@"MTKView") )
+			{
+				MTKView *view = (MTKView *)g_platformData.nwh;
+				if (NULL != view && [view isKindOfClass:NSClassFromString(@"MTKView")])
+				{
+					m_metalLayer = (CAMetalLayer *)view.layer;
+				}
+			}
+
 			if (NULL != NSClassFromString(@"CAMetalLayer") )
 			{
+                if (NULL == m_metalLayer)
 #if BX_PLATFORM_IOS
 				{
 					CAMetalLayer* metalLayer = (CAMetalLayer*)g_platformData.nwh;
@@ -474,47 +484,58 @@ namespace bgfx { namespace mtl
 			m_screenshotBlitRenderPipelineState = m_device.newRenderPipelineStateWithDescriptor(m_renderPipelineDescriptor);
 
 			g_caps.supported |= (0
-								 | BGFX_CAPS_TEXTURE_COMPARE_LEQUAL	//NOTE: on IOS Gpu Family 1/2 have to set compare in shader
-								 | BGFX_CAPS_TEXTURE_COMPARE_ALL
-								 | BGFX_CAPS_TEXTURE_3D
-								 | BGFX_CAPS_VERTEX_ATTRIB_HALF
-								 | BGFX_CAPS_VERTEX_ATTRIB_UINT10
-								 | BGFX_CAPS_INSTANCING
-							     | BGFX_CAPS_FRAGMENT_DEPTH
-								 | BGFX_CAPS_BLEND_INDEPENDENT
-							   //| BGFX_CAPS_COMPUTE	// TODO: api/hw supports it but metal compute shaders are not yet supported
-								 | BGFX_CAPS_INDEX32
-							   //| BGFX_CAPS_DRAW_INDIRECT // TODO: support on iOS9+gpu family3+ and on macOS
-							     | BGFX_CAPS_TEXTURE_BLIT
-							     | BGFX_CAPS_TEXTURE_READ_BACK
-							     | BGFX_CAPS_OCCLUSION_QUERY
-							     | BGFX_CAPS_ALPHA_TO_COVERAGE
-								 );
+				| BGFX_CAPS_TEXTURE_COMPARE_LEQUAL	//NOTE: on IOS Gpu Family 1/2 have to set compare in shader
+				| BGFX_CAPS_TEXTURE_COMPARE_ALL
+				| BGFX_CAPS_TEXTURE_3D
+				| BGFX_CAPS_VERTEX_ATTRIB_HALF
+				| BGFX_CAPS_VERTEX_ATTRIB_UINT10
+				| BGFX_CAPS_INSTANCING
+				| BGFX_CAPS_FRAGMENT_DEPTH
+				| BGFX_CAPS_BLEND_INDEPENDENT
+//				| BGFX_CAPS_COMPUTE // TODO: api/hw supports it but metal compute shaders are not yet supported
+				| BGFX_CAPS_INDEX32
+//				| BGFX_CAPS_DRAW_INDIRECT // TODO: support on iOS9+gpu family3+ and on macOS
+				| BGFX_CAPS_TEXTURE_BLIT
+				| BGFX_CAPS_TEXTURE_READ_BACK
+				| BGFX_CAPS_OCCLUSION_QUERY
+				| BGFX_CAPS_ALPHA_TO_COVERAGE
+				| BGFX_CAPS_TEXTURE_2D_ARRAY // supported on all platforms
+				);
 
 			if (BX_ENABLED(BX_PLATFORM_IOS) )
 			{
-				if ( iOSVersionEqualOrGreater("9.0.0") )
+				if (iOSVersionEqualOrGreater("9.0.0") )
 				{
-					g_caps.maxTextureSize = m_device.supportsFeatureSet((MTLFeatureSet)4 /* iOS_GPUFamily3_v1 */) ? 16384 : 8192;
+					g_caps.limits.maxTextureSize = m_device.supportsFeatureSet((MTLFeatureSet)4 /* iOS_GPUFamily3_v1 */) ? 16384 : 8192;
 				}
 				else
 				{
-					g_caps.maxTextureSize = 4096;
+					g_caps.limits.maxTextureSize = 4096;
 				}
-				g_caps.maxFBAttachments = uint8_t(bx::uint32_min(m_device.supportsFeatureSet((MTLFeatureSet)1 /* MTLFeatureSet_iOS_GPUFamily2_v1 */) ? 8 : 4, BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS));
 
-			} else if (BX_ENABLED(BX_PLATFORM_OSX) )
+				g_caps.limits.maxFBAttachments = uint8_t(bx::uint32_min(m_device.supportsFeatureSet((MTLFeatureSet)1 /* MTLFeatureSet_iOS_GPUFamily2_v1 */) ? 8 : 4, BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS));
+			}
+			else if (BX_ENABLED(BX_PLATFORM_OSX) )
 			{
-				g_caps.maxTextureSize = 16384;
-				g_caps.maxFBAttachments = 8;
+				g_caps.limits.maxTextureSize   = 16384;
+				g_caps.limits.maxFBAttachments = 8;
+				g_caps.supported |= BGFX_CAPS_TEXTURE_CUBE_ARRAY;
 			}
 
 			//todo: vendor id, device id, gpu enum
 
-			m_hasPixelFormatDepth32Float_Stencil8 =	(BX_ENABLED(BX_PLATFORM_OSX) ||
-													 ( BX_ENABLED(BX_PLATFORM_IOS) && iOSVersionEqualOrGreater("9.0.0") ) );
-			m_macOS11Runtime = (BX_ENABLED(BX_PLATFORM_OSX) && macOSVersionEqualOrGreater(10,11,0) );
-			m_iOS9Runtime = (BX_ENABLED(BX_PLATFORM_IOS) && iOSVersionEqualOrGreater("9.0.0") );
+			m_hasPixelFormatDepth32Float_Stencil8 =	false
+				||  BX_ENABLED(BX_PLATFORM_OSX)
+				|| (BX_ENABLED(BX_PLATFORM_IOS) && iOSVersionEqualOrGreater("9.0.0") )
+				;
+			m_macOS11Runtime = true
+				&& BX_ENABLED(BX_PLATFORM_OSX)
+				&& macOSVersionEqualOrGreater(10,11,0)
+				;
+			m_iOS9Runtime = true
+				&& BX_ENABLED(BX_PLATFORM_IOS)
+				&& iOSVersionEqualOrGreater("9.0.0")
+				;
 
 			if (BX_ENABLED(BX_PLATFORM_OSX) )
 			{
@@ -777,7 +798,7 @@ namespace bgfx { namespace mtl
 		{
 		}
 
-		void readTexture(TextureHandle _handle, void* _data) BX_OVERRIDE
+		void readTexture(TextureHandle _handle, void* _data, uint8_t _mip) BX_OVERRIDE
 		{
 			m_commandBuffer.commit();
 			m_commandBuffer.waitUntilCompleted();
@@ -785,13 +806,15 @@ namespace bgfx { namespace mtl
 
 			const TextureMtl& texture = m_textures[_handle.idx];
 
-			uint32_t width  = texture.m_ptr.width();
-			uint32_t height = texture.m_ptr.height();
+			BX_CHECK(_mip<texture.m_numMips,"Invalid mip: %d num mips:",_mip,texture.m_numMips);
+
+			uint32_t srcWidth  = bx::uint32_max(1, texture.m_ptr.width()  >> _mip);
+			uint32_t srcHeight = bx::uint32_max(1, texture.m_ptr.height() >> _mip);
 			const uint8_t bpp = getBitsPerPixel(TextureFormat::Enum(texture.m_textureFormat) );
 
-			MTLRegion region = { { 0, 0, 0 }, { width, height, 1 } };
+			MTLRegion region = { { 0, 0, 0 }, { srcWidth, srcHeight, 1 } };
 
-			texture.m_ptr.getBytes(_data, width*bpp/8, 0, region, 0, 0);
+			texture.m_ptr.getBytes(_data, srcWidth*bpp/8, 0, region, _mip, 0);
 
 			m_commandBuffer = m_commandQueue.commandBuffer();
 			retain(m_commandBuffer); //NOTE: keep alive to be useable at 'flip'
@@ -886,6 +909,7 @@ namespace bgfx { namespace mtl
 		{
 			BX_FREE(g_allocator, m_uniforms[_handle.idx]);
 			m_uniforms[_handle.idx] = NULL;
+			m_uniformReg.remove(_handle);
 		}
 
 		//cmdPre
@@ -959,8 +983,8 @@ namespace bgfx { namespace mtl
 		{
 			RenderCommandEncoder rce = m_renderCommandEncoder;
 
-			uint32_t width  = getBufferWidth();
-			uint32_t height = getBufferHeight();
+			uint32_t width  = m_resolution.m_width;
+			uint32_t height  = m_resolution.m_height;
 
 			//if (m_ovr.isEnabled() )
 			//{
@@ -1249,7 +1273,7 @@ namespace bgfx { namespace mtl
 				RenderPassDescriptor renderPassDescriptor = newRenderPassDescriptor();
 				setFrameBuffer(renderPassDescriptor, m_renderCommandEncoderFrameBufferHandle);
 
-				for(uint32_t ii = 0; ii < g_caps.maxFBAttachments; ++ii)
+				for(uint32_t ii = 0; ii < g_caps.limits.maxFBAttachments; ++ii)
 				{
 					MTLRenderPassColorAttachmentDescriptor* desc = renderPassDescriptor.colorAttachments[ii];
 					if ( desc.texture != NULL)
@@ -1402,8 +1426,8 @@ namespace bgfx { namespace mtl
 			}
 			else
 			{
-				width  = getBufferWidth();
-				height = getBufferHeight();
+				width  = m_resolution.m_width;
+				height = m_resolution.m_height;
 			}
 
 
@@ -1659,7 +1683,7 @@ namespace bgfx { namespace mtl
 				m_samplerDescriptor.lodMinClamp = 0;
 				m_samplerDescriptor.lodMaxClamp = FLT_MAX;
 				m_samplerDescriptor.normalizedCoordinates = TRUE;
-				m_samplerDescriptor.maxAnisotropy =  m_maxAnisotropy;
+				m_samplerDescriptor.maxAnisotropy =  (0 != (_flags & (BGFX_TEXTURE_MIN_ANISOTROPIC|BGFX_TEXTURE_MAG_ANISOTROPIC) ) ) ? m_maxAnisotropy : 1;
 
 				//NOTE: Comparison function can be specified in shader on all metal hw.
 				if ( m_macOS11Runtime || [m_device supportsFeatureSet:(MTLFeatureSet)4/*MTLFeatureSet_iOS_GPUFamily3_v1*/])
@@ -1679,16 +1703,6 @@ namespace bgfx { namespace mtl
 		{
 			m_occlusionQuery.resolve(_render);
 			return _visible == (0 != _render->m_occlusion[_handle.idx]);
-		}
-
-		uint32_t getBufferWidth()
-		{
-			return m_backBufferDepth.width();
-		}
-
-		uint32_t getBufferHeight()
-		{
-			return m_backBufferDepth.height();
 		}
 
 		void sync()
@@ -1718,9 +1732,10 @@ namespace bgfx { namespace mtl
 			if (m_drawable == nil)
 			{
 				m_drawable = m_metalLayer.nextDrawable;
-#if BX_PLATFORM_IOS
-				retain(m_drawable); // keep alive to be useable at 'flip'
-#endif
+				if (BX_ENABLED(BX_PLATFORM_IOS) )
+				{
+					retain(m_drawable); // keep alive to be useable at 'flip'
+				}
 			}
 
 			return m_drawable;
@@ -1887,7 +1902,6 @@ namespace bgfx { namespace mtl
 		const char* code = (const char*)reader.getDataPtr();
 		bx::skip(&reader, shaderSize+1);
 
-			//TODO: use binary format
 		Library lib = s_renderMtl->m_device.newLibraryWithSource(code);
 
 		if (NULL != lib)
@@ -1895,8 +1909,11 @@ namespace bgfx { namespace mtl
 			m_function = lib.newFunctionWithName(SHADER_FUNCTION_NAME);
 		}
 
-		BGFX_FATAL(NULL != m_function, bgfx::Fatal::InvalidShader, "Failed to create %s shader."
-				   , BGFX_CHUNK_MAGIC_FSH == magic ? "Fragment" : BGFX_CHUNK_MAGIC_VSH == magic ? "Vertex" : "Compute");
+		BGFX_FATAL(NULL != m_function
+			, bgfx::Fatal::InvalidShader
+			, "Failed to create %s shader."
+			, BGFX_CHUNK_MAGIC_FSH == magic ? "Fragment" : BGFX_CHUNK_MAGIC_VSH == magic ? "Vertex" : "Compute"
+			);
 	}
 
 	void ProgramMtl::create(const ShaderMtl* _vsh, const ShaderMtl* _fsh)
@@ -1997,6 +2014,8 @@ namespace bgfx { namespace mtl
 			case MTLDataTypeFloat4x4:
 				return UniformType::Mat4;
 
+			default:
+				break;
 		};
 
 		BX_CHECK(false, "Unrecognized Mtl Data type 0x%04x.", _type);
@@ -2266,7 +2285,9 @@ namespace bgfx { namespace mtl
 											}
 											else
 											{
-												const UniformInfo* info = s_renderMtl->m_uniformReg.find(name);
+												const UniformRegInfo* info = s_renderMtl->m_uniformReg.find(name);
+												BX_WARN(NULL != info, "User defined uniform '%s' is not found, it won't be set.", name);
+
 												if (NULL != info)
 												{
 													if (NULL == constantBuffer)
@@ -2384,8 +2405,9 @@ namespace bgfx { namespace mtl
 			const ImageBlockInfo& blockInfo = getBlockInfo(TextureFormat::Enum(imageContainer.m_format) );
 			const uint32_t textureWidth  = bx::uint32_max(blockInfo.blockWidth,  imageContainer.m_width >>startLod);
 			const uint32_t textureHeight = bx::uint32_max(blockInfo.blockHeight, imageContainer.m_height>>startLod);
+			const uint16_t numLayers     = imageContainer.m_numLayers;
 
-			m_flags = _flags;
+			m_flags   = _flags;
 			m_width   = textureWidth;
 			m_height  = textureHeight;
 			m_depth   = imageContainer.m_depth;
@@ -2396,7 +2418,20 @@ namespace bgfx { namespace mtl
 
 			TextureDescriptor desc = s_renderMtl->m_textureDescriptor;
 
-			if (imageContainer.m_cubeMap)
+			if (1 < numLayers)
+			{
+				if (imageContainer.m_cubeMap)
+				{
+					desc.textureType = MTLTextureType(6); // MTLTextureTypeCubeArray
+				}
+				else
+				{
+					desc.textureType = MTLTextureType2DArray;
+				}
+
+				desc.arrayLength = numLayers;
+			}
+			else if (imageContainer.m_cubeMap)
 			{
 				desc.textureType = MTLTextureTypeCube;
 			}
@@ -2410,23 +2445,28 @@ namespace bgfx { namespace mtl
 			}
 
 			m_numMips = numMips;
+			const uint16_t numSides = numLayers * (imageContainer.m_cubeMap ? 6 : 1);
 
-			const bool compressed = isCompressed(TextureFormat::Enum(m_textureFormat) );
-
-			BX_TRACE("Texture %3d: %s (requested: %s), %dx%d%s%s."
-					 , this - s_renderMtl->m_textures
-					 , getName( (TextureFormat::Enum)m_textureFormat)
-					 , getName( (TextureFormat::Enum)m_requestedFormat)
-					 , textureWidth
-					 , textureHeight
-					 , imageContainer.m_cubeMap ? "x6" : ""
-					 , 0 != (_flags&BGFX_TEXTURE_RT_MASK) ? " (render target)" : ""
-					 );
-
-			const bool writeOnly   = 0 != (_flags&BGFX_TEXTURE_RT_WRITE_ONLY);
+			const bool compressed   = isCompressed(TextureFormat::Enum(m_textureFormat) );
+			const bool writeOnly    = 0 != (_flags&BGFX_TEXTURE_RT_WRITE_ONLY);
 			const bool computeWrite = 0 != (_flags&BGFX_TEXTURE_COMPUTE_WRITE);
 			const bool renderTarget = 0 != (_flags&BGFX_TEXTURE_RT_MASK);
 			const bool srgb			= 0 != (_flags&BGFX_TEXTURE_SRGB) || imageContainer.m_srgb;
+
+			BX_TRACE("Texture %3d: %s (requested: %s), layers %d, %dx%d%s RT[%c], WO[%c], CW[%c], sRGB[%c]"
+					 , this - s_renderMtl->m_textures
+					 , getName( (TextureFormat::Enum)m_textureFormat)
+					 , getName( (TextureFormat::Enum)m_requestedFormat)
+					 , numLayers
+					 , textureWidth
+					 , textureHeight
+					 , imageContainer.m_cubeMap ? "x6" : ""
+					 , renderTarget ? 'x' : '.'
+					 , writeOnly ? 'x' : '.'
+					 , computeWrite ? 'x' : '.'
+					 , srgb ? 'x' : '.'
+					 );
+
 			const uint32_t msaaQuality = bx::uint32_satsub( (_flags&BGFX_TEXTURE_RT_MSAA_MASK)>>BGFX_TEXTURE_RT_MSAA_SHIFT, 1);
 			int sampleCount = s_msaa[msaaQuality];
 
@@ -2455,7 +2495,7 @@ namespace bgfx { namespace mtl
 
 			if (s_renderMtl->m_iOS9Runtime || s_renderMtl->m_macOS11Runtime)
 			{
-				desc.cpuCacheMode     = MTLCPUCacheModeDefaultCache;
+				desc.cpuCacheMode = MTLCPUCacheModeDefaultCache;
 
 				desc.storageMode = (MTLStorageMode)(writeOnly||isDepth(TextureFormat::Enum(m_textureFormat))
 													? 2 /*MTLStorageModePrivate*/
@@ -2493,7 +2533,7 @@ namespace bgfx { namespace mtl
 				temp = (uint8_t*)BX_ALLOC(g_allocator, textureWidth*textureHeight*4);
 			}
 
-			for (uint8_t side = 0, numSides = imageContainer.m_cubeMap ? 6 : 1; side < numSides; ++side)
+			for (uint8_t side = 0; side < numSides; ++side)
 			{
 				uint32_t width  = textureWidth;
 				uint32_t height = textureHeight;
@@ -2654,12 +2694,20 @@ namespace bgfx { namespace mtl
 	void FrameBufferMtl::create(uint8_t _num, const Attachment* _attachment)
 	{
 		m_num = 0;
+		m_width = 0;
+		m_height = 0;
 		for (uint32_t ii = 0; ii < _num; ++ii)
 		{
 			TextureHandle handle = _attachment[ii].handle;
 			if (isValid(handle) )
 			{
 				const TextureMtl& texture = s_renderMtl->m_textures[handle.idx];
+
+				if ( 0 == m_width )
+				{
+					m_width = texture.m_width;
+					m_height = texture.m_height;
+				}
 
 				if (isDepth( (TextureFormat::Enum)texture.m_textureFormat) )
 				{
@@ -2901,7 +2949,8 @@ namespace bgfx { namespace mtl
 		_render->m_hmdInitialized = false;
 
 		const bool hmdEnabled = false;
-		ViewState viewState(_render, hmdEnabled);
+		static ViewState viewState;
+		viewState.reset(_render, hmdEnabled);
 		uint32_t blendFactor = 0;
 
 		bool wireframe = !!(_render->m_debug&BGFX_DEBUG_WIREFRAME);
@@ -2947,7 +2996,8 @@ namespace bgfx { namespace mtl
 			int32_t numItems = _render->m_num;
 			for (int32_t item = 0, restartItem = numItems; item < numItems || restartItem < numItems;)
 			{
-				const bool isCompute = key.decode(_render->m_sortKeys[item], _render->m_viewRemap);
+				const uint64_t encodedKey = _render->m_sortKeys[item];
+				const bool isCompute = key.decode(encodedKey, _render->m_viewRemap);
 				statsKeyType[isCompute]++;
 
 				const bool viewChanged = 0
@@ -2998,8 +3048,8 @@ namespace bgfx { namespace mtl
 						viewState.m_rect.m_width /= 2;
 					}
 
-
-					for (; blitItem < numBlitItems && blitKey.m_view <= view; blitItem++)
+					const uint8_t blitView = SortKey::decodeView(encodedKey);
+					for (; blitItem < numBlitItems && blitKey.m_view <= blitView; blitItem++)
 					{
 						if (0 != m_renderCommandEncoder)
 						{
@@ -3060,15 +3110,8 @@ namespace bgfx { namespace mtl
 					viewScissorRect = viewHasScissor ? scissorRect : viewState.m_rect;
 					Clear& clr = _render->m_clear[view];
 
-					uint32_t width  = getBufferWidth();
-					uint32_t height = getBufferHeight();
 					Rect viewRect = viewState.m_rect;
-					bool clearWithRenderPass = true
-						&& 0      == viewRect.m_x
-						&& 0      == viewRect.m_y
-						&& width  == viewRect.m_width
-						&& height == viewRect.m_height
-						;
+					bool clearWithRenderPass = false;
 
 					if ( NULL == m_renderCommandEncoder || fbh.idx != _render->m_fb[view].idx )
 					{
@@ -3081,11 +3124,29 @@ namespace bgfx { namespace mtl
 						renderPassDescriptor.visibilityResultBuffer = m_occlusionQuery.m_buffer;
 
 						fbh = _render->m_fb[view];
+
+						uint32_t width  = m_resolution.m_width;
+						uint32_t height = m_resolution.m_height;
+
+						if ( isValid(fbh) )
+						{
+							FrameBufferMtl& frameBuffer = m_frameBuffers[fbh.idx];
+							width = frameBuffer.m_width;
+							height = frameBuffer.m_height;
+						}
+
+						clearWithRenderPass = true
+						&& 0 == viewRect.m_x
+						&& 0      == viewRect.m_y
+						&& width  == viewRect.m_width
+						&& height == viewRect.m_height;
+
 						setFrameBuffer(renderPassDescriptor, fbh);
 
 						if ( clearWithRenderPass )
 						{
-							for(uint32_t ii = 0; ii < g_caps.maxFBAttachments; ++ii)
+
+							for(uint32_t ii = 0; ii < g_caps.limits.maxFBAttachments; ++ii)
 							{
 								MTLRenderPassColorAttachmentDescriptor* desc = renderPassDescriptor.colorAttachments[ii];
 
@@ -3147,7 +3208,7 @@ namespace bgfx { namespace mtl
 						}
 						else
 						{
-							for(uint32_t ii = 0; ii < g_caps.maxFBAttachments; ++ii)
+							for(uint32_t ii = 0; ii < g_caps.limits.maxFBAttachments; ++ii)
 							{
 								MTLRenderPassColorAttachmentDescriptor* desc = renderPassDescriptor.colorAttachments[ii];
 								if ( desc.texture != NULL)
@@ -3174,10 +3235,6 @@ namespace bgfx { namespace mtl
 						m_renderCommandEncoder = rce;
 						m_renderCommandEncoderFrameBufferHandle = fbh;
 						MTL_RELEASE(renderPassDescriptor);
-					}
-					else
-					{
-						clearWithRenderPass = false;
 					}
 
 					rce.setTriangleFillMode(wireframe? MTLTriangleFillModeLines : MTLTriangleFillModeFill);
@@ -3349,13 +3406,15 @@ namespace bgfx { namespace mtl
 
 				if (key.m_program != programIdx
 				|| (BGFX_STATE_BLEND_MASK|BGFX_STATE_BLEND_EQUATION_MASK|BGFX_STATE_ALPHA_WRITE|BGFX_STATE_RGB_WRITE|BGFX_STATE_BLEND_INDEPENDENT|BGFX_STATE_MSAA|BGFX_STATE_BLEND_ALPHA_TO_COVERAGE) & changedFlags
-				||  currentState.m_vertexBuffer.idx != draw.m_vertexBuffer.idx
-				||  currentState.m_vertexDecl.idx != draw.m_vertexDecl.idx
-				||  currentState.m_instanceDataStride != draw.m_instanceDataStride
+				||  currentState.m_streamMask             != draw.m_streamMask
+				||  currentState.m_stream[0].m_handle.idx != draw.m_stream[0].m_handle.idx
+				||  currentState.m_stream[0].m_decl.idx   != draw.m_stream[0].m_decl.idx
+				||  currentState.m_instanceDataStride     != draw.m_instanceDataStride
 				|| ( (blendFactor != draw.m_rgba) && !!(newFlags & BGFX_STATE_BLEND_INDEPENDENT) ) )
 				{
 					programIdx = key.m_program;
-					currentState.m_vertexDecl         = draw.m_vertexDecl;
+					currentState.m_streamMask         = draw.m_streamMask;
+					currentState.m_stream[0].m_decl   = draw.m_stream[0].m_decl;
 					currentState.m_instanceDataStride = draw.m_instanceDataStride;
 
 					if (invalidHandle == programIdx)
@@ -3370,18 +3429,18 @@ namespace bgfx { namespace mtl
 
 						RenderPipelineState pipelineState = NULL;
 
-						if ( isValid(draw.m_vertexBuffer) )
+						if (isValid(draw.m_stream[0].m_handle) )
 						{
-							uint16_t handle = draw.m_vertexBuffer.idx;
+							uint16_t handle = draw.m_stream[0].m_handle.idx;
 							const VertexBufferMtl& vb = m_vertexBuffers[handle];
 							VertexDeclHandle decl;
-							decl.idx = !isValid(vb.m_decl) ? draw.m_vertexDecl.idx : vb.m_decl.idx;
+							decl.idx = !isValid(vb.m_decl) ? draw.m_stream[0].m_decl.idx : vb.m_decl.idx;
 
 							pipelineState = program.getRenderPipelineState(newFlags, draw.m_rgba, fbh, decl, draw.m_instanceDataStride/16);
 						}
 
-						if (NULL == pipelineState )
-						{  //call with invalid program
+						if (NULL == pipelineState)
+						{
 							currentProgram = NULL;
 							programIdx = invalidHandle;
 							continue;
@@ -3467,24 +3526,26 @@ namespace bgfx { namespace mtl
 					}
 				}
 
-				if (currentState.m_vertexBuffer.idx       != draw.m_vertexBuffer.idx
-				||  currentState.m_startVertex            != draw.m_startVertex
-				||  currentState.m_instanceDataBuffer.idx != draw.m_instanceDataBuffer.idx
-				||  currentState.m_instanceDataOffset     != draw.m_instanceDataOffset)
+				if (currentState.m_streamMask              != draw.m_streamMask
+				||  currentState.m_stream[0].m_handle.idx  != draw.m_stream[0].m_handle.idx
+				||  currentState.m_stream[0].m_startVertex != draw.m_stream[0].m_startVertex
+				||  currentState.m_instanceDataBuffer.idx  != draw.m_instanceDataBuffer.idx
+				||  currentState.m_instanceDataOffset      != draw.m_instanceDataOffset)
 				{
-					currentState.m_vertexBuffer           = draw.m_vertexBuffer;
-					currentState.m_startVertex            = draw.m_startVertex;
-					currentState.m_instanceDataBuffer.idx = draw.m_instanceDataBuffer.idx;
-					currentState.m_instanceDataOffset     = draw.m_instanceDataOffset;
+					currentState.m_streamMask               = draw.m_streamMask;
+					currentState.m_stream[0].m_handle       = draw.m_stream[0].m_handle;
+					currentState.m_stream[0].m_startVertex  = draw.m_stream[0].m_startVertex;
+					currentState.m_instanceDataBuffer.idx   = draw.m_instanceDataBuffer.idx;
+					currentState.m_instanceDataOffset       = draw.m_instanceDataOffset;
 
-					uint16_t handle = draw.m_vertexBuffer.idx;
+					uint16_t handle = draw.m_stream[0].m_handle.idx;
 					if (invalidHandle != handle)
 					{
 						const VertexBufferMtl& vb = m_vertexBuffers[handle];
 
-						uint16_t decl = !isValid(vb.m_decl) ? draw.m_vertexDecl.idx : vb.m_decl.idx;
+						uint16_t decl = !isValid(vb.m_decl) ? draw.m_stream[0].m_decl.idx : vb.m_decl.idx;
 						const VertexDecl& vertexDecl = m_vertexDecls[decl];
-						uint32_t offset = draw.m_startVertex  * vertexDecl.getStride();
+						uint32_t offset = draw.m_stream[0].m_startVertex  * vertexDecl.getStride();
 
 						rce.setVertexBuffer(vb.getBuffer(), offset, 1);
 
@@ -3496,13 +3557,13 @@ namespace bgfx { namespace mtl
 					}
 				}
 
-				if (isValid(currentState.m_vertexBuffer) )
+				if (0 != currentState.m_streamMask)
 				{
 					uint32_t numVertices = draw.m_numVertices;
 					if (UINT32_MAX == numVertices)
 					{
-						const VertexBufferMtl& vb = m_vertexBuffers[currentState.m_vertexBuffer.idx];
-						uint16_t decl = !isValid(vb.m_decl) ? draw.m_vertexDecl.idx : vb.m_decl.idx;
+						const VertexBufferMtl& vb = m_vertexBuffers[currentState.m_stream[0].m_handle.idx];
+						uint16_t decl = !isValid(vb.m_decl) ? draw.m_stream[0].m_decl.idx : vb.m_decl.idx;
 						const VertexDecl& vertexDecl = m_vertexDecls[decl];
 						numVertices = vb.m_size/vertexDecl.m_stride;
 					}

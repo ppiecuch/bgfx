@@ -393,7 +393,7 @@ class ExampleDeferred : public entry::AppI
 			bgfx::dbgTextPrintf(0, 2, 0x6f, "Description: MRT rendering and deferred shading.");
 			bgfx::dbgTextPrintf(0, 3, 0x0f, "Frame: % 7.3f[ms]", double(frameTime)*toMs);
 
-			if (2 > m_caps->maxFBAttachments)
+			if (2 > m_caps->limits.maxFBAttachments)
 			{
 				// When multiple render targets (MRT) is not supported by GPU,
 				// implement alternative code path that doesn't use MRT.
@@ -686,8 +686,8 @@ class ExampleDeferred : public entry::AppI
 						bgfx::setUniform(u_mtx, invMvp);
 						const uint16_t scissorHeight = uint16_t(y1-y0);
 						bgfx::setScissor(uint16_t(x0), m_height-scissorHeight-uint16_t(y0), uint16_t(x1-x0), scissorHeight);
-						bgfx::setTexture(0, s_normal, m_gbuffer, 1);
-						bgfx::setTexture(1, s_depth,  m_gbuffer, 2);
+						bgfx::setTexture(0, s_normal, bgfx::getTexture(m_gbuffer, 1) );
+						bgfx::setTexture(1, s_depth,  bgfx::getTexture(m_gbuffer, 2) );
 						bgfx::setState(0
 								| BGFX_STATE_RGB_WRITE
 								| BGFX_STATE_ALPHA_WRITE
@@ -699,8 +699,8 @@ class ExampleDeferred : public entry::AppI
 				}
 
 				// Combine color and light buffers.
-				bgfx::setTexture(0, s_albedo, m_gbuffer,     0);
-				bgfx::setTexture(1, s_light,  m_lightBuffer, 0);
+				bgfx::setTexture(0, s_albedo, bgfx::getTexture(m_gbuffer,     0) );
+				bgfx::setTexture(1, s_light,  bgfx::getTexture(m_lightBuffer, 0) );
 				bgfx::setState(0
 						| BGFX_STATE_RGB_WRITE
 						| BGFX_STATE_ALPHA_WRITE

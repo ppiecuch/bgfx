@@ -6,9 +6,9 @@
 #include "shaderc.h"
 #include "glsl_optimizer.h"
 
-namespace bgfx
+namespace bgfx { namespace glsl
 {
-	bool compileGLSLShader(bx::CommandLine& _cmdLine, uint32_t _gles, const std::string& _code, bx::WriterI* _writer)
+	static bool compile(bx::CommandLine& _cmdLine, uint32_t _version, const std::string& _code, bx::WriterI* _writer)
 	{
 		char ch = char(tolower(_cmdLine.findOption('\0', "type")[0]) );
 		const glslopt_shader_type type = ch == 'f'
@@ -16,7 +16,7 @@ namespace bgfx
 			: (ch == 'c' ? kGlslOptShaderCompute : kGlslOptShaderVertex);
 
 		glslopt_target target = kGlslTargetOpenGL;
-		switch (_gles)
+		switch (_version)
 		{
 		case BX_MAKEFOURCC('M', 'T', 'L', 0):
 			target = kGlslTargetMetal;
@@ -42,20 +42,24 @@ namespace bgfx
 		if (!glslopt_get_status(shader) )
 		{
 			const char* log = glslopt_get_log(shader);
-			int32_t source = 0;
-			int32_t line = 0;
-			int32_t column = 0;
-			int32_t start = 0;
-			int32_t end = INT32_MAX;
+			int32_t source  = 0;
+			int32_t line    = 0;
+			int32_t column  = 0;
+			int32_t start   = 0;
+			int32_t end     = INT32_MAX;
 
-			if (3 == sscanf(log, "%u:%u(%u):", &source, &line, &column)
+			bool found = false
+				|| 3 == sscanf(log, "%u:%u(%u):", &source, &line, &column)
+				;
+
+			if (found
 			&&  0 != line)
 			{
 				start = bx::uint32_imax(1, line-10);
-				end = start + 20;
+				end   = start + 20;
 			}
 
-			printCode(_code.c_str(), line, start, end);
+			printCode(_code.c_str(), line, start, end, column);
 			fprintf(stderr, "Error: %s\n", log);
 			glslopt_cleanup(ctx);
 			return false;
@@ -69,7 +73,7 @@ namespace bgfx
 			optimizedShader = bx::strnl(optimizedShader);
 		}
 
-		if (0 != _gles)
+		if (0 != _version)
 		{
 			char* code = const_cast<char*>(optimizedShader);
 			strReplace(code, "gl_FragDepthEXT", "gl_FragDepth");
@@ -87,6 +91,7 @@ namespace bgfx
 
 		UniformArray uniforms;
 
+		if (target != kGlslTargetMetal)
 		{
 			const char* parse = optimizedShader;
 
@@ -177,6 +182,65 @@ namespace bgfx
 				}
 			}
 		}
+		else
+		{
+			const char* parse = strstr(optimizedShader, "struct xlatMtlShaderUniform {");
+			const char* end   = parse;
+			if (NULL != parse)
+			{
+				parse += strlen("struct xlatMtlShaderUniform {");
+				end   = strstr(parse, "};");
+			}
+
+			while ( parse < end
+			&&     *parse != '\0')
+			{
+				parse = bx::strws(parse);
+				const char* eol = strchr(parse, ';');
+				if (NULL != eol)
+				{
+					const char* typen = parse;
+
+					char uniformType[256];
+					parse = bx::strword(parse);
+					bx::strlcpy(uniformType, typen, parse-typen+1);
+					const char* name = parse = bx::strws(parse);
+
+					char uniformName[256];
+					uint8_t num = 1;
+					const char* array = bx::strnstr(name, "[", eol-parse);
+					if (NULL != array)
+					{
+						bx::strlcpy(uniformName, name, array-name+1);
+
+						char arraySize[32];
+						const char* end = bx::strnstr(array, "]", eol-array);
+						bx::strlcpy(arraySize, array+1, end-array);
+						num = uint8_t(atoi(arraySize) );
+					}
+					else
+					{
+						bx::strlcpy(uniformName, name, eol-name+1);
+					}
+
+					Uniform un;
+					un.type = nameToUniformTypeEnum(uniformType);
+
+					if (UniformType::Count != un.type)
+					{
+						BX_TRACE("name: %s (type %d, num %d)", uniformName, un.type, num);
+
+						un.name = uniformName;
+						un.num = num;
+						un.regIndex = 0;
+						un.regCount = num;
+						uniforms.push_back(un);
+					}
+
+					parse = eol + 1;
+				}
+			}
+		}
 
 		uint16_t count = (uint16_t)uniforms.size();
 		bx::write(_writer, count);
@@ -218,6 +282,13 @@ namespace bgfx
 		glslopt_cleanup(ctx);
 
 		return true;
+	}
+
+} // namespace glsl
+
+	bool compileGLSLShader(bx::CommandLine& _cmdLine, uint32_t _version, const std::string& _code, bx::WriterI* _writer)
+	{
+		return glsl::compile(_cmdLine, _version, _code, _writer);
 	}
 
 } // namespace bgfx
