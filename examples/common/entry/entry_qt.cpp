@@ -5,6 +5,7 @@
  */
 
 #include "entry_p.h"
+#include "osx_utils.h"
 
 #ifdef QT_GUI_LIB
 
@@ -201,7 +202,7 @@ namespace entry
 			pd.nwh          = (void*)(uintptr_t)wmi.info.x11.window;
 	# elif BX_PLATFORM_OSX
 			pd.ndt          = NULL;
-			pd.nwh          = reinterpret_cast<void*>(m_window->winId());
+			pd.nwh          = get_nswindow_from_nsview(reinterpret_cast<void*>(m_window->winId()));
 	# elif BX_PLATFORM_WINDOWS
 			pd.ndt          = NULL;
 			pd.nwh          = m_window->winId();

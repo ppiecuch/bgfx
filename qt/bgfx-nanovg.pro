@@ -28,6 +28,7 @@ SOURCES += \
     ../examples/common/imgui/imgui-amalgamated.cpp \
     ../examples/common/nanovg/nanovg-amalgamated.cpp \
     ../examples/common/bgfx_utils.cpp \
+    ../examples/common/osx_utils.mm \
     ../examples/common/entry/dbg.cpp \
     ../examples/common/entry/cmd.cpp \
     ../examples/common/entry/input.cpp \
@@ -45,6 +46,7 @@ SOURCES += \
 
 HEADERS += \
     ../examples/common/bgfx_utils.h \
+    ../examples/common/osx_utils.h \
     ../3rdparty/ib-compress/indexbuffercompression.h \
     ../3rdparty/ib-compress/indexbuffercompressionformat.h \
     ../3rdparty/ib-compress/indexbufferdecompression.h \

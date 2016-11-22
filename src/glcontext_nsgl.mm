@@ -97,14 +97,15 @@ namespace bgfx { namespace gl
 			NSOpenGLPixelFormat* pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:pixelFormatAttributes];
 			BGFX_FATAL(NULL != pixelFormat, Fatal::UnableToInitialize, "Failed to initialize pixel format.");
 
-			NSRect glViewRect = [[nsWindow contentView] bounds];
+            NSView *contentView = [nsWindow contentView];
+
+            NSRect glViewRect = [contentView bounds];
 			NSOpenGLView* glView = [[NSOpenGLView alloc] initWithFrame:glViewRect pixelFormat:pixelFormat];
 
 			[pixelFormat release];
             // GLFW creates a helper contentView that handles things like keyboard and drag and
             // drop events. We don't want to clobber that view if it exists. Instead we just
             // add ourselves as a subview and make the view resize automatically.
-            NSView *contentView = [nsWindow contentView];
             if( contentView != nil )
             {
                 [glView setAutoresizingMask:( NSViewHeightSizable |
