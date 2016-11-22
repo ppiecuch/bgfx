@@ -30,7 +30,7 @@
 			|| BX_PLATFORM_WINDOWS \
 			)
 
-#ifdef QT_GUI_LIB
+#if defined(BX_PLATFORM_QT)
 #       include <qopengl.h>
 # ifdef QT_OPENGLEXTENSIONS_LIB
 #       undef __glext_h_

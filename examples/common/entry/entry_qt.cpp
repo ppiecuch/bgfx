@@ -48,18 +48,10 @@ namespace entry
 
 	  if(type >= level) {
 	    switch (type) {
-	    case QtDebugMsg:
-	      fprintfMsg("Debug", context, msg);
-	      break;
-	    case QtWarningMsg:
-	      fprintfMsg("Warning", context, msg);
-	      break;
-	    case QtCriticalMsg:
-	      fprintfMsg("Critical", context, msg);
-	      break;
-	    case QtFatalMsg:
-	      fprintfMsg("Fatal", context, msg);
-	      exit(EXIT_FAILURE);
+	    case QtDebugMsg: fprintfMsg("Debug", context, msg); break;
+	    case QtWarningMsg: fprintfMsg("Warning", context, msg); break;
+	    case QtCriticalMsg: fprintfMsg("Critical", context, msg); break;
+	    case QtFatalMsg: fprintfMsg("Fatal", context, msg); exit(EXIT_FAILURE);
 	    }
 	  }
 	}
@@ -175,7 +167,6 @@ namespace entry
 	    _time.start();
 	  }
 
-
 	  QOpenGLContext *_context;
     
 	  bool _alwaysRefresh;
@@ -203,7 +194,25 @@ namespace entry
 			m_window = new OpenGLWindow;
 			m_window->resize(640, 480);
 			m_window->setTitle(QFileInfo(_argv[0]).fileName());
-			bgfx::qtSetWindow(m_window);
+			
+			bgfx::PlatformData pd;
+	# if BX_PLATFORM_LINUX || BX_PLATFORM_BSD
+			pd.ndt          = NULL;
+			pd.nwh          = (void*)(uintptr_t)wmi.info.x11.window;
+	# elif BX_PLATFORM_OSX
+			pd.ndt          = NULL;
+			pd.nwh          = reinterpret_cast<void*>(m_window->winId());
+	# elif BX_PLATFORM_WINDOWS
+			pd.ndt          = NULL;
+			pd.nwh          = m_window->winId();
+	# elif BX_PLATFORM_STEAMLINK
+			pd.ndt          = NULL;
+			pd.nwh          = m_window->winId();;
+	# endif // BX_PLATFORM_
+			pd.context      = NULL;
+			pd.backBuffer   = NULL;
+			pd.backBufferDS = NULL;
+			bgfx::setPlatformData(pd);
 
 			m_window->show();
       		m_window->setWindowInitialized();
