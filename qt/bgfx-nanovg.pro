@@ -27,6 +27,7 @@ SOURCES += \
     \
     ../examples/common/imgui/imgui-amalgamated.cpp \
     ../examples/common/nanovg/nanovg-amalgamated.cpp \
+    ../examples/common/qt_io.cpp \
     ../examples/common/bgfx_utils.cpp \
     ../examples/common/osx_utils.mm \
     ../examples/common/entry/dbg.cpp \
@@ -53,6 +54,8 @@ HEADERS += \
     ../3rdparty/ib-compress/indexcompressionconstants.h \
     ../3rdparty/ib-compress/readbitstream.h \
     ../3rdparty/ib-compress/writebitstream.h
+
+RESOURCES += assets.qrc runtime.qrc
 
 include("common.pri")
 include("QtBgfx/QtBgfx.pri")

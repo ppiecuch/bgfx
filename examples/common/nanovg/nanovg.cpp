@@ -831,7 +831,7 @@ int nvgCreateImage(NVGcontext* ctx, const char* filename, int imageFlags)
 	stbi_convert_iphone_png_to_rgb(1);
 	img = stbi_load(filename, &w, &h, &n, 4);
 	if (img == NULL) {
-		// printf("Failed to load %s - %s\n", filename, stbi_failure_reason());
+		printf("Failed to load %s - %s\n", filename, stbi_failure_reason());
 		return 0;
 	}
 	image = nvgCreateImageRGBA(ctx, w, h, imageFlags, img);
@@ -844,7 +844,7 @@ int nvgCreateImageMem(NVGcontext* ctx, int imageFlags, unsigned char* data, int 
 	int w, h, n, image;
 	unsigned char* img = stbi_load_from_memory(data, ndata, &w, &h, &n, 4);
 	if (img == NULL) {
-//		printf("Failed to load %s - %s\n", filename, stbi_failure_reason());
+        printf("Failed to load image data %s\n", stbi_failure_reason());
 		return 0;
 	}
 	image = nvgCreateImageRGBA(ctx, w, h, imageFlags, img);

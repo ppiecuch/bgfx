@@ -877,6 +877,17 @@ error:
 	return FONS_INVALID;
 }
 
+#ifdef QT_CORE_LIB
+# ifdef __cplusplus
+extern "C" {
+# endif
+ long qFileSize(const char *filename);
+ long qReadFile(const char *filename, char *buffer, long maxSize);
+# ifdef __cplusplus
+}
+# endif
+#endif
+
 int fonsAddFont(FONScontext* stash, const char* name, const char* path)
 {
 	FILE* fp = 0;
@@ -885,7 +896,17 @@ int fonsAddFont(FONScontext* stash, const char* name, const char* path)
 
 	// Read in the font data.
 	fp = fopen(path, "rb");
-	if (fp == NULL) goto error;
+	if (fp == NULL) {
+# ifdef QT_CORE_LIB
+		dataSize = qFileSize(path);
+		if (dataSize > 0) {
+			data = (unsigned char*)malloc(dataSize);
+			qReadFile(path, (char*)data, dataSize);
+			goto ret;
+		}
+# endif
+        goto error;
+    }
 	fseek(fp,0,SEEK_END);
 	dataSize = (int)ftell(fp);
 	fseek(fp,0,SEEK_SET);
@@ -895,6 +916,7 @@ int fonsAddFont(FONScontext* stash, const char* name, const char* path)
 	fclose(fp);
 	fp = 0;
 
+ret:
 	return fonsAddFontMem(stash, name, data, dataSize, 1);
 
 error:

@@ -20,6 +20,7 @@
 #include <QTime>
 #include <QKeyEvent>
 #include <QFileInfo>
+#include <QDirIterator>
 #include <QWindow>
 #include <QSurfaceFormat>
 #include <QOpenGLContext>

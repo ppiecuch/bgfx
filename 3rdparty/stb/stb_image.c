@@ -1039,6 +1039,17 @@ static void stbi__float_postprocess(float *result, int *x, int *y, int *comp, in
 
 #ifndef STBI_NO_STDIO
 
+#ifdef QT_CORE_LIB
+# ifdef __cplusplus
+extern "C" {
+# endif
+ long qFileSize(const char *filename);
+ long qReadFile(const char *filename, char *buffer, long maxSize);
+# ifdef __cplusplus
+}
+# endif
+#endif
+
 static FILE *stbi__fopen(char const *filename, char const *mode)
 {
    FILE *f;
@@ -1056,6 +1067,20 @@ STBIDEF stbi_uc *stbi_load(char const *filename, int *x, int *y, int *comp, int 
 {
    FILE *f = stbi__fopen(filename, "rb");
    unsigned char *result;
+# ifdef QT_CORE_LIB
+   if (f == NULL) {
+		int data_size = qFileSize(filename);
+		if (data_size > 0) {
+            stbi_uc *data = (stbi_uc*)malloc(data_size);
+			if (data) {
+				qReadFile(filename,(char*)data,data_size);
+				result = stbi_load_from_memory(data,data_size,x,y,comp,req_comp);
+				free(data);
+				return result;
+			}
+		}
+   }
+# endif
    if (!f) return stbi__errpuc("can't fopen", "Unable to open file");
    result = stbi_load_from_file(f,x,y,comp,req_comp);
    fclose(f);
