@@ -132,6 +132,8 @@ namespace entry
         	initializeOpenGLFunctions();
         	initializeWindow();
         	_isGLInitialized = true;
+            // update title with version info
+            setTitle(QString("%1 (Qt %2/%3)").arg(title()).arg(QT_VERSION_STR).arg((char*)glGetString(GL_RENDERER)));
     	}
 	  }
 	  void requestRefresh() {
