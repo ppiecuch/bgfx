@@ -194,7 +194,7 @@ namespace entry
 			QObject::connect( m_app, &QGuiApplication::lastWindowClosed, &_finishCtx );
 
 			m_window = new OpenGLWindow;
-			m_window->resize(640, 480);
+			m_window->resize(ENTRY_DEFAULT_WIDTH, ENTRY_DEFAULT_HEIGHT);
 			m_window->setTitle(QFileInfo(_argv[0]).fileName());
 			
 			bgfx::PlatformData pd;
