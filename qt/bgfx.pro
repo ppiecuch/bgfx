@@ -3,7 +3,8 @@ CONFIG = ordered
 SUBDIRS = \
     libbgfx \
     bgfx-nanovg \
-    bgfx-vectordisplay
+    bgfx-vectordisplay \
+    bgfx-wireframe
     
 libbgfx.file = libbgfx.pro
 bgfx-helloworld.file = bgfx-helloworld.pro
