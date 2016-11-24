@@ -58,17 +58,67 @@ namespace entry
 	  }
 	}
   
+
+    // --- bgfx Context
+
+    class OpenGLWindow;
+
+	struct Context
+	{
+		Context() : m_window(0), m_scrollPos(0) { }
+		~Context();
+
+        int run(int _argc, char** _argv);
+		
+        WindowHandle findHandle(OpenGLWindow *window) { return { UINT16_MAX }; }
+
+        void processEvents() { m_app->processEvents(); }
+
+		EventQueue m_eventQueue;
+
+		static QGuiApplication *m_app;
+		OpenGLWindow *m_window;
+		double m_scrollPos;
+	};
+
+    QGuiApplication *Context::m_app = 0;
+
+	Context s_ctx;
+
+    // -- Qt
+
+	static MouseButton::Enum translateMouseButton(Qt::MouseButtons buttons)
+	{
+		if (buttons & Qt::LeftButton) {
+			return MouseButton::Left;
+		} else if (buttons & Qt::RightButton) {
+			return MouseButton::Right;
+		}
+
+		return MouseButton::Middle;
+	}
+
+	static MouseButton::Enum translateMouseButton(Qt::MouseButton button)
+	{
+		if (button == Qt::LeftButton) {
+			return MouseButton::Left;
+		} else if (button == Qt::RightButton) {
+			return MouseButton::Right;
+		}
+
+		return MouseButton::Middle;
+	}
+
 	class OpenGLWindow : public QWindow, public QOpenGLFunctions
 	{
 	  Q_OBJECT
 	  Q_PROPERTY(bool alwaysRefresh READ alwaysRefresh WRITE setAlwaysRefresh)
 
-  
-  private:
-    bool _isGLInitialized;
-    bool _isWindowInitialized;
-  public:
-    void setWindowInitialized() { _isWindowInitialized = true; }
+	private:
+	  bool _isGLInitialized;
+	  bool _isWindowInitialized;
+	public:
+	  void setWindowInitialized() { _isWindowInitialized = true; }
 
 	public:
 	  explicit OpenGLWindow(QScreen *screen = 0) : QWindow(screen),
@@ -123,6 +173,46 @@ namespace entry
 		    QApplication::exit(EXIT_SUCCESS); break;
 	    }
 	  }
+	  void mousePressEvent(QMouseEvent *event) {
+		WindowHandle handle = s_ctx.findHandle(this);
+		const bool down = true;
+		s_ctx.m_eventQueue.postMouseEvent(handle
+			, (int32_t) event->x()
+			, (int32_t) event->y()
+			, (int32_t) s_ctx.m_scrollPos
+			, translateMouseButton(event->buttons())
+			, down
+			);
+      }
+	  void mouseReleaseEvent(QMouseEvent *event) {
+		WindowHandle handle = s_ctx.findHandle(this);
+		const bool down = false;
+		s_ctx.m_eventQueue.postMouseEvent(handle
+			, (int32_t) event->x()
+			, (int32_t) event->y()
+			, (int32_t) s_ctx.m_scrollPos
+			, translateMouseButton(event->button())
+			, down
+			);
+      }
+	  void mouseMoveEvent(QMouseEvent *event) {
+		WindowHandle handle = s_ctx.findHandle(this);
+		s_ctx.m_eventQueue.postMouseEvent(handle
+			, (int32_t) event->x()
+			, (int32_t) event->y()
+			, (int32_t) s_ctx.m_scrollPos
+			);
+      }
+	  void mouseWheelEvent(QWheelEvent *event) {
+		WindowHandle handle = s_ctx.findHandle(this);
+        const float step = event->delta() / 240.0;
+		s_ctx.m_scrollPos += step;
+		s_ctx.m_eventQueue.postMouseEvent(handle
+			, (int32_t) event->x()
+			, (int32_t) event->y()
+			, (int32_t) s_ctx.m_scrollPos
+			);
+      }
 
 	public slots:
 	  void render() {
@@ -180,61 +270,45 @@ namespace entry
 
 	static void _finishCtx();
 
-	struct Context
-	{
-		Context() : m_app(0), m_window(0)
-		{
-		}
-		~Context()
-		{
-			m_window->close();
-			m_app->exit();
-		}
-		int run(int _argc, char** _argv)
-		{
-			m_app = new QGuiApplication(_argc, _argv);
-			QObject::connect( m_app, &QGuiApplication::lastWindowClosed, &_finishCtx );
+    Context::~Context()
+    {
+        m_window->close();
+        m_app->exit();
+    }
+    int Context::run(int _argc, char** _argv)
+    {
+        if (0 == m_app)
+            m_app = new QGuiApplication(_argc, _argv);
+        QObject::connect( m_app, &QGuiApplication::lastWindowClosed, &_finishCtx );
 
-			m_window = new OpenGLWindow;
-			m_window->resize(ENTRY_DEFAULT_WIDTH, ENTRY_DEFAULT_HEIGHT);
-			m_window->setTitle(QFileInfo(_argv[0]).fileName());
-			
-			bgfx::PlatformData pd;
-	# if BX_PLATFORM_LINUX || BX_PLATFORM_BSD
-			pd.ndt          = NULL;
-			pd.nwh          = (void*)(uintptr_t)wmi.info.x11.window;
-	# elif BX_PLATFORM_OSX
-			pd.ndt          = NULL;
-			pd.nwh          = get_nswindow_from_nsview(reinterpret_cast<void*>(m_window->winId()));
-	# elif BX_PLATFORM_WINDOWS
-			pd.ndt          = NULL;
-			pd.nwh          = m_window->winId();
-	# elif BX_PLATFORM_STEAMLINK
-			pd.ndt          = NULL;
-			pd.nwh          = m_window->winId();;
-	# endif // BX_PLATFORM_
-			pd.context      = NULL;
-			pd.backBuffer   = NULL;
-			pd.backBufferDS = NULL;
-			bgfx::setPlatformData(pd);
+        m_window = new OpenGLWindow;
+        m_window->resize(ENTRY_DEFAULT_WIDTH, ENTRY_DEFAULT_HEIGHT);
+        m_window->setTitle(QFileInfo(_argv[0]).fileName());
+        
+        bgfx::PlatformData pd;
+# if BX_PLATFORM_LINUX || BX_PLATFORM_BSD
+        pd.ndt          = NULL;
+        pd.nwh          = (void*)(uintptr_t)wmi.info.x11.window;
+# elif BX_PLATFORM_OSX
+        pd.ndt          = NULL;
+        pd.nwh          = get_nswindow_from_nsview(reinterpret_cast<void*>(m_window->winId()));
+# elif BX_PLATFORM_WINDOWS
+        pd.ndt          = NULL;
+        pd.nwh          = m_window->winId();
+# elif BX_PLATFORM_STEAMLINK
+        pd.ndt          = NULL;
+        pd.nwh          = m_window->winId();;
+# endif // BX_PLATFORM_
+        pd.context      = NULL;
+        pd.backBuffer   = NULL;
+        pd.backBufferDS = NULL;
+        bgfx::setPlatformData(pd);
 
-			m_window->show();
-      		m_window->setWindowInitialized();
-			
-			return entry::main(_argc, _argv);
-		}	  
-		void processEvents()
-		{
-			m_app->processEvents();
-		}
-
-		EventQueue m_eventQueue;
-
-		QGuiApplication *m_app;
-		OpenGLWindow *m_window;
-	};
-
-	Context s_ctx;
+        m_window->show();
+        m_window->setWindowInitialized();
+        
+        return entry::main(_argc, _argv);
+    }	  
 
 	static void _finishCtx() { s_ctx.m_eventQueue.postExitEvent(); }
 
