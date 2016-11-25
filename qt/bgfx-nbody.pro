@@ -1,6 +1,6 @@
 # Generated Thu Nov 24 20:10:26 CET 2016
 
-SOURCES += ../examples/28-wireframe/wireframe.cpp
+SOURCES += ../examples/24-nbody/nbody.cpp
 HEADERS += 
 
 include("common-demo.pri")

@@ -11,49 +11,53 @@
 #include <bx/uint32_t.h>
 #include <bx/crtimpl.h>
 
-struct DebugVertex
-{
-	float m_x;
-	float m_y;
-	float m_z;
-	float m_len;
-	uint32_t m_abgr;
+namespace {
+    struct DebugVertex
+    {
+        float m_x;
+        float m_y;
+        float m_z;
+        float m_len;
+        uint32_t m_abgr;
 
-	static void init()
-	{
-		ms_decl
-			.begin()
-			.add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float)
-			.add(bgfx::Attrib::TexCoord0, 1, bgfx::AttribType::Float)
-			.add(bgfx::Attrib::Color0,    4, bgfx::AttribType::Uint8, true)
-			.end();
-	}
+        static void init()
+        {
+            ms_decl
+                .begin()
+                .add(bgfx::Attrib::Position,  3, bgfx::AttribType::Float)
+                .add(bgfx::Attrib::TexCoord0, 1, bgfx::AttribType::Float)
+                .add(bgfx::Attrib::Color0,    4, bgfx::AttribType::Uint8, true)
+                .end();
+        }
 
-	static bgfx::VertexDecl ms_decl;
-};
+        static bgfx::VertexDecl ms_decl;
+    };
 
-bgfx::VertexDecl DebugVertex::ms_decl;
+    bgfx::VertexDecl DebugVertex::ms_decl;
+}
 
-struct DebugShapeVertex
-{
-	float m_x;
-	float m_y;
-	float m_z;
-	uint8_t m_indices[4];
+namespace {
+    struct DebugShapeVertex
+    {
+        float m_x;
+        float m_y;
+        float m_z;
+        uint8_t m_indices[4];
 
-	static void init()
-	{
-		ms_decl
-			.begin()
-			.add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
-			.add(bgfx::Attrib::Indices,  4, bgfx::AttribType::Uint8)
-			.end();
-	}
+        static void init()
+        {
+            ms_decl
+                .begin()
+                .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+                .add(bgfx::Attrib::Indices,  4, bgfx::AttribType::Uint8)
+                .end();
+        }
 
-	static bgfx::VertexDecl ms_decl;
-};
+        static bgfx::VertexDecl ms_decl;
+    };
 
-bgfx::VertexDecl DebugShapeVertex::ms_decl;
+    bgfx::VertexDecl DebugShapeVertex::ms_decl;
+}
 
 static DebugShapeVertex s_cubeVertices[8] =
 {

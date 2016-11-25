@@ -65,7 +65,7 @@ namespace entry
 
 	struct Context
 	{
-		Context() : m_window(0), m_scrollPos(0) { }
+		Context() : m_window(0), m_scroll(0) { }
 		~Context();
 
         int run(int _argc, char** _argv);
@@ -78,7 +78,8 @@ namespace entry
 
 		static QGuiApplication *m_app;
 		OpenGLWindow *m_window;
-		double m_scrollPos;
+        QPoint m_pos;
+		double m_scroll;
 	};
 
     QGuiApplication *Context::m_app = 0;
@@ -164,7 +165,14 @@ namespace entry
 	    }
 	  }
 	  void exposeEvent(QExposeEvent *event) { requestRefresh(); }
-	  void resizeEvent(QResizeEvent *event) { requestRefresh(); }
+	  void resizeEvent(QResizeEvent *event) { 
+		WindowHandle handle = s_ctx.findHandle(this);
+        s_ctx.m_eventQueue.postSizeEvent(handle, event->size().width(), event->size().height());
+		// Make sure mouse button state is 'up' after resize.
+		s_ctx.m_eventQueue.postMouseEvent(handle, s_ctx.m_pos.x(), s_ctx.m_pos.y(), s_ctx.m_scroll, MouseButton::Left,  false);
+		s_ctx.m_eventQueue.postMouseEvent(handle, s_ctx.m_pos.x(), s_ctx.m_pos.y(), s_ctx.m_scroll, MouseButton::Right, false);
+        requestRefresh();
+      }
 	  void keyPressEvent(QKeyEvent *event) {
 	    switch (event->key()) {
 	    case Qt::Key_Q :
@@ -176,10 +184,11 @@ namespace entry
 	  void mousePressEvent(QMouseEvent *event) {
 		WindowHandle handle = s_ctx.findHandle(this);
 		const bool down = true;
+        s_ctx.m_pos = QPoint(event->x(), event->y());
 		s_ctx.m_eventQueue.postMouseEvent(handle
 			, (int32_t) event->x()
 			, (int32_t) event->y()
-			, (int32_t) s_ctx.m_scrollPos
+			, (int32_t) s_ctx.m_scroll
 			, translateMouseButton(event->buttons())
 			, down
 			);
@@ -187,30 +196,33 @@ namespace entry
 	  void mouseReleaseEvent(QMouseEvent *event) {
 		WindowHandle handle = s_ctx.findHandle(this);
 		const bool down = false;
+        s_ctx.m_pos = QPoint(event->x(), event->y());
 		s_ctx.m_eventQueue.postMouseEvent(handle
 			, (int32_t) event->x()
 			, (int32_t) event->y()
-			, (int32_t) s_ctx.m_scrollPos
+			, (int32_t) s_ctx.m_scroll
 			, translateMouseButton(event->button())
 			, down
 			);
       }
 	  void mouseMoveEvent(QMouseEvent *event) {
 		WindowHandle handle = s_ctx.findHandle(this);
+        s_ctx.m_pos = QPoint(event->x(), event->y());
 		s_ctx.m_eventQueue.postMouseEvent(handle
 			, (int32_t) event->x()
 			, (int32_t) event->y()
-			, (int32_t) s_ctx.m_scrollPos
+			, (int32_t) s_ctx.m_scroll
 			);
       }
 	  void mouseWheelEvent(QWheelEvent *event) {
 		WindowHandle handle = s_ctx.findHandle(this);
         const float step = event->delta() / 240.0;
-		s_ctx.m_scrollPos += step;
+        s_ctx.m_pos = QPoint(event->x(), event->y());
+		s_ctx.m_scroll += step;
 		s_ctx.m_eventQueue.postMouseEvent(handle
 			, (int32_t) event->x()
 			, (int32_t) event->y()
-			, (int32_t) s_ctx.m_scrollPos
+			, (int32_t) s_ctx.m_scroll
 			);
       }
 

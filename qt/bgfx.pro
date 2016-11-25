@@ -2,10 +2,39 @@ TEMPLATE = subdirs
 CONFIG = ordered
 SUBDIRS = \
     libbgfx \
+    bgfx-helloworld \
+    bgfx-cubes \
+    bgfx-metaballs \
+    bgfx-raymarch \
+    bgfx-mesh \
+    bgfx-instancing \
+    bgfx-bump \
+    bgfx-callback \
+    bgfx-update \
+    bgfx-hdr \
+    bgfx-font \
+    bgfx-fontsdf \
+    bgfx-lod \
+    bgfx-stencil \
+    bgfx-shadowvolumes \
+    bgfx-shadowmaps-simple \
+    bgfx-shadowmaps \
+    bgfx-drawstress \
+    bgfx-ibl \
+    bgfx-oit \
     bgfx-nanovg \
+    bgfx-deferred \
+    bgfx-windows \
     bgfx-vectordisplay \
-    bgfx-wireframe
-    
+    bgfx-nbody \
+    bgfx-c99 \
+    bgfx-occlusion \
+    bgfx-terrain \
+    bgfx-wireframe \
+    bgfx-debugdraw \
+    bgfx-picking \
+    bgfx-rsm
+
 libbgfx.file = libbgfx.pro
 bgfx-helloworld.file = bgfx-helloworld.pro
 bgfx-cubes.file = bgfx-cubes.pro
