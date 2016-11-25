@@ -3,10 +3,10 @@ CONFIG(debug, debug|release): DBG = dbg
 else: DBG = rel
 
 DESTDIR = $$PWD/build-$$[QMAKE_SPEC]$$C11
-OBJECTS_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/$${TARGET}.$$DBG
-MOC_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/$${TARGET}.$$DBG
-UI_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/$${TARGET}.$$DBG
-RCC_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/$${TARGET}.$$DBG
+OBJECTS_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/bgfx-objects.$$DBG
+MOC_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/bgfx-objects.$$DBG
+UI_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/bgfx-objects.$$DBG
+RCC_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/bgfx-objects.$$DBG
 
 DEFINES += BGFX_CONFIG_DEBUG BGFX_CONFIG_RENDERER_OPENGL=1
 
