@@ -1,3 +1,10 @@
+Qt notes:
+============================================================================
+  * qmake bgfx.pro should be enough to prepared and build library and all examples
+  * I am using slightly modified version of bx library (using Qt for threading, synchronization and io) - snapshost is in the bx-qt subdirectory
+  * to simplifie deployment all assset are embedded into executable - so the size of the file is quite big
+
+
 [bgfx](https://github.com/bkaradzic/bgfx) - Cross-platform rendering library
 ============================================================================
 

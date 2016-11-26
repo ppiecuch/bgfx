@@ -214,6 +214,7 @@ namespace entry
 			, (int32_t) s_ctx.m_scroll
 			);
       }
+#ifndef QT_NO_WHEELEVENT
 	  void mouseWheelEvent(QWheelEvent *event) {
 		WindowHandle handle = s_ctx.findHandle(this);
         const float step = event->delta() / 240.0;
@@ -225,6 +226,7 @@ namespace entry
 			, (int32_t) s_ctx.m_scroll
 			);
       }
+#endif
 
 	public slots:
 	  void render() {
