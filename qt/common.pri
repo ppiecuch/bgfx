@@ -21,5 +21,18 @@ macx {
     INCLUDEPATH += $$PWD/../3rdparty/bx/include/compat/osx
     LIBS += -framework Foundation -framework AppKit
 }
-win: INCLUDEPATH += $$PWD/../3rdparty/bx/include/compat/msvc
-linux: INCLUDEPATH += $$PWD/../3rdparty/bx/include/compat/freebsd
+ios {
+    INCLUDEPATH += $$PWD/../3rdparty/bx/include/compat/ios
+    LIBS += -framework Foundation
+}
+win32 {
+    msvc {
+        INCLUDEPATH += $$PWD/../3rdparty/bx/include/compat/msvc
+    }
+    gcc {
+        INCLUDEPATH += $$PWD/../3rdparty/bx/include/compat/mingw
+    }
+}
+linux {
+    INCLUDEPATH += $$PWD/../3rdparty/bx/include/compat/freebsd
+}
