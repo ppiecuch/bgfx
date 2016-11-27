@@ -178,6 +178,7 @@ namespace stl = tinystl;
 #	include <unordered_map>
 #	include <unordered_set>
 #	include <vector>
+namespace stl = std;
 #endif // BGFX_CONFIG_USE_TINYSTL
 
 #if BX_PLATFORM_ANDROID
@@ -4012,7 +4013,7 @@ namespace bgfx
 		void rendererExecCommands(CommandBuffer& _cmdbuf);
 
 #if BGFX_CONFIG_MULTITHREADED
-		void gameSemPost()
+		void apiSemPost()
 		{
 			if (!m_singleThreaded)
 			{
@@ -4065,7 +4066,7 @@ namespace bgfx
 		bx::Semaphore m_apiSem;
 		bx::Thread m_thread;
 #else
-		void gameSemPost()
+		void apiSemPost()
 		{
 		}
 
