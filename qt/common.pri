@@ -8,8 +8,15 @@ MOC_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/bgfx-objects.$$DBG
 UI_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/bgfx-objects.$$DBG
 RCC_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/bgfx-objects.$$DBG
 
-DEFINES += BGFX_CONFIG_DEBUG BGFX_CONFIG_RENDERER_OPENGL=1
+DEFINES += \
+	BGFX_CONFIG_DEBUG \
+	BGFX_CONFIG_RENDERER_OPENGL=1
 
+DEFINES += \
+	__STDC_LIMIT_MACROS \
+	__STDC_FORMAT_MACROS \
+	__STDC_CONSTANT_MACROS
+ 
 INCLUDEPATH += \
     $$PWD/../3rdparty/bx/include \
     $$PWD/../3rdparty/khronos \
@@ -26,12 +33,9 @@ ios {
     LIBS += -framework Foundation
 }
 win32 {
-    msvc {
-        INCLUDEPATH += $$PWD/../3rdparty/bx/include/compat/msvc
-    }
-    gcc {
-        INCLUDEPATH += $$PWD/../3rdparty/bx/include/compat/mingw
-    }
+	msvc*: INCLUDEPATH += $$PWD/../3rdparty/bx/include/compat/msvc
+	gcc*: INCLUDEPATH += $$PWD/../3rdparty/bx/include/compat/mingw
+	LIBS += -lgdi32 -luser32
 }
 linux {
     INCLUDEPATH += $$PWD/../3rdparty/bx/include/compat/freebsd

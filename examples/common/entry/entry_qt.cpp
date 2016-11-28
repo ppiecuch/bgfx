@@ -308,10 +308,10 @@ namespace entry
         pd.nwh          = get_nswindow_from_nsview(reinterpret_cast<void*>(m_window->winId()));
 # elif BX_PLATFORM_WINDOWS
         pd.ndt          = NULL;
-        pd.nwh          = m_window->winId();
+        pd.nwh          = (void*)(uintptr_t)m_window->winId();
 # elif BX_PLATFORM_STEAMLINK
         pd.ndt          = NULL;
-        pd.nwh          = m_window->winId();;
+        pd.nwh          = (void*)(uintptr_t)m_window->winId();
 # endif // BX_PLATFORM_
         pd.context      = NULL;
         pd.backBuffer   = NULL;

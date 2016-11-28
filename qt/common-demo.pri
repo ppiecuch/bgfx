@@ -5,16 +5,18 @@ QT += \
 CONFIG += c++11 debug
 CONFIG -= app_bundle
 
+macx|ios: SOURCES += \
+    ../src/amalgamated.mm \
+    ../examples/common/osx_utils.mm
+
 SOURCES += \
     ../src/amalgamated.cpp \
-    ../src/amalgamated.mm \
     \
     ../examples/common/bounds.cpp \
     ../examples/common/camera.cpp \
     ../examples/common/cube_atlas.cpp \
     ../examples/common/qt_io.cpp \
     ../examples/common/bgfx_utils.cpp \
-    ../examples/common/osx_utils.mm \
     \
     ../examples/common/entry/dbg.cpp \
     ../examples/common/entry/cmd.cpp \
