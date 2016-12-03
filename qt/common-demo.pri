@@ -69,3 +69,11 @@ HEADERS += \
     ../3rdparty/ib-compress/writebitstream.h
 
 RESOURCES += assets.qrc runtime.qrc
+
+win32 {
+    run_file=$$DESTDIR/$${TARGET}.cmd
+    L="SET PATH=$$[QT_INSTALL_LIBS]:%PATH%"
+    write_file($$run_file, L)
+    L="$${TARGET}.exe"
+    write_file($$run_file, L)
+}

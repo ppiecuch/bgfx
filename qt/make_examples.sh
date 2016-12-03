@@ -10,7 +10,7 @@ for f in `ls -d ../examples/[0-9]*|xargs`; do
     h=`ls $f/*.h*|xargs`
     echo "HEADERS += $h" >> $pro
     echo "" >> $pro
-    echo "include(\"common-demo.pri\")" >> $pro
     echo "include(\"common.pri\")" >> $pro
+    echo "include(\"common-demo.pri\")" >> $pro
     echo "include(\"QtBgfx/QtBgfx.pri\")" >> $pro
 done
