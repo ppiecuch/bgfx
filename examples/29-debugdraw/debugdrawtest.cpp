@@ -171,13 +171,18 @@ class DebugDrawApp : public entry::AppI
 			ddSetColor(0xffffffff);
 
 			ddPush();
-				ddSetStipple(true, 1.0f, time*0.1f);
-				ddSetColor(0xff0000ff);
-				{
-					float normal[3] = {  0.0f, 0.0f, 1.0f };
-					float center[3] = { -8.0f, 0.0f, 0.0f };
+			{
+				float normal[3] = {  0.0f, 0.0f, 1.0f };
+				float center[3] = { -8.0f, 0.0f, 0.0f };
+				ddPush();
+					ddSetStipple(true, 1.0f, time*0.1f);
+					ddSetColor(0xff0000ff);
 					ddDrawCircle(normal, center, 1.0f, 0.5f + bx::fsin(time*10.0f) );
-				}
+				ddPop();
+
+				ddSetSpin(time);
+				ddDrawQuad(normal, center, 2.0f);
+			}
 			ddPop();
 
 			ddPush();
@@ -187,17 +192,21 @@ class DebugDrawApp : public entry::AppI
 
 			ddPush();
 				ddSetLod(UINT8_MAX);
-				{
-					float from[3] = { -11.0f, 4.0f,  0.0f };
-					float to[3]   = { -13.0f, 6.0f,  1.0f };
-					ddDrawCone(from, to, 1.0f );
-				}
 
-				{
-					float from[3] = {  -9.0f, 2.0f, -1.0f };
-					float to[3]   = { -11.0f, 4.0f,  0.0f };
-					ddDrawCylinder(from, to, 0.5f );
-				}
+				ddPush();
+					ddSetSpin(time*0.3f);
+					{
+						float from[3] = { -11.0f, 4.0f,  0.0f };
+						float to[3]   = { -13.0f, 6.0f,  1.0f };
+						ddDrawCone(from, to, 1.0f );
+					}
+
+					{
+						float from[3] = {  -9.0f, 2.0f, -1.0f };
+						float to[3]   = { -11.0f, 4.0f,  0.0f };
+						ddDrawCylinder(from, to, 0.5f );
+					}
+				ddPop();
 
 				{
 					float from[3] = {  0.0f, 7.0f, 0.0f };
@@ -206,7 +215,34 @@ class DebugDrawApp : public entry::AppI
 				}
 			ddPop();
 
+			ddPush();
+
+				float mtx[16];
+				bx::mtxSRT(mtx
+					, 1.0f, 1.0f, 1.0f
+					, 0.0f, time, time*0.53f
+					, -10.0f, 1.0f, 10.0f
+					);
+
+				Cylinder cylinder =
+				{
+					{ -10.0f, 1.0f, 10.0f },
+					{ 0.0f, 0.0f, 0.0f },
+					1.0f
+				};
+
+				float up[3] = { 0.0f, 4.0f, 0.0f };
+				bx::vec3MulMtx(cylinder.m_end, up, mtx);
+				ddDraw(cylinder);
+
+				toAabb(aabb, cylinder);
+				ddSetColor(0xff0000ff);
+				ddDraw(aabb);
+
+			ddPop();
+
 			ddDrawOrb(-11.0f, 0.0f, 0.0f, 1.0f);
+
 			ddEnd();
 
 			// Advance to next frame. Rendering thread will be kicked to

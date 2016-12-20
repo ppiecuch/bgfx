@@ -39,7 +39,7 @@
 #   define BGFX_C_API BGFX_SHARED_LIB_API
 #endif // defined(__cplusplus)
 
-#include <bgfx/bgfxdefines.h>
+#include <bgfx/defines.h>
 
 typedef enum bgfx_renderer_type
 {
@@ -329,6 +329,16 @@ typedef struct bgfx_stats
 
     int64_t waitRender;
     int64_t waitSubmit;
+
+    uint32_t numDraw;
+    uint32_t numCompute;
+    uint32_t maxGpuLatency;
+
+    uint16_t width;
+    uint16_t height;
+    uint16_t textWidth;
+    uint16_t textHeight;
+
 } bgfx_stats_t;
 
 /**/

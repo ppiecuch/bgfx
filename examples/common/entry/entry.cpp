@@ -35,21 +35,58 @@ namespace entry
 	static bx::FileWriterI* s_fileWriter = NULL;
 
 	extern bx::AllocatorI* getDefaultAllocator();
-	static bx::AllocatorI* s_allocator = getDefaultAllocator();
+	bx::AllocatorI* g_allocator = getDefaultAllocator();
+
+	typedef bx::StringT<&g_allocator> String;
 
 	void* rmtMalloc(void* /*_context*/, rmtU32 _size)
 	{
-		return BX_ALLOC(s_allocator, _size);
+		return BX_ALLOC(g_allocator, _size);
 	}
 
 	void* rmtRealloc(void* /*_context*/, void* _ptr, rmtU32 _size)
 	{
-		return BX_REALLOC(s_allocator, _ptr, _size);
+		return BX_REALLOC(g_allocator, _ptr, _size);
 	}
 
 	void rmtFree(void* /*_context*/, void* _ptr)
 	{
-		BX_FREE(s_allocator, _ptr);
+		BX_FREE(g_allocator, _ptr);
+	}
+
+	static String s_currentDir;
+
+#if BX_CONFIG_CRT_FILE_READER_WRITER
+	class FileReader : public bx::CrtFileReader
+	{
+		typedef bx::CrtFileReader super;
+
+	public:
+		virtual bool open(const char* _filePath, bx::Error* _err) BX_OVERRIDE
+		{
+			String filePath(s_currentDir);
+			filePath.append(_filePath);
+			return super::open(filePath.getPtr(), _err);
+		}
+	};
+
+	class FileWriter : public bx::CrtFileWriter
+	{
+		typedef bx::CrtFileWriter super;
+
+	public:
+		virtual bool open(const char* _filePath, bool _append, bx::Error* _err) BX_OVERRIDE
+		{
+			String filePath(s_currentDir);
+			filePath.append(_filePath);
+			return super::open(filePath.getPtr(), _append, _err);
+		}
+	};
+#endif // BX_CONFIG_CRT_FILE_READER_WRITER
+
+	void setCurrentDir(const char* _dir)
+	{
+		s_currentDir.set(_dir);
 	}
 
 #if ENTRY_CONFIG_IMPLEMENT_DEFAULT_ALLOCATOR
@@ -403,8 +440,8 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		}
 
 #if BX_CONFIG_CRT_FILE_READER_WRITER
-		s_fileReader = new bx::CrtFileReader;
-		s_fileWriter = new bx::CrtFileWriter;
+		s_fileReader = BX_NEW(g_allocator, FileReader);
+		s_fileWriter = BX_NEW(g_allocator, FileWriter);
 #endif // BX_CONFIG_CRT_FILE_READER_WRITER
 
 		cmdInit();
@@ -420,6 +457,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		setWindowSize(defaultWindow, ENTRY_DEFAULT_WIDTH, ENTRY_DEFAULT_HEIGHT);
 
 		int32_t result = ::_main_(_argc, _argv);
+		setCurrentDir("");
 
 		inputRemoveBindings("bindings");
 		inputShutdown();
@@ -427,10 +465,10 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		cmdShutdown();
 
 #if BX_CONFIG_CRT_FILE_READER_WRITER
-		delete s_fileReader;
+		BX_DELETE(g_allocator, s_fileReader);
 		s_fileReader = NULL;
 
-		delete s_fileWriter;
+		BX_DELETE(g_allocator, s_fileWriter);
 		s_fileWriter = NULL;
 #endif // BX_CONFIG_CRT_FILE_READER_WRITER
 
@@ -732,7 +770,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 	bx::AllocatorI* getAllocator()
 	{
-		return s_allocator;
+		return g_allocator;
 	}
 
 	void* TinyStlAllocator::static_allocate(size_t _bytes)

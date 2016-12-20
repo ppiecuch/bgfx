@@ -139,7 +139,7 @@ namespace bgfx
 #include <bx/os.h>
 #include <bx/maputil.h>
 
-#include <bgfx/bgfxplatform.h>
+#include <bgfx/platform.h>
 #include "image.h"
 #include "shader.h"
 
@@ -433,23 +433,7 @@ namespace bgfx
 			}
 		}
 
-		void printfVargs(uint16_t _x, uint16_t _y, uint8_t _attr, const char* _format, va_list _argList)
-		{
-			if (_x < m_width && _y < m_height)
-			{
-				char* temp = (char*)alloca(m_width);
-
-				uint32_t num = bx::vsnprintf(temp, m_width, _format, _argList);
-
-				uint8_t* mem = &m_mem[(_y*m_width+_x)*2];
-				for (uint32_t ii = 0, xx = _x; ii < num && xx < m_width; ++ii, ++xx)
-				{
-					mem[0] = temp[ii];
-					mem[1] = _attr;
-					mem += 2;
-				}
-			}
-		}
+		void printfVargs(uint16_t _x, uint16_t _y, uint8_t _attr, const char* _format, va_list _argList);
 
 		void printf(uint16_t _x, uint16_t _y, uint8_t _attr, const char* _format, ...)
 		{
@@ -923,7 +907,10 @@ namespace bgfx
 			uint32_t num = *_num;
 			BX_WARN(m_num+num < BGFX_CONFIG_MAX_MATRIX_CACHE, "Matrix cache overflow. %d (max: %d)", m_num+num, BGFX_CONFIG_MAX_MATRIX_CACHE);
 			num = bx::uint32_min(num, BGFX_CONFIG_MAX_MATRIX_CACHE-m_num);
-			uint32_t first = m_num;
+			uint32_t first = m_num < BGFX_CONFIG_MAX_MATRIX_CACHE
+				? m_num
+				: BGFX_CONFIG_MAX_MATRIX_CACHE - 1
+				;
 			m_num += num;
 			*_num = (uint16_t)num;
 			return first;
@@ -2220,14 +2207,15 @@ namespace bgfx
 
 		BGFX_API_FUNC(void reset(uint32_t _width, uint32_t _height, uint32_t _flags) )
 		{
-			BX_WARN(1 <= int32_t(_width)
-				&&  1 <= int32_t(_height)
-				, "Frame buffer resolution width or height must be larger than 0 (width %d, height %d)."
+			BX_WARN(g_caps.limits.maxTextureSize >= _width
+				&&  g_caps.limits.maxTextureSize >= _height
+				, "Frame buffer resolution width or height can't be larger than limits.maxTextureSize %d (width %d, height %d)."
+				, g_caps.limits.maxTextureSize
 				, _width
 				, _height
 				);
-			m_resolution.m_width  = bx::uint32_imax(1, _width);
-			m_resolution.m_height = bx::uint32_imax(1, _height);
+			m_resolution.m_width  = bx::uint32_min(g_caps.limits.maxTextureSize, _width);
+			m_resolution.m_height = bx::uint32_min(g_caps.limits.maxTextureSize, _height);
 			m_resolution.m_flags  = 0
 				| _flags
 				| (g_platformDataChangedSinceReset ? BGFX_RESET_INTERNAL_FORCE : 0)
@@ -2288,7 +2276,14 @@ namespace bgfx
 
 		BGFX_API_FUNC(const Stats* getPerfStats() )
 		{
-			return &m_submit->m_perfStats;
+			Stats& stats = m_submit->m_perfStats;
+			const Resolution& resolution = m_submit->m_resolution;
+			stats.width  = uint16_t(resolution.m_width);
+			stats.height = uint16_t(resolution.m_height);
+			const TextVideoMem* tvm = m_submit->m_textVideoMem;
+			stats.textWidth  = tvm->m_width;
+			stats.textHeight = tvm->m_height;
+			return &stats;
 		}
 
 		BGFX_API_FUNC(IndexBufferHandle createIndexBuffer(const Memory* _mem, uint16_t _flags) )
