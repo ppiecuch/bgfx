@@ -97,9 +97,7 @@ namespace bgfx { namespace gl
 			NSOpenGLPixelFormat* pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:pixelFormatAttributes];
 			BGFX_FATAL(NULL != pixelFormat, Fatal::UnableToInitialize, "Failed to initialize pixel format.");
 
-            NSView *contentView = [nsWindow contentView];
-
-            NSRect glViewRect = [contentView bounds];
+            NSRect glViewRect = [[nsWindow contentView] bounds];
 			NSOpenGLView* glView = [[NSOpenGLView alloc] initWithFrame:glViewRect pixelFormat:pixelFormat];
 
 			[pixelFormat release];
