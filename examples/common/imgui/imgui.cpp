@@ -49,7 +49,7 @@
 #include "fs_imgui_image.bin.h"
 #include "fs_imgui_image_swizz.bin.h"
 
-static const bgfx::EmbeddedShader s_embeddedShaders[] =
+static const bgfx::EmbeddedShader s_imguiEmbeddedShaders[] =
 {
 	BGFX_EMBEDDED_SHADER(vs_imgui_color),
 	BGFX_EMBEDDED_SHADER(fs_imgui_color),
@@ -525,37 +525,37 @@ struct Imgui
 		bgfx::ShaderHandle fsh;
 
 		bgfx::RendererType::Enum type = bgfx::getRendererType();
-		vsh = bgfx::createEmbeddedShader(s_embeddedShaders, type, "vs_imgui_color");
-		fsh = bgfx::createEmbeddedShader(s_embeddedShaders, type, "fs_imgui_color");
+		vsh = bgfx::createEmbeddedShader(s_imguiEmbeddedShaders, type, "vs_imgui_color");
+		fsh = bgfx::createEmbeddedShader(s_imguiEmbeddedShaders, type, "fs_imgui_color");
 		m_colorProgram = bgfx::createProgram(vsh, fsh);
 		bgfx::destroyShader(vsh);
 		bgfx::destroyShader(fsh);
 
-		vsh = bgfx::createEmbeddedShader(s_embeddedShaders, type, "vs_imgui_texture");
-		fsh = bgfx::createEmbeddedShader(s_embeddedShaders, type, "fs_imgui_texture");
+		vsh = bgfx::createEmbeddedShader(s_imguiEmbeddedShaders, type, "vs_imgui_texture");
+		fsh = bgfx::createEmbeddedShader(s_imguiEmbeddedShaders, type, "fs_imgui_texture");
 		m_textureProgram = bgfx::createProgram(vsh, fsh);
 		bgfx::destroyShader(vsh);
 		bgfx::destroyShader(fsh);
 
-		vsh = bgfx::createEmbeddedShader(s_embeddedShaders, type, "vs_imgui_cubemap");
-		fsh = bgfx::createEmbeddedShader(s_embeddedShaders, type, "fs_imgui_cubemap");
+		vsh = bgfx::createEmbeddedShader(s_imguiEmbeddedShaders, type, "vs_imgui_cubemap");
+		fsh = bgfx::createEmbeddedShader(s_imguiEmbeddedShaders, type, "fs_imgui_cubemap");
 		m_cubeMapProgram = bgfx::createProgram(vsh, fsh);
 		bgfx::destroyShader(vsh);
 		bgfx::destroyShader(fsh);
 
-		vsh = bgfx::createEmbeddedShader(s_embeddedShaders, type, "vs_imgui_latlong");
-		fsh = bgfx::createEmbeddedShader(s_embeddedShaders, type, "fs_imgui_latlong");
+		vsh = bgfx::createEmbeddedShader(s_imguiEmbeddedShaders, type, "vs_imgui_latlong");
+		fsh = bgfx::createEmbeddedShader(s_imguiEmbeddedShaders, type, "fs_imgui_latlong");
 		m_latlongProgram = bgfx::createProgram(vsh, fsh);
 		bgfx::destroyShader(vsh);
 		bgfx::destroyShader(fsh);
 
-		vsh = bgfx::createEmbeddedShader(s_embeddedShaders, type, "vs_imgui_image");
-		fsh = bgfx::createEmbeddedShader(s_embeddedShaders, type, "fs_imgui_image");
+		vsh = bgfx::createEmbeddedShader(s_imguiEmbeddedShaders, type, "vs_imgui_image");
+		fsh = bgfx::createEmbeddedShader(s_imguiEmbeddedShaders, type, "fs_imgui_image");
 		m_imageProgram = bgfx::createProgram(vsh, fsh);
 		bgfx::destroyShader(fsh);
 
 		// Notice: using the same vsh.
-		fsh = bgfx::createEmbeddedShader(s_embeddedShaders, type, "fs_imgui_image_swizz");
+		fsh = bgfx::createEmbeddedShader(s_imguiEmbeddedShaders, type, "fs_imgui_image_swizz");
 		m_imageSwizzProgram = bgfx::createProgram(vsh, fsh);
 		bgfx::destroyShader(fsh);
 		bgfx::destroyShader(vsh);

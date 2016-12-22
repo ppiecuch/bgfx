@@ -37,7 +37,7 @@
 #include "icons_kenney.ttf.h"
 #include "icons_font_awesome.ttf.h"
 
-static const bgfx::EmbeddedShader s_embeddedShaders[] =
+static const bgfx::EmbeddedShader s_ocornutEmbeddedShaders[] =
 {
 	BGFX_EMBEDDED_SHADER(vs_ocornut_imgui),
 	BGFX_EMBEDDED_SHADER(fs_ocornut_imgui),
@@ -201,8 +201,8 @@ struct OcornutImguiContext
 
 		bgfx::RendererType::Enum type = bgfx::getRendererType();
 		m_program = bgfx::createProgram(
-			  bgfx::createEmbeddedShader(s_embeddedShaders, type, "vs_ocornut_imgui")
-			, bgfx::createEmbeddedShader(s_embeddedShaders, type, "fs_ocornut_imgui")
+			  bgfx::createEmbeddedShader(s_ocornutEmbeddedShaders, type, "vs_ocornut_imgui")
+			, bgfx::createEmbeddedShader(s_ocornutEmbeddedShaders, type, "fs_ocornut_imgui")
 			, true
 			);
 

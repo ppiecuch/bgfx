@@ -9,7 +9,7 @@
 
 #ifdef QT_GUI_LIB
 
-#include <bgfx/bgfxplatform.h>
+#include <bgfx/platform.h>
 #include "dbg.h"
  	
 // This is just trivial implementation of Qt integration.
