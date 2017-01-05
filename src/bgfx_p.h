@@ -4012,6 +4012,7 @@ namespace bgfx
 		{
 			if (!m_singleThreaded)
 			{
+                BX_TRACE("apiSemPost")
 				m_apiSem.post();
 			}
 		}
@@ -4022,7 +4023,7 @@ namespace bgfx
 			{
 				return true;
 			}
-
+            BX_TRACE("apiSemWait")
 			BGFX_PROFILER_SCOPE(bgfx, main_thread_wait, 0xff2040ff);
 			int64_t start = bx::getHPCounter();
 			bool ok = m_apiSem.wait(_msecs);
@@ -4040,6 +4041,7 @@ namespace bgfx
 		{
 			if (!m_singleThreaded)
 			{
+                BX_TRACE("renderSemPost")
 				m_renderSem.post();
 			}
 		}
@@ -4048,6 +4050,7 @@ namespace bgfx
 		{
 			if (!m_singleThreaded)
 			{
+                BX_TRACE("renderSemWait")
 				BGFX_PROFILER_SCOPE(bgfx, render_thread_wait, 0xff2040ff);
 				int64_t start = bx::getHPCounter();
 				bool ok = m_renderSem.wait();
