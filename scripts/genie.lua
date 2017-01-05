@@ -1,5 +1,5 @@
 --
--- Copyright 2010-2016 Branimir Karadzic. All rights reserved.
+-- Copyright 2010-2017 Branimir Karadzic. All rights reserved.
 -- License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
 --
 
@@ -401,6 +401,7 @@ if _OPTIONS["with-examples"] then
 	exampleProject("29-debugdraw")
 	exampleProject("30-picking")
 	exampleProject("31-rsm")
+	exampleProject("32-particles")
 
 	-- C99 source doesn't compile under WinRT settings
 	if not premake.vstudio.iswinrt() then

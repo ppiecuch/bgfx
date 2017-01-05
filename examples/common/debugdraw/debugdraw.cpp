@@ -1,11 +1,12 @@
 /*
- * Copyright 2011-2016 Branimir Karadzic. All rights reserved.
- * License: http://www.opensource.org/licenses/BSD-2-Clause
+ * Copyright 2011-2017 Branimir Karadzic. All rights reserved.
+ * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
 #include <bgfx/bgfx.h>
 #include <bgfx/embedded_shader.h>
 #include "debugdraw.h"
+#include "../bgfx_utils.h"
 #include "../packrect.h"
 
 #include <bx/fpumath.h>
@@ -1840,7 +1841,7 @@ private:
 	{
 		if (0 != m_pos)
 		{
-			if (bgfx::checkAvailTransientBuffers(m_pos, DebugVertex::ms_decl, m_indexPos) )
+			if (checkAvailTransientBuffers(m_pos, DebugVertex::ms_decl, m_indexPos) )
 			{
 				bgfx::TransientVertexBuffer tvb;
 				bgfx::allocTransientVertexBuffer(&tvb, m_pos, DebugVertex::ms_decl);
@@ -1878,7 +1879,7 @@ private:
 		if (0 != m_posQuad)
 		{
 			const uint32_t numIndices = m_posQuad/4*6;
-			if (bgfx::checkAvailTransientBuffers(m_posQuad, DebugUvVertex::ms_decl, numIndices) )
+			if (checkAvailTransientBuffers(m_posQuad, DebugUvVertex::ms_decl, numIndices) )
 			{
 				bgfx::TransientVertexBuffer tvb;
 				bgfx::allocTransientVertexBuffer(&tvb, m_posQuad, DebugUvVertex::ms_decl);
