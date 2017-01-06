@@ -24,6 +24,8 @@ SOURCES += \
     ../examples/common/entry/entry.cpp \
     ../examples/common/entry/entry_qt.cpp \
     \
+    ../examples/common/ps/particle_system.cpp \
+    \
     ../examples/common/debugdraw/debugdraw.cpp \
     \
     ../examples/common/imgui/imgui-amalgamated.cpp \
@@ -47,6 +49,10 @@ HEADERS += \
     ../examples/common/bgfx_utils.h \
     ../examples/common/osx_utils.h \
     \
+    ../examples/common/ps/particle_system.h \
+    \
+    ../examples/common/debugdraw/debugdraw.h \
+    \
     ../examples/common/font/font_manager.h \
     ../examples/common/font/text_buffer_manager.h \
     ../examples/common/font/text_metrics.h \
@@ -58,8 +64,6 @@ HEADERS += \
     ../examples/common/imgui/ocornut_imgui.h \
     ../examples/common/imgui/imgui.h \
     ../examples/common/imgui/scintilla.h \
-    \
-    ../examples/common/debugdraw/debugdraw.cpp \
     \
     ../3rdparty/ib-compress/indexbuffercompression.h \
     ../3rdparty/ib-compress/indexbuffercompressionformat.h \

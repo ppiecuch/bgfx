@@ -33,7 +33,8 @@ SUBDIRS = \
     bgfx-wireframe \
     bgfx-debugdraw \
     bgfx-picking \
-    bgfx-rsm
+    bgfx-rsm \
+    bgfx-particles \
 
 libbgfx.file = libbgfx.pro
 bgfx-helloworld.file = bgfx-helloworld.pro
@@ -68,4 +69,5 @@ bgfx-wireframe.file = bgfx-wireframe.pro
 bgfx-debugdraw.file = bgfx-debugdraw.pro
 bgfx-picking.file = bgfx-picking.pro
 bgfx-rsm.file = bgfx-rsm.pro
+bgfx-particles.file = bgfx-particles.pro
 bgfx-librocket.file = bgfx-librocket.pro

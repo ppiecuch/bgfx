@@ -928,8 +928,9 @@
     <file alias="textures/figure-rgba.dds">../examples/runtime/textures/figure-rgba.dds</file>
     <file alias="textures/flare.dds">../examples/runtime/textures/flare.dds</file>
     <file alias="textures/kyoto_irr.dds">../examples/runtime/textures/kyoto_irr.dds</file>
-    <file alias="kyoto_lod.dds">../examples/runtime/textures/kyoto_lod.dds</file>
-    <file alias="leafs1.dds">../examples/runtime/textures/leafs1.dds</file>
+    <file alias="textures/kyoto_lod.dds">../examples/runtime/textures/kyoto_lod.dds</file>
+    <file alias="textures/leafs1.dds">../examples/runtime/textures/leafs1.dds</file>
+    <file alias="textures/particle.ktx">../examples/runtime/textures/particle.ktx</file>
     <file alias="textures/texture_compression_bc1.ktx">../examples/runtime/textures/texture_compression_bc1.ktx</file>
     <file alias="textures/texture_compression_bc2.ktx">../examples/runtime/textures/texture_compression_bc2.ktx</file>
     <file alias="textures/texture_compression_bc3.ktx">../examples/runtime/textures/texture_compression_bc3.ktx</file>
