@@ -142,8 +142,9 @@ function exampleProject(_name)
 	}
 
 	links {
-		"bgfx",
 		"example-common",
+		"bgfx",
+		"bx",
 	}
 
 	if _OPTIONS["with-sdl"] then
@@ -362,6 +363,8 @@ dofile "bgfx.lua"
 
 group "libs"
 bgfxProject("", "StaticLib", {})
+
+dofile(path.join(BX_DIR, "scripts/bx.lua"))
 
 if _OPTIONS["with-examples"] or _OPTIONS["with-tools"] then
 	group "examples"
