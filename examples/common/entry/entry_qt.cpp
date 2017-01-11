@@ -17,14 +17,10 @@
 
 #include <Qt>
 #include <QDebug>
-#include <QTime>
 #include <QKeyEvent>
 #include <QFileInfo>
 #include <QDirIterator>
-#include <QWindow>
-#include <QSurfaceFormat>
-#include <QOpenGLContext>
-#include <QOpenGLFunctions>
+#include <QPaintDeviceWindow>
 #include <QApplication>
 #include <QGuiApplication>
 
@@ -110,60 +106,20 @@ namespace entry
 		return MouseButton::Middle;
 	}
 
-	class OpenGLWindow : public QWindow, public QOpenGLFunctions
+	class OpenGLWindow : public QPaintDeviceWindow
 	{
 	  Q_OBJECT
-	  Q_PROPERTY(bool alwaysRefresh READ alwaysRefresh WRITE setAlwaysRefresh)
-
-	private:
-	  bool _isGLInitialized;
-	  bool _isWindowInitialized;
-	public:
-	  void setWindowInitialized() { _isWindowInitialized = true; }
 
 	public:
-	  explicit OpenGLWindow(QScreen *screen = 0) : QWindow(screen),
-              _isGLInitialized(0), _isWindowInitialized(0),
-						  _context(0), 
-						  _alwaysRefresh(false),
-						  _pendingRefresh(false)
-	  { initializeContext(); }
+	  explicit OpenGLWindow(QScreen *screen = 0) : QPaintDeviceWindow(screen)
+	  { }
 
-	  explicit OpenGLWindow(QWindow *parent) : QWindow(parent),
-              _isGLInitialized(0), _isWindowInitialized(0),
-		          _context(0),
-		          _alwaysRefresh(false),
-		          _pendingRefresh(false)
-	  { initializeContext(); }
+	  explicit OpenGLWindow(QWindow *parent) : QWindow(parent)
+	  { }
 
-	  virtual ~OpenGLWindow() { if (_context) delete _context; }
-
-	  bool alwaysRefresh() const { return _alwaysRefresh; }
-	  void setAlwaysRefresh(bool alwaysRefresh) {
-	    _alwaysRefresh = alwaysRefresh;
-	    if (alwaysRefresh) requestRefresh();
-	  }
-    
-	signals:
-	  void aboutToResize();
-	  void resized();
-
-	public slots:
-	  QOpenGLContext *context() const { Q_ASSERT(_context!=NULL); return _context; }
-	  void makeCurrent() { _context->makeCurrent(this); }
-	  void swapBuffers() { _context->swapBuffers(this); }
+	  virtual ~OpenGLWindow() { }
 
 	protected:
-	  bool event(QEvent *event) {
-	    switch (event->type()) {
-	    case QEvent::UpdateRequest:
-	      _pendingRefresh = false;
-	      render();
-	      return true;        
-	    default:
-	      return QWindow::event(event);
-	    }
-	  }
 	  void exposeEvent(QExposeEvent *event) { requestRefresh(); }
 	  void resizeEvent(QResizeEvent *event) { 
 		WindowHandle handle = s_ctx.findHandle(this);
@@ -229,16 +185,10 @@ namespace entry
 #endif
 
 	public slots:
+	  void render(QPainter *painter) {
+        Q_UNUSED(painter);
+	  }
 	  void render() {
-      
-      	if (!_isGLInitialized) {
-       		_context->makeCurrent(this);
-        	initializeOpenGLFunctions();
-        	initializeWindow();
-        	_isGLInitialized = true;
-            // update title with version info
-            setTitle(QString("%1 (Qt %2/%3)").arg(title()).arg(QT_VERSION_STR).arg((char*)glGetString(GL_RENDERER)));
-    	}
 	  }
 	  void requestRefresh() {
 	    if (!_pendingRefresh) {
@@ -263,23 +213,8 @@ namespace entry
 		}
 
 	private:
-    void initializeContext() {
-	    setSurfaceType(QWindow::OpenGLSurface); // from default format    
-	    create();
-    
-	    _context = new QOpenGLContext(this); // from default context
-	    _context->create();
-	    _context->makeCurrent(this);
-	  }
-	  void initializeWindow() {      
-	    _time.start();
-	  }
-
-	  QOpenGLContext *_context;
-    
 	  bool _alwaysRefresh;
 	  bool _pendingRefresh;
-	  QTime _time;
 	};
 
 	static void _finishCtx();
@@ -293,10 +228,10 @@ namespace entry
     {
         if (0 == m_app)
             m_app = new QGuiApplication(_argc, _argv);
+        m_app.setQuitOnLastWindowClosed(true);
         QObject::connect( m_app, &QGuiApplication::lastWindowClosed, &_finishCtx );
 
         m_window = new OpenGLWindow;
-        m_window->resize(ENTRY_DEFAULT_WIDTH, ENTRY_DEFAULT_HEIGHT);
         m_window->setTitle(QFileInfo(_argv[0]).fileName());
         
         bgfx::PlatformData pd;
@@ -309,17 +244,14 @@ namespace entry
 # elif BX_PLATFORM_WINDOWS
         pd.ndt          = NULL;
         pd.nwh          = (void*)(uintptr_t)m_window->winId();
-# elif BX_PLATFORM_STEAMLINK
-        pd.ndt          = NULL;
-        pd.nwh          = (void*)(uintptr_t)m_window->winId();
 # endif // BX_PLATFORM_
         pd.context      = NULL;
         pd.backBuffer   = NULL;
         pd.backBufferDS = NULL;
         bgfx::setPlatformData(pd);
 
+        m_window->resize(ENTRY_DEFAULT_WIDTH, ENTRY_DEFAULT_HEIGHT);
         m_window->show();
-        m_window->setWindowInitialized();
         
         return entry::main(_argc, _argv);
     }	  

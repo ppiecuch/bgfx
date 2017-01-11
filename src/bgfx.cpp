@@ -2007,7 +2007,7 @@ namespace bgfx
 		do
 		{
 			uint8_t command;
-			_cmdbuf.read(command); printf(">>%d\n",command);
+			_cmdbuf.read(command);
 
 			switch (command)
 			{
