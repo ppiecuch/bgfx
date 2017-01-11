@@ -24,6 +24,8 @@
 #include <QApplication>
 #include <QGuiApplication>
 
+#include <QtGui/private/qpaintdevicewindow_p.h>
+
 
 namespace entry
 {
@@ -106,28 +108,31 @@ namespace entry
 		return MouseButton::Middle;
 	}
 
-	class OpenGLWindow : public QPaintDeviceWindow
+    class OpenGLWindowPrivate : public QPaintDeviceWindowPrivate
+    {
+    };
+	
+    class OpenGLWindow : public QPaintDeviceWindow
 	{
 	  Q_OBJECT
+	  Q_DECLARE_PRIVATE(OpenGLWindow)
 
 	public:
-	  explicit OpenGLWindow(QScreen *screen = 0) : QPaintDeviceWindow(screen)
-	  { }
-
-	  explicit OpenGLWindow(QWindow *parent) : QWindow(parent)
-	  { }
+	  explicit OpenGLWindow(QWindow *parent = 0) : QPaintDeviceWindow(*(new OpenGLWindowPrivate), parent)
+	  { 
+            setSurfaceType(QSurface::OpenGLSurface);
+	  }
 
 	  virtual ~OpenGLWindow() { }
 
 	protected:
-	  void exposeEvent(QExposeEvent *event) { requestRefresh(); }
+	  void exposeEvent(QExposeEvent *event) { }
 	  void resizeEvent(QResizeEvent *event) { 
 		WindowHandle handle = s_ctx.findHandle(this);
         s_ctx.m_eventQueue.postSizeEvent(handle, event->size().width(), event->size().height());
 		// Make sure mouse button state is 'up' after resize.
 		s_ctx.m_eventQueue.postMouseEvent(handle, s_ctx.m_pos.x(), s_ctx.m_pos.y(), s_ctx.m_scroll, MouseButton::Left,  false);
 		s_ctx.m_eventQueue.postMouseEvent(handle, s_ctx.m_pos.x(), s_ctx.m_pos.y(), s_ctx.m_scroll, MouseButton::Right, false);
-        requestRefresh();
       }
 	  void keyPressEvent(QKeyEvent *event) {
 	    switch (event->key()) {
@@ -190,12 +195,6 @@ namespace entry
 	  }
 	  void render() {
 	  }
-	  void requestRefresh() {
-	    if (!_pendingRefresh) {
-	      _pendingRefresh = true;
-	      QCoreApplication::postEvent(this, new QEvent(QEvent::UpdateRequest));
-	    }
-	  }
 
   public:
 		template<QObject *target>
@@ -211,10 +210,6 @@ namespace entry
 			return;
 			// ((*((X*)NULL)).*((Y)NULL))(t1);
 		}
-
-	private:
-	  bool _alwaysRefresh;
-	  bool _pendingRefresh;
 	};
 
 	static void _finishCtx();
@@ -228,7 +223,7 @@ namespace entry
     {
         if (0 == m_app)
             m_app = new QGuiApplication(_argc, _argv);
-        m_app.setQuitOnLastWindowClosed(true);
+        m_app->setQuitOnLastWindowClosed(true);
         QObject::connect( m_app, &QGuiApplication::lastWindowClosed, &_finishCtx );
 
         m_window = new OpenGLWindow;

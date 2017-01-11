@@ -1,7 +1,7 @@
 TEMPLATE = app
 QT += \
   gui openglextensions \  # for library
-  widgets                 # for demo application
+  gui-private widgets     # for demo application
 CONFIG += c++11 debug
 CONFIG -= app_bundle
 
@@ -35,6 +35,12 @@ SOURCES += \
     ../examples/common/font/font_manager.cpp \
     ../examples/common/font/text_metrics.cpp \
     ../examples/common/font/utf8.cpp \
+    \
+    ../3rdparty/bx/src/commandline.cpp \
+    ../3rdparty/bx/src/crtimpl.cpp \
+    ../3rdparty/bx/src/debug.cpp \
+    ../3rdparty/bx/src/os.cpp \
+    ../3rdparty/bx/src/string.cpp \
     \
     ../3rdparty/ocornut-imgui/imgui.cpp \
     ../3rdparty/ocornut-imgui/imgui_draw.cpp \
