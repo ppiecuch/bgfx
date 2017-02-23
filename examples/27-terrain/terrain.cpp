@@ -119,7 +119,7 @@ class ExampleTerrain : public entry::AppI
 		m_terrain.m_heightMap = (uint8_t*)BX_ALLOC(entry::getAllocator(), num);
 
 		bx::mtxSRT(m_terrain.m_transform, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
-		memset(m_terrain.m_heightMap, 0, sizeof(uint8_t) * s_terrainSize * s_terrainSize);
+		bx::memSet(m_terrain.m_heightMap, 0, sizeof(uint8_t) * s_terrainSize * s_terrainSize);
 
 		cameraCreate();
 
@@ -458,7 +458,7 @@ class ExampleTerrain : public entry::AppI
 			bgfx::setViewRect(0, 0, 0, m_width, m_height);
 
 			cameraGetViewMtx(m_viewMtx);
-			bx::mtxProj(m_projMtx, 60.0f, float(m_width) / float(m_height), 0.1f, 2000.0f);
+			bx::mtxProj(m_projMtx, 60.0f, float(m_width) / float(m_height), 0.1f, 2000.0f, bgfx::getCaps()->homogeneousDepth);
 
 			bgfx::setViewTransform(0, m_viewMtx, m_projMtx);
 			bgfx::setTransform(m_terrain.m_transform);

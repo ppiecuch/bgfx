@@ -126,7 +126,7 @@ public:
 
 		m_timeOffset = bx::getHPCounter();
 
-		memset(m_fbh, 0xff, sizeof(m_fbh) );
+		bx::memSet(m_fbh, 0xff, sizeof(m_fbh) );
 	}
 
 	virtual int shutdown() BX_OVERRIDE
@@ -204,7 +204,7 @@ public:
 			bx::mtxLookAt(view, eye, at);
 
 			float proj[16];
-			bx::mtxProj(proj, 60.0f, float(m_width)/float(m_height), 0.1f, 100.0f);
+			bx::mtxProj(proj, 60.0f, float(m_width)/float(m_height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
 
 			bgfx::setViewTransform(0, view, proj);
 			bgfx::setViewRect(0, 0, 0, m_width, m_height);

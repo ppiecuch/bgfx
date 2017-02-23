@@ -1317,7 +1317,7 @@ namespace bgfx { namespace gl
 			, m_num(0)
 			, m_needPresent(false)
 		{
-			memset(m_fbo, 0, sizeof(m_fbo) );
+			bx::memSet(m_fbo, 0, sizeof(m_fbo) );
 		}
 
 		void create(uint8_t _num, const Attachment* _attachment);
@@ -1498,7 +1498,7 @@ namespace bgfx { namespace gl
 			OcclusionQueryHandle m_handle;
 		};
 
-		Query m_query[BGFX_CONFIG_MAX_OCCUSION_QUERIES];
+		Query m_query[BGFX_CONFIG_MAX_OCCLUSION_QUERIES];
 		bx::RingBufferControl m_control;
 	};
 

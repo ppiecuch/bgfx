@@ -58,7 +58,7 @@ class ExampleLod : public entry::AppI
 		m_textureBark  = loadTexture("textures/bark1.dds");
 
 		const bgfx::Memory* stippleTex = bgfx::alloc(8*4);
-		memset(stippleTex->data, 0, stippleTex->size);
+		bx::memSet(stippleTex->data, 0, stippleTex->size);
 
 		for (uint32_t ii = 0; ii < 32; ++ii)
 		{
@@ -188,7 +188,7 @@ class ExampleLod : public entry::AppI
 				bx::mtxLookAt(view, eye, at);
 
 				float proj[16];
-				bx::mtxProj(proj, 60.0f, float(m_width)/float(m_height), 0.1f, 100.0f);
+				bx::mtxProj(proj, 60.0f, float(m_width)/float(m_height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
 				bgfx::setViewTransform(0, view, proj);
 
 				// Set view 0 default viewport.

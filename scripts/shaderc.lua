@@ -23,10 +23,12 @@ project "glslang"
 
 	configuration { "not vs*" }
 		buildoptions {
+			"-Wno-deprecated-register",
 			"-Wno-ignored-qualifiers",
 			"-Wno-inconsistent-missing-override",
 			"-Wno-missing-field-initializers",
 			"-Wno-reorder",
+			"-Wno-return-type",
 			"-Wno-shadow",
 			"-Wno-sign-compare",
 			"-Wno-undef",

@@ -20,6 +20,8 @@
 #endif // BGFX_CONFIG_PROFILER_REMOTERY_BUILD_LIB
 
 #include <bx/crtimpl.h>
+#include <bx/mutex.h>
+
 #include "topology.h"
 
 BX_ERROR_RESULT(BGFX_ERROR_TEXTURE_VALIDATION,  BX_MAKEFOURCC('b', 'g', 0, 1) );
@@ -76,7 +78,7 @@ namespace bgfx
 			if ( (int32_t)sizeof(temp) < total)
 			{
 				out = (char*)alloca(total+1);
-				memcpy(out, temp, len);
+				bx::memCopy(out, temp, len);
 				bx::vsnprintf(out + len, total-len, _format, _argList);
 			}
 			out[total] = '\0';
@@ -116,7 +118,7 @@ namespace bgfx
 			BX_UNUSED(_filePath, _width, _height, _pitch, _data, _size, _yflip);
 
 #if BX_CONFIG_CRT_FILE_READER_WRITER
-			const size_t len = bx::strnlen(_filePath)+5;
+			const int32_t len = bx::strnlen(_filePath)+5;
 			char* filePath = (char*)alloca(len);
 			bx::strlncpy(filePath, len, _filePath);
 			bx::strlncat(filePath, len, ".tga");
@@ -169,7 +171,7 @@ namespace bgfx
 					{
 #if BGFX_CONFIG_MEMORY_TRACKING
 						{
-							bx::LwMutexScope scope(m_mutex);
+							bx::MutexScope scope(m_mutex);
 							BX_CHECK(m_numBlocks > 0, "Number of blocks is 0. Possible alloc/free mismatch?");
 							--m_numBlocks;
 						}
@@ -191,7 +193,7 @@ namespace bgfx
 				{
 #if BGFX_CONFIG_MEMORY_TRACKING
 					{
-						bx::LwMutexScope scope(m_mutex);
+						bx::MutexScope scope(m_mutex);
 						++m_numBlocks;
 						m_maxBlocks = bx::uint32_max(m_maxBlocks, m_numBlocks);
 					}
@@ -208,7 +210,7 @@ namespace bgfx
 #if BGFX_CONFIG_MEMORY_TRACKING
 				if (NULL == _ptr)
 				{
-					bx::LwMutexScope scope(m_mutex);
+					bx::MutexScope scope(m_mutex);
 					++m_numBlocks;
 					m_maxBlocks = bx::uint32_max(m_maxBlocks, m_numBlocks);
 				}
@@ -224,7 +226,7 @@ namespace bgfx
 
 	protected:
 #if BGFX_CONFIG_MEMORY_TRACKING
-		bx::LwMutex m_mutex;
+		bx::Mutex m_mutex;
 		uint32_t m_numBlocks;
 		uint32_t m_maxBlocks;
 #endif // BGFX_CONFIG_MEMORY_TRACKING
@@ -315,7 +317,7 @@ namespace bgfx
 				, "Only backbuffer pointer and native window handle can be changed after initialization!"
 				);
 		}
-		memcpy(&g_platformData, &_data, sizeof(PlatformData) );
+		bx::memCopy(&g_platformData, &_data, sizeof(PlatformData) );
 		g_platformDataChangedSinceReset = true;
 	}
 
@@ -463,7 +465,7 @@ namespace bgfx
 	{
 		for (const EmbeddedShader* es = _es; NULL != es->name; ++es)
 		{
-			if (0 == strcmp(_name, es->name) )
+			if (0 == bx::strncmp(_name, es->name) )
 			{
 				for (const EmbeddedShader::Data* esd = es->data; RendererType::Count != esd->type; ++esd)
 				{
@@ -492,7 +494,7 @@ namespace bgfx
 				for (uint32_t xx = 0; xx < 8; ++xx)
 				{
 					uint8_t bit = 1<<(7-xx);
-					memset(&pix[xx*_bpp], _charset[ii*_height+yy]&bit ? 255 : 0, _bpp);
+					bx::memSet(&pix[xx*_bpp], _charset[ii*_height+yy]&bit ? 255 : 0, _bpp);
 				}
 
 				pix += _pitch;
@@ -502,13 +504,13 @@ namespace bgfx
 
 	static uint8_t parseAttrTo(char*& _ptr, char _to, uint8_t _default)
 	{
-		const char* str = strchr(_ptr, _to);
+		const char* str = bx::strnchr(_ptr, _to);
 		if (NULL != str
 		&&  3 > str-_ptr)
 		{
 			char tmp[4];
 
-			ptrdiff_t len = str-_ptr;
+			int32_t len = int32_t(str-_ptr);
 			bx::strlncpy(tmp, sizeof(tmp), _ptr, len);
 
 			uint8_t attr = uint8_t(atoi(tmp) );
@@ -709,7 +711,7 @@ namespace bgfx
 							{ (xx  )*8.0f, (yy+1)*fontHeight, 0.0f, fg, bg, (ch  )*8.0f*texelWidth - texelWidthHalf, ubottom },
 						};
 
-						memcpy(vertex, vert, sizeof(vert) );
+						bx::memCopy(vertex, vert, sizeof(vert) );
 						vertex += 4;
 
 						indices[0] = uint16_t(startVertex+0);
@@ -808,7 +810,7 @@ namespace bgfx
 		for (uint32_t ii = 0; ii < UniformType::Count; ++ii)
 		{
 			if (NULL != s_uniformTypeName[ii]
-			&&  0 == strcmp(_name, s_uniformTypeName[ii]) )
+			&&  0 == bx::strncmp(_name, s_uniformTypeName[ii]) )
 			{
 				return UniformType::Enum(ii);
 			}
@@ -842,7 +844,7 @@ namespace bgfx
 	{
 		for (uint32_t ii = 0; ii < PredefinedUniform::Count; ++ii)
 		{
-			if (0 == strcmp(_name, s_predefinedName[ii]) )
+			if (0 == bx::strncmp(_name, s_predefinedName[ii]) )
 			{
 				return PredefinedUniform::Enum(ii);
 			}
@@ -1467,7 +1469,7 @@ namespace bgfx
 		m_render->destroy();
 #endif // BGFX_CONFIG_MULTITHREADED
 
-		memset(&g_internalData, 0, sizeof(InternalData) );
+		bx::memSet(&g_internalData, 0, sizeof(InternalData) );
 		s_ctx = NULL;
 
 		m_submit->destroy();
@@ -1511,6 +1513,12 @@ namespace bgfx
 			destroyDynamicVertexBufferInternal(m_freeDynamicVertexBufferHandle[ii]);
 		}
 		m_numFreeDynamicVertexBufferHandles = 0;
+
+		for (uint16_t ii = 0, num = m_numFreeOcclusionQueryHandles; ii < num; ++ii)
+		{
+			m_occlusionQueryHandle.free(m_freeOcclusionQueryHandle[ii].idx);
+		}
+		m_numFreeOcclusionQueryHandles = 0;
 	}
 
 	void Context::freeAllHandles(Frame* _frame)
@@ -1595,24 +1603,24 @@ namespace bgfx
 		m_resolution.m_flags &= ~BGFX_RESET_INTERNAL_FORCE;
 		m_submit->m_debug = m_debug;
 
-		memcpy(m_submit->m_viewRemap, m_viewRemap, sizeof(m_viewRemap) );
-		memcpy(m_submit->m_fb, m_fb, sizeof(m_fb) );
-		memcpy(m_submit->m_clear, m_clear, sizeof(m_clear) );
-		memcpy(m_submit->m_rect, m_rect, sizeof(m_rect) );
-		memcpy(m_submit->m_scissor, m_scissor, sizeof(m_scissor) );
-		memcpy(m_submit->m_view, m_view, sizeof(m_view) );
-		memcpy(m_submit->m_proj, m_proj, sizeof(m_proj) );
-		memcpy(m_submit->m_viewFlags, m_viewFlags, sizeof(m_viewFlags) );
+		bx::memCopy(m_submit->m_viewRemap, m_viewRemap, sizeof(m_viewRemap) );
+		bx::memCopy(m_submit->m_fb, m_fb, sizeof(m_fb) );
+		bx::memCopy(m_submit->m_clear, m_clear, sizeof(m_clear) );
+		bx::memCopy(m_submit->m_rect, m_rect, sizeof(m_rect) );
+		bx::memCopy(m_submit->m_scissor, m_scissor, sizeof(m_scissor) );
+		bx::memCopy(m_submit->m_view, m_view, sizeof(m_view) );
+		bx::memCopy(m_submit->m_proj, m_proj, sizeof(m_proj) );
+		bx::memCopy(m_submit->m_viewFlags, m_viewFlags, sizeof(m_viewFlags) );
 		if (m_colorPaletteDirty > 0)
 		{
 			--m_colorPaletteDirty;
-			memcpy(m_submit->m_colorPalette, m_clearColor, sizeof(m_clearColor) );
+			bx::memCopy(m_submit->m_colorPalette, m_clearColor, sizeof(m_clearColor) );
 		}
 		m_submit->finish();
 
 		bx::xchg(m_render, m_submit);
 
-		memcpy(m_render->m_occlusion, m_submit->m_occlusion, sizeof(m_submit->m_occlusion) );
+		bx::memCopy(m_render->m_occlusion, m_submit->m_occlusion, sizeof(m_submit->m_occlusion) );
 
 		if (!BX_ENABLED(BGFX_CONFIG_MULTITHREADED)
 		||  m_singleThreaded)
@@ -1623,7 +1631,7 @@ namespace bgfx
 		m_frames++;
 		m_submit->start();
 
-		memset(m_seq, 0, sizeof(m_seq) );
+		bx::memSet(m_seq, 0, sizeof(m_seq) );
 		freeAllHandles(m_submit);
 
 		m_submit->resetFreeHandles();
@@ -1843,7 +1851,7 @@ namespace bgfx
 		};
 
 		OSVERSIONINFOEXA ovi;
-		memset(&ovi, 0, sizeof(ovi) );
+		bx::memSet(&ovi, 0, sizeof(ovi) );
 		ovi.dwOSVersionInfoSize = sizeof(ovi);
 		// _WIN32_WINNT_WINBLUE 0x0603
 		// _WIN32_WINNT_WIN8    0x0602
@@ -1938,7 +1946,7 @@ namespace bgfx
 			}
 		}
 
-		qsort(scores, numScores, sizeof(int32_t), compareDescending);
+		bx::quickSort(scores, numScores, sizeof(int32_t), compareDescending);
 
 		RendererContextI* renderCtx = NULL;
 		for (uint32_t ii = 0; ii < numScores; ++ii)
@@ -2567,7 +2575,7 @@ namespace bgfx
 			goto error;
 		}
 
-		memset(&g_caps, 0, sizeof(g_caps) );
+		bx::memSet(&g_caps, 0, sizeof(g_caps) );
 		g_caps.limits.maxDrawCalls            = BGFX_CONFIG_MAX_DRAW_CALLS;
 		g_caps.limits.maxBlits                = BGFX_CONFIG_MAX_BLIT_ITEMS;
 		g_caps.limits.maxViews                = BGFX_CONFIG_MAX_VIEWS;
@@ -2583,7 +2591,7 @@ namespace bgfx
 		g_caps.limits.maxDynamicIndexBuffers  = BGFX_CONFIG_MAX_DYNAMIC_INDEX_BUFFERS;
 		g_caps.limits.maxDynamicVertexBuffers = BGFX_CONFIG_MAX_DYNAMIC_VERTEX_BUFFERS;
 		g_caps.limits.maxUniforms             = BGFX_CONFIG_MAX_UNIFORMS;
-		g_caps.limits.maxOcclusionQueries     = BGFX_CONFIG_MAX_OCCUSION_QUERIES;
+		g_caps.limits.maxOcclusionQueries     = BGFX_CONFIG_MAX_OCCLUSION_QUERIES;
 		g_caps.limits.maxFBAttachments        = 1;
 
 		g_caps.vendorId = _vendorId;
@@ -2714,7 +2722,7 @@ error:
 	{
 		BX_CHECK(0 < _size, "Invalid memory operation. _size is 0.");
 		const Memory* mem = alloc(_size);
-		memcpy(mem->data, _data, _size);
+		bx::memCopy(mem->data, _data, _size);
 		return mem;
 	}
 
@@ -3106,48 +3114,7 @@ error:
 
 	void calcTextureSize(TextureInfo& _info, uint16_t _width, uint16_t _height, uint16_t _depth, bool _cubeMap, bool _hasMips, uint16_t _numLayers, TextureFormat::Enum _format)
 	{
-		const ImageBlockInfo& blockInfo = getBlockInfo(_format);
-		const uint8_t  bpp         = blockInfo.bitsPerPixel;
-		const uint16_t blockWidth  = blockInfo.blockWidth;
-		const uint16_t blockHeight = blockInfo.blockHeight;
-		const uint16_t minBlockX   = blockInfo.minBlockX;
-		const uint16_t minBlockY   = blockInfo.minBlockY;
-
-		_width   = bx::uint16_max(blockWidth  * minBlockX, ( (_width  + blockWidth  - 1) / blockWidth)*blockWidth);
-		_height  = bx::uint16_max(blockHeight * minBlockY, ( (_height + blockHeight - 1) / blockHeight)*blockHeight);
-		_depth   = bx::uint16_max(1, _depth);
-		const uint8_t  numMips = calcNumMips(_hasMips, _width, _height, _depth);
-		const uint32_t sides   = _cubeMap ? 6 : 1;
-
-		uint32_t width  = _width;
-		uint32_t height = _height;
-		uint32_t depth  = _depth;
-		uint32_t size   = 0;
-
-		for (uint32_t lod = 0; lod < numMips; ++lod)
-		{
-			width  = bx::uint32_max(blockWidth  * minBlockX, ( (width  + blockWidth  - 1) / blockWidth )*blockWidth);
-			height = bx::uint32_max(blockHeight * minBlockY, ( (height + blockHeight - 1) / blockHeight)*blockHeight);
-			depth  = bx::uint32_max(1, depth);
-
-			size += width*height*depth*bpp/8 * sides;
-
-			width  >>= 1;
-			height >>= 1;
-			depth  >>= 1;
-		}
-
-		size *= _numLayers;
-
-		_info.format  = _format;
-		_info.width   = _width;
-		_info.height  = _height;
-		_info.depth   = _depth;
-		_info.numMips = numMips;
-		_info.numLayers = _numLayers;
-		_info.cubeMap   = _cubeMap;
-		_info.storageSize  = size;
-		_info.bitsPerPixel = bpp;
+		imageGetSize(&_info, _width, _height, _depth, _cubeMap, _hasMips, _numLayers, _format);
 	}
 
 	TextureHandle createTexture(const Memory* _mem, uint32_t _flags, uint8_t _skip, TextureInfo* _info)
@@ -3181,7 +3148,11 @@ error:
 
 		bx::Error err;
 		isTextureValid(0, false, _numLayers, _format, _flags, &err);
-		BX_CHECK(err.isOk(), "%s", err.getMessage().getPtr() );
+		BX_CHECK(err.isOk(), "%s (layers %d, format %s)"
+			, err.getMessage().getPtr()
+			, _numLayers
+			, getName(_format)
+			);
 
 		if (BackbufferRatio::Count != _ratio)
 		{
@@ -3788,6 +3759,7 @@ error:
 	uint32_t submit(uint8_t _id, ProgramHandle _program, IndirectBufferHandle _indirectHandle, uint16_t _start, uint16_t _num, int32_t _depth, bool _preserveState)
 	{
 		BGFX_CHECK_MAIN_THREAD();
+		BGFX_CHECK_CAPS(BGFX_CAPS_DRAW_INDIRECT, "Draw indirect is not supported! Use bgfx::getCaps to check BGFX_CAPS_DRAW_INDIRECT backend renderer capabilities.");
 		return s_ctx->submit(_id, _program, _indirectHandle, _start, _num, _depth, _preserveState);
 	}
 
@@ -3836,12 +3808,15 @@ error:
 	uint32_t dispatch(uint8_t _id, ProgramHandle _handle, uint16_t _numX, uint16_t _numY, uint16_t _numZ, uint8_t _flags)
 	{
 		BGFX_CHECK_MAIN_THREAD();
+		BGFX_CHECK_CAPS(BGFX_CAPS_COMPUTE, "Compute is not supported! Use bgfx::getCaps to check BGFX_CAPS_COMPUTE backend renderer capabilities.");
 		return s_ctx->dispatch(_id, _handle, _numX, _numY, _numZ, _flags);
 	}
 
 	uint32_t dispatch(uint8_t _id, ProgramHandle _handle, IndirectBufferHandle _indirectHandle, uint16_t _start, uint16_t _num, uint8_t _flags)
 	{
 		BGFX_CHECK_MAIN_THREAD();
+		BGFX_CHECK_CAPS(BGFX_CAPS_DRAW_INDIRECT, "Dispatch indirect is not supported! Use bgfx::getCaps to check BGFX_CAPS_DRAW_INDIRECT backend renderer capabilities.");
+		BGFX_CHECK_CAPS(BGFX_CAPS_COMPUTE, "Compute is not supported! Use bgfx::getCaps to check BGFX_CAPS_COMPUTE backend renderer capabilities.");
 		return s_ctx->dispatch(_id, _handle, _indirectHandle, _start, _num, _flags);
 	}
 

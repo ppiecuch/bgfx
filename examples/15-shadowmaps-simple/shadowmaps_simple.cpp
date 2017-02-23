@@ -200,7 +200,7 @@ int _main_(int _argc, char** _argv)
 	bx::mtxLookAt(view, eye, at);
 
 	const float aspect = float(int32_t(width) ) / float(int32_t(height) );
-	bx::mtxProj(proj, 60.0f, aspect, 0.1f, 1000.0f, flipV);
+	bx::mtxProj(proj, 60.0f, aspect, 0.1f, 1000.0f, bgfx::getCaps()->homogeneousDepth);
 
 	// Time acumulators.
 	float timeAccumulatorLight = 0.0f;
@@ -230,9 +230,9 @@ int _main_(int _argc, char** _argv)
 
 		// Setup lights.
 		float lightPos[4];
-		lightPos[0] = -cosf(timeAccumulatorLight);
+		lightPos[0] = -bx::fcos(timeAccumulatorLight);
 		lightPos[1] = -1.0f;
-		lightPos[2] = -sinf(timeAccumulatorLight);
+		lightPos[2] = -bx::fsin(timeAccumulatorLight);
 		lightPos[3] = 0.0f;
 
 		bgfx::setUniform(u_lightPos, lightPos);

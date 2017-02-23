@@ -3,8 +3,6 @@
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
-#include <string.h> // strlen
-
 #include "common.h"
 
 #include <tinystl/allocator.h>
@@ -26,6 +24,9 @@ BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wtype-limits")
 BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wunused-parameter")
 BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wunused-value")
 BX_PRAGMA_DIAGNOSTIC_IGNORED_MSVC(4100) // error C4100: '' : unreferenced formal parameter
+#if BX_PLATFORM_EMSCRIPTEN
+#	include <compat/ctype.h>
+#endif // BX_PLATFORM_EMSCRIPTEN
 #define MINIZ_NO_STDIO
 #define TINYEXR_IMPLEMENTATION
 #include <tinyexr/tinyexr.h>
@@ -137,9 +138,9 @@ static bgfx::ShaderHandle loadShader(bx::FileReaderI* _reader, const char* _name
 		break;
 	}
 
-	strcpy(filePath, shaderPath);
-	strcat(filePath, _name);
-	strcat(filePath, ".bin");
+	bx::strlncpy(filePath, BX_COUNTOF(filePath), shaderPath);
+	bx::strlncat(filePath, BX_COUNTOF(filePath), _name);
+	bx::strlncat(filePath, BX_COUNTOF(filePath), ".bin");
 
 	return bgfx::createShader(loadMem(_reader, filePath) );
 }
@@ -212,7 +213,7 @@ bgfx::TextureHandle loadTexture(bx::FileReaderI* _reader, const char* _filePath,
 		uint8_t* out = NULL;
 		static uint8_t pngMagic[] = { 0x89, 0x50, 0x4E, 0x47, 0x0d, 0x0a };
 
-		if (0 == memcmp(data, pngMagic, sizeof(pngMagic) ) )
+		if (0 == bx::memCmp(data, pngMagic, sizeof(pngMagic) ) )
 		{
 			release = lodepng_free;
 
@@ -331,22 +332,22 @@ bgfx::TextureHandle loadTexture(bx::FileReaderI* _reader, const char* _filePath,
 						{
 							const EXRChannelInfo& channel = exrHeader.channels[ii];
 							if (UINT8_MAX == idxR
-							&&  0 == strcmp(channel.name, "R") )
+							&&  0 == bx::strncmp(channel.name, "R") )
 							{
 								idxR = ii;
 							}
 							else if (UINT8_MAX == idxG
-								 &&  0 == strcmp(channel.name, "G") )
+								 &&  0 == bx::strncmp(channel.name, "G") )
 							{
 								idxG = ii;
 							}
 							else if (UINT8_MAX == idxB
-								 &&  0 == strcmp(channel.name, "B") )
+								 &&  0 == bx::strncmp(channel.name, "B") )
 							{
 								idxB = ii;
 							}
 							else if (UINT8_MAX == idxA
-								 &&  0 == strcmp(channel.name, "A") )
+								 &&  0 == bx::strncmp(channel.name, "A") )
 							{
 								idxA = ii;
 							}
@@ -407,7 +408,7 @@ bgfx::TextureHandle loadTexture(bx::FileReaderI* _reader, const char* _filePath,
 									*srcB,
 									*srcA,
 								};
-								memcpy(&out[ii * bytesPerPixel], rgba, bytesPerPixel);
+								bx::memCopy(&out[ii * bytesPerPixel], rgba, bytesPerPixel);
 
 								srcR += stepR;
 								srcG += stepG;
@@ -487,7 +488,7 @@ void calcTangents(void* _vertices, uint16_t _numVertices, bgfx::VertexDecl _decl
 	};
 
 	float* tangents = new float[6*_numVertices];
-	memset(tangents, 0, 6*_numVertices*sizeof(float) );
+	bx::memSet(tangents, 0, 6*_numVertices*sizeof(float) );
 
 	PosTexcoord v0;
 	PosTexcoord v1;
