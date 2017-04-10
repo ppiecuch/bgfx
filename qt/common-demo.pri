@@ -5,10 +5,23 @@ QT += \
 CONFIG += c++11 debug
 CONFIG -= app_bundle
 
+# bgfx codes:
 macx|ios: SOURCES += \
-    ../src/amalgamated.mm \
-    ../examples/common/osx_utils.mm
+    ../src/amalgamated.mm
+SOURCES += \
+    ../3rdparty/bx/src/commandline.cpp \
+    ../3rdparty/bx/src/crtimpl.cpp \
+    ../3rdparty/bx/src/fpumath.cpp \
+    ../3rdparty/bx/src/debug.cpp \
+    ../3rdparty/bx/src/os.cpp \
+    ../3rdparty/bx/src/string.cpp \
+    ../3rdparty/bx/src/thread.cpp \
+    ../3rdparty/bx/src/sem.cpp \
+    ../3rdparty/bx/src/mutex.cpp
 
+# demo codes:
+macx|ios: SOURCES += \
+    ../examples/common/osx_utils.mm
 SOURCES += \
     ../src/amalgamated.cpp \
     \
@@ -18,7 +31,6 @@ SOURCES += \
     ../examples/common/qt_io.cpp \
     ../examples/common/bgfx_utils.cpp \
     \
-    ../examples/common/entry/dbg.cpp \
     ../examples/common/entry/cmd.cpp \
     ../examples/common/entry/input.cpp \
     ../examples/common/entry/entry.cpp \
@@ -36,12 +48,6 @@ SOURCES += \
     ../examples/common/font/text_metrics.cpp \
     ../examples/common/font/utf8.cpp \
     \
-    ../3rdparty/bx/src/commandline.cpp \
-    ../3rdparty/bx/src/crtimpl.cpp \
-    ../3rdparty/bx/src/debug.cpp \
-    ../3rdparty/bx/src/os.cpp \
-    ../3rdparty/bx/src/string.cpp \
-    \
     ../3rdparty/ocornut-imgui/imgui.cpp \
     ../3rdparty/ocornut-imgui/imgui_draw.cpp \
     ../3rdparty/ocornut-imgui/imgui_demo.cpp \
@@ -54,6 +60,8 @@ HEADERS += \
     ../examples/common/camera.h \
     ../examples/common/bgfx_utils.h \
     ../examples/common/osx_utils.h \
+    \
+    ../examples/common/entry/dbg.h \
     \
     ../examples/common/ps/particle_system.h \
     \

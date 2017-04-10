@@ -126,7 +126,7 @@ namespace bgfx
 			bx::CrtFileWriter writer;
 			if (bx::open(&writer, filePath) )
 			{
-				imageWriteTga(&writer, _width, _height, _pitch, _data, false, _yflip);
+				bimg::imageWriteTga(&writer, _width, _height, _pitch, _data, false, _yflip);
 				bx::close(&writer);
 			}
 #endif // BX_CONFIG_CRT_FILE_READER_WRITER
@@ -910,11 +910,13 @@ namespace bgfx
 		}
 
 		m_renderItem[m_numRenderItems].draw = m_draw;
+		m_renderItemBind[m_numRenderItems]  = m_bind;
 		++m_numRenderItems;
 
 		if (!_preserveState)
 		{
 			m_draw.clear();
+			m_bind.clear();
 			m_uniformBegin = m_uniformEnd;
 			m_stateFlags = BGFX_STATE_NONE;
 		}
@@ -959,9 +961,11 @@ namespace bgfx
 		m_compute.m_constBegin = m_uniformBegin;
 		m_compute.m_constEnd   = m_uniformEnd;
 		m_renderItem[m_numRenderItems].compute = m_compute;
+		m_renderItemBind[m_numRenderItems]     = m_bind;
 		++m_numRenderItems;
 
 		m_compute.clear();
+		m_bind.clear();
 		m_uniformBegin = m_uniformEnd;
 
 		return m_num;
@@ -1032,16 +1036,16 @@ namespace bgfx
 			}
 
 			BGFX_CHECK_RENDER_THREAD();
-			if (s_ctx->renderFrame() )
+			RenderFrame::Enum result = s_ctx->renderFrame(BGFX_CONFIG_API_SEMAPHORE_TIMEOUT);
+			if (RenderFrame::Exiting == result)
 			{
 				Context* ctx = s_ctx;
 				ctx->apiSemWait();
 				s_ctx = NULL;
 				ctx->renderSemPost();
-				return RenderFrame::Exiting;
 			}
 
-			return RenderFrame::Render;
+			return result;
 		}
 
 		BX_CHECK(false, "This call only makes sense if used with multi-threaded renderer.");
@@ -1246,7 +1250,7 @@ namespace bgfx
 		BX_TRACE("");
 	}
 
-	TextureFormat::Enum getViableTextureFormat(const ImageContainer& _imageContainer)
+	TextureFormat::Enum getViableTextureFormat(const bimg::ImageContainer& _imageContainer)
 	{
 		const uint32_t formatCaps = g_caps.formats[_imageContainer.m_format];
 		bool convert = 0 == formatCaps;
@@ -1275,7 +1279,12 @@ namespace bgfx
 			return TextureFormat::BGRA8;
 		}
 
-		return _imageContainer.m_format;
+		return TextureFormat::Enum(_imageContainer.m_format);
+	}
+
+	const char* getName(TextureFormat::Enum _fmt)
+	{
+		return bimg::getName(bimg::TextureFormat::Enum(_fmt));
 	}
 
 	static TextureFormat::Enum s_emulatedFormats[] =
@@ -1289,8 +1298,12 @@ namespace bgfx
 		TextureFormat::ETC2,
 		TextureFormat::ETC2A,
 		TextureFormat::ETC2A1,
+		TextureFormat::PTC12,
 		TextureFormat::PTC14,
+		TextureFormat::PTC12A,
 		TextureFormat::PTC14A,
+		TextureFormat::PTC22,
+		TextureFormat::PTC24,
 		TextureFormat::BGRA8, // GL doesn't support BGRA8 without extensions.
 		TextureFormat::RGBA8, // D3D9 doesn't support RGBA8
 	};
@@ -1385,7 +1398,7 @@ namespace bgfx
 
 		for (uint32_t ii = 0; ii < TextureFormat::UnknownDepth; ++ii)
 		{
-			bool convertable = imageConvert(TextureFormat::BGRA8, TextureFormat::Enum(ii) );
+			bool convertable = bimg::imageConvert(bimg::TextureFormat::BGRA8, bimg::TextureFormat::Enum(ii) );
 			g_caps.formats[ii] |= 0 == (g_caps.formats[ii] & BGFX_CAPS_FORMAT_TEXTURE_2D  ) && convertable ? BGFX_CAPS_FORMAT_TEXTURE_2D_EMULATED   : 0;
 			g_caps.formats[ii] |= 0 == (g_caps.formats[ii] & BGFX_CAPS_FORMAT_TEXTURE_3D  ) && convertable ? BGFX_CAPS_FORMAT_TEXTURE_3D_EMULATED   : 0;
 			g_caps.formats[ii] |= 0 == (g_caps.formats[ii] & BGFX_CAPS_FORMAT_TEXTURE_CUBE) && convertable ? BGFX_CAPS_FORMAT_TEXTURE_CUBE_EMULATED : 0;
@@ -1646,19 +1659,38 @@ namespace bgfx
 		return m_uniformRef[_handle.idx].m_name.getPtr();
 	}
 
-	bool Context::renderFrame()
-	{
-		BGFX_PROFILER_SCOPE(bgfx, render_frame, 0xff2040ff);
+	RendererContextI* rendererCreate(RendererType::Enum _type);
+	void rendererDestroy(RendererContextI* _renderCtx);
 
+	void Context::flip()
+	{
 		if (m_rendererInitialized
-		&& !m_flipAfterRender
 		&& !m_flipped)
 		{
 			m_renderCtx->flip(m_render->m_hmd);
 			m_flipped = true;
+
+			if (m_renderCtx->isDeviceRemoved() )
+			{
+				// Something horribly went wrong, fallback to noop renderer.
+				rendererDestroy(m_renderCtx);
+
+				m_renderCtx = rendererCreate(RendererType::Noop);
+				g_caps.rendererType = RendererType::Noop;
+			}
+		}
+	}
+
+	RenderFrame::Enum Context::renderFrame(int32_t _msecs)
+	{
+		BGFX_PROFILER_SCOPE(bgfx, render_frame, 0xff2040ff);
+
+		if (!m_flipAfterRender)
+		{
+			flip();
 		}
 
-		if (apiSemWait(BGFX_CONFIG_API_SEMAPHORE_TIMEOUT) )
+		if (apiSemWait(_msecs) )
 		{
 			rendererExecCommands(m_render->m_cmdPre);
 			if (m_rendererInitialized)
@@ -1671,15 +1703,20 @@ namespace bgfx
 
 			renderSemPost();
 
-			if (m_rendererInitialized
-			&&  m_flipAfterRender)
+			if (m_flipAfterRender)
 			{
-				m_renderCtx->flip(m_render->m_hmd);
-				m_flipped = true;
+				flip();
 			}
 		}
+		else
+		{
+			return RenderFrame::Timeout;
+		}
 
-		return m_exit;
+		return m_exit
+			? RenderFrame::Exiting
+			: RenderFrame::Render
+			;
 	}
 
 	void rendererUpdateUniforms(RendererContextI* _renderCtx, UniformBuffer* _uniformBuffer, uint32_t _begin, uint32_t _end)
@@ -1814,7 +1851,7 @@ namespace bgfx
 
 	static RendererCreator s_rendererCreator[] =
 	{
-		{ noop::rendererCreate,  noop::rendererDestroy,  BGFX_RENDERER_NOOP_NAME,       !!BGFX_CONFIG_RENDERER_NOOP       }, // Noop
+		{ noop::rendererCreate,  noop::rendererDestroy,  BGFX_RENDERER_NOOP_NAME,       true                              }, // Noop
 		{ d3d9::rendererCreate,  d3d9::rendererDestroy,  BGFX_RENDERER_DIRECT3D9_NAME,  !!BGFX_CONFIG_RENDERER_DIRECT3D9  }, // Direct3D9
 		{ d3d11::rendererCreate, d3d11::rendererDestroy, BGFX_RENDERER_DIRECT3D11_NAME, !!BGFX_CONFIG_RENDERER_DIRECT3D11 }, // Direct3D11
 		{ d3d12::rendererCreate, d3d12::rendererDestroy, BGFX_RENDERER_DIRECT3D12_NAME, !!BGFX_CONFIG_RENDERER_DIRECT3D12 }, // Direct3D12
@@ -1829,8 +1866,6 @@ namespace bgfx
 		{ vk::rendererCreate,    vk::rendererDestroy,    BGFX_RENDERER_VULKAN_NAME,     !!BGFX_CONFIG_RENDERER_VULKAN     }, // Vulkan
 	};
 	BX_STATIC_ASSERT(BX_COUNTOF(s_rendererCreator) == RendererType::Count);
-
-	static RendererDestroyFn s_rendererDestroyFn;
 
 	struct Condition
 	{
@@ -1955,7 +1990,6 @@ namespace bgfx
 			renderCtx = s_rendererCreator[renderer].createFn();
 			if (NULL != renderCtx)
 			{
-				s_rendererDestroyFn = s_rendererCreator[renderer].destroyFn;
 				break;
 			}
 
@@ -1965,9 +1999,12 @@ namespace bgfx
 		return renderCtx;
 	}
 
-	void rendererDestroy()
+	void rendererDestroy(RendererContextI* _renderCtx)
 	{
-		s_rendererDestroyFn();
+		if (NULL != _renderCtx)
+		{
+			s_rendererCreator[_renderCtx->getRendererType()].destroyFn();
+		}
 	}
 
 	void Context::rendererExecCommands(CommandBuffer& _cmdbuf)
@@ -2002,6 +2039,7 @@ namespace bgfx
 					_cmdbuf.read(type);
 
 					m_renderCtx = rendererCreate(type);
+
 					m_rendererInitialized = NULL != m_renderCtx;
 
 					if (!m_rendererInitialized)
@@ -2034,8 +2072,10 @@ namespace bgfx
 			case CommandBuffer::RendererShutdownEnd:
 				{
 					BX_CHECK(!m_rendererInitialized && !m_exit, "This shouldn't happen! Bad synchronization?");
-					rendererDestroy();
+
+					rendererDestroy(m_renderCtx);
 					m_renderCtx = NULL;
+
 					m_exit = true;
 				}
 				// fall through
@@ -2335,7 +2375,7 @@ namespace bgfx
 					uint8_t mip;
 					_cmdbuf.read(mip);
 
-					m_renderCtx->readTexture(handle, data,mip);
+					m_renderCtx->readTexture(handle, data, mip);
 				}
 				break;
 
@@ -2441,14 +2481,17 @@ namespace bgfx
 				}
 				break;
 
-			case CommandBuffer::SaveScreenShot:
+			case CommandBuffer::RequestScreenShot:
 				{
+					FrameBufferHandle handle;
+					_cmdbuf.read(handle);
+
 					uint16_t len;
 					_cmdbuf.read(len);
 
 					const char* filePath = (const char*)_cmdbuf.skip(len);
 
-					m_renderCtx->saveScreenShot(filePath);
+					m_renderCtx->requestScreenShot(handle, filePath);
 				}
 				break;
 
@@ -2463,6 +2506,15 @@ namespace bgfx
 					const char* name = (const char*)_cmdbuf.skip(len);
 
 					m_renderCtx->updateViewName(id, name);
+				}
+				break;
+
+			case CommandBuffer::InvalidateOcclusionQuery:
+				{
+					OcclusionQueryHandle handle;
+					_cmdbuf.read(handle);
+
+					m_renderCtx->invalidateOcclusionQuery(handle);
 				}
 				break;
 
@@ -3114,7 +3166,7 @@ error:
 
 	void calcTextureSize(TextureInfo& _info, uint16_t _width, uint16_t _height, uint16_t _depth, bool _cubeMap, bool _hasMips, uint16_t _numLayers, TextureFormat::Enum _format)
 	{
-		imageGetSize(&_info, _width, _height, _depth, _cubeMap, _hasMips, _numLayers, _format);
+		bimg::imageGetSize( (bimg::TextureInfo*)&_info, _width, _height, _depth, _cubeMap, _hasMips, _numLayers, bimg::TextureFormat::Enum(_format) );
 	}
 
 	TextureHandle createTexture(const Memory* _mem, uint32_t _flags, uint8_t _skip, TextureInfo* _info)
@@ -3442,11 +3494,11 @@ error:
 		return s_ctx->createOcclusionQuery();
 	}
 
-	OcclusionQueryResult::Enum getResult(OcclusionQueryHandle _handle)
+	OcclusionQueryResult::Enum getResult(OcclusionQueryHandle _handle, int32_t* _result)
 	{
 		BGFX_CHECK_MAIN_THREAD();
 		BGFX_CHECK_CAPS(BGFX_CAPS_OCCLUSION_QUERY, "Occlusion query is not supported!");
-		return s_ctx->getResult(_handle);
+		return s_ctx->getResult(_handle, _result);
 	}
 
 	void destroyOcclusionQuery(OcclusionQueryHandle _handle)
@@ -3838,12 +3890,95 @@ error:
 		s_ctx->blit(_id, _dst, _dstMip, _dstX, _dstY, _dstZ, _src, _srcMip, _srcX, _srcY, _srcZ, _width, _height, _depth);
 	}
 
-	void saveScreenShot(const char* _filePath)
+	void requestScreenShot(FrameBufferHandle _handle, const char* _filePath)
 	{
 		BGFX_CHECK_MAIN_THREAD();
-		s_ctx->saveScreenShot(_filePath);
+		s_ctx->requestScreenShot(_handle, _filePath);
 	}
 } // namespace bgfx
+
+#define BGFX_TEXTURE_FORMAT_BIMG(_fmt) \
+			BX_STATIC_ASSERT(uint32_t(bgfx::TextureFormat::_fmt) == uint32_t(bimg::TextureFormat::_fmt) )
+
+BGFX_TEXTURE_FORMAT_BIMG(BC1);
+BGFX_TEXTURE_FORMAT_BIMG(BC2);
+BGFX_TEXTURE_FORMAT_BIMG(BC3);
+BGFX_TEXTURE_FORMAT_BIMG(BC4);
+BGFX_TEXTURE_FORMAT_BIMG(BC5);
+BGFX_TEXTURE_FORMAT_BIMG(BC6H);
+BGFX_TEXTURE_FORMAT_BIMG(BC7);
+BGFX_TEXTURE_FORMAT_BIMG(ETC1);
+BGFX_TEXTURE_FORMAT_BIMG(ETC2);
+BGFX_TEXTURE_FORMAT_BIMG(ETC2A);
+BGFX_TEXTURE_FORMAT_BIMG(ETC2A1);
+BGFX_TEXTURE_FORMAT_BIMG(PTC12);
+BGFX_TEXTURE_FORMAT_BIMG(PTC14);
+BGFX_TEXTURE_FORMAT_BIMG(PTC12A);
+BGFX_TEXTURE_FORMAT_BIMG(PTC14A);
+BGFX_TEXTURE_FORMAT_BIMG(PTC22);
+BGFX_TEXTURE_FORMAT_BIMG(PTC24);
+BGFX_TEXTURE_FORMAT_BIMG(Unknown);
+BGFX_TEXTURE_FORMAT_BIMG(R1);
+BGFX_TEXTURE_FORMAT_BIMG(A8);
+BGFX_TEXTURE_FORMAT_BIMG(R8);
+BGFX_TEXTURE_FORMAT_BIMG(R8I);
+BGFX_TEXTURE_FORMAT_BIMG(R8U);
+BGFX_TEXTURE_FORMAT_BIMG(R8S);
+BGFX_TEXTURE_FORMAT_BIMG(R16);
+BGFX_TEXTURE_FORMAT_BIMG(R16I);
+BGFX_TEXTURE_FORMAT_BIMG(R16U);
+BGFX_TEXTURE_FORMAT_BIMG(R16F);
+BGFX_TEXTURE_FORMAT_BIMG(R16S);
+BGFX_TEXTURE_FORMAT_BIMG(R32I);
+BGFX_TEXTURE_FORMAT_BIMG(R32U);
+BGFX_TEXTURE_FORMAT_BIMG(R32F);
+BGFX_TEXTURE_FORMAT_BIMG(RG8);
+BGFX_TEXTURE_FORMAT_BIMG(RG8I);
+BGFX_TEXTURE_FORMAT_BIMG(RG8U);
+BGFX_TEXTURE_FORMAT_BIMG(RG8S);
+BGFX_TEXTURE_FORMAT_BIMG(RG16);
+BGFX_TEXTURE_FORMAT_BIMG(RG16I);
+BGFX_TEXTURE_FORMAT_BIMG(RG16U);
+BGFX_TEXTURE_FORMAT_BIMG(RG16F);
+BGFX_TEXTURE_FORMAT_BIMG(RG16S);
+BGFX_TEXTURE_FORMAT_BIMG(RG32I);
+BGFX_TEXTURE_FORMAT_BIMG(RG32U);
+BGFX_TEXTURE_FORMAT_BIMG(RG32F);
+BGFX_TEXTURE_FORMAT_BIMG(RGB8);
+BGFX_TEXTURE_FORMAT_BIMG(RGB8I);
+BGFX_TEXTURE_FORMAT_BIMG(RGB8U);
+BGFX_TEXTURE_FORMAT_BIMG(RGB8S);
+BGFX_TEXTURE_FORMAT_BIMG(RGB9E5F);
+BGFX_TEXTURE_FORMAT_BIMG(BGRA8);
+BGFX_TEXTURE_FORMAT_BIMG(RGBA8);
+BGFX_TEXTURE_FORMAT_BIMG(RGBA8I);
+BGFX_TEXTURE_FORMAT_BIMG(RGBA8U);
+BGFX_TEXTURE_FORMAT_BIMG(RGBA8S);
+BGFX_TEXTURE_FORMAT_BIMG(RGBA16);
+BGFX_TEXTURE_FORMAT_BIMG(RGBA16I);
+BGFX_TEXTURE_FORMAT_BIMG(RGBA16U);
+BGFX_TEXTURE_FORMAT_BIMG(RGBA16F);
+BGFX_TEXTURE_FORMAT_BIMG(RGBA16S);
+BGFX_TEXTURE_FORMAT_BIMG(RGBA32I);
+BGFX_TEXTURE_FORMAT_BIMG(RGBA32U);
+BGFX_TEXTURE_FORMAT_BIMG(RGBA32F);
+BGFX_TEXTURE_FORMAT_BIMG(R5G6B5);
+BGFX_TEXTURE_FORMAT_BIMG(RGBA4);
+BGFX_TEXTURE_FORMAT_BIMG(RGB5A1);
+BGFX_TEXTURE_FORMAT_BIMG(RGB10A2);
+BGFX_TEXTURE_FORMAT_BIMG(R11G11B10F);
+BGFX_TEXTURE_FORMAT_BIMG(UnknownDepth);
+BGFX_TEXTURE_FORMAT_BIMG(D16);
+BGFX_TEXTURE_FORMAT_BIMG(D24);
+BGFX_TEXTURE_FORMAT_BIMG(D24S8);
+BGFX_TEXTURE_FORMAT_BIMG(D32);
+BGFX_TEXTURE_FORMAT_BIMG(D16F);
+BGFX_TEXTURE_FORMAT_BIMG(D24F);
+BGFX_TEXTURE_FORMAT_BIMG(D32F);
+BGFX_TEXTURE_FORMAT_BIMG(D0S8);
+BGFX_TEXTURE_FORMAT_BIMG(Count);
+
+#undef BGFX_TEXTURE_FORMAT_BIMG
 
 #include <bgfx/c99/bgfx.h>
 #include <bgfx/c99/platform.h>
@@ -4046,16 +4181,6 @@ uint32_t bgfx_topology_convert(bgfx_topology_convert_t _conversion, void* _dst, 
 void bgfx_topology_sort_tri_list(bgfx_topology_sort_t _sort, void* _dst, uint32_t _dstSize, const float _dir[3], const float _pos[3], const void* _vertices, uint32_t _stride, const void* _indices, uint32_t _numIndices, bool _index32)
 {
 	bgfx::topologySortTriList(bgfx::TopologySort::Enum(_sort), _dst, _dstSize, _dir, _pos, _vertices, _stride, _indices, _numIndices, _index32);
-}
-
-BGFX_C_API void bgfx_image_swizzle_bgra8(void* _dst, uint32_t _width, uint32_t _height, uint32_t _pitch, const void* _src)
-{
-	bgfx::imageSwizzleBgra8(_dst, _width, _height, _pitch, _src);
-}
-
-BGFX_C_API void bgfx_image_rgba8_downsample_2x2(void* _dst, uint32_t _width, uint32_t _height, uint32_t _pitch, const void* _src)
-{
-	bgfx::imageRgba8Downsample2x2(_dst, _width, _height, _pitch, _src);
 }
 
 BGFX_C_API uint8_t bgfx_get_supported_renderers(uint8_t _max, bgfx_renderer_type_t* _enum)
@@ -4494,10 +4619,10 @@ BGFX_C_API bgfx_occlusion_query_handle_t bgfx_create_occlusion_query()
 	return handle.c;
 }
 
-BGFX_C_API bgfx_occlusion_query_result_t bgfx_get_result(bgfx_occlusion_query_handle_t _handle)
+BGFX_C_API bgfx_occlusion_query_result_t bgfx_get_result(bgfx_occlusion_query_handle_t _handle, int32_t* _result)
 {
 	union { bgfx_occlusion_query_handle_t c; bgfx::OcclusionQueryHandle cpp; } handle = { _handle };
-	return bgfx_occlusion_query_result_t(bgfx::getResult(handle.cpp) );
+	return bgfx_occlusion_query_result_t(bgfx::getResult(handle.cpp, _result) );
 }
 
 BGFX_C_API void bgfx_destroy_occlusion_query(bgfx_occlusion_query_handle_t _handle)
@@ -4769,9 +4894,10 @@ BGFX_C_API void bgfx_blit(uint8_t _id, bgfx_texture_handle_t _dst, uint8_t _dstM
 	bgfx::blit(_id, dst.cpp, _dstMip, _dstX, _dstY, _dstZ, src.cpp, _srcMip, _srcX, _srcY, _srcZ, _width, _height, _depth);
 }
 
-BGFX_C_API void bgfx_save_screen_shot(const char* _filePath)
+BGFX_C_API void bgfx_request_screen_shot(bgfx_frame_buffer_handle _handle, const char* _filePath)
 {
-	bgfx::saveScreenShot(_filePath);
+	union { bgfx_frame_buffer_handle_t c; bgfx::FrameBufferHandle cpp; } handle = { _handle };
+	bgfx::requestScreenShot(handle.cpp, _filePath);
 }
 
 BGFX_C_API bgfx_render_frame_t bgfx_render_frame()
@@ -4821,8 +4947,6 @@ BGFX_C_API bgfx_interface_vtbl_t* bgfx_get_interface(uint32_t _version)
 	BGFX_IMPORT_FUNC(weld_vertices) \
 	BGFX_IMPORT_FUNC(topology_convert) \
 	BGFX_IMPORT_FUNC(topology_sort_tri_list) \
-	BGFX_IMPORT_FUNC(image_swizzle_bgra8) \
-	BGFX_IMPORT_FUNC(image_rgba8_downsample_2x2) \
 	BGFX_IMPORT_FUNC(get_supported_renderers) \
 	BGFX_IMPORT_FUNC(get_renderer_name) \
 	BGFX_IMPORT_FUNC(init) \
@@ -4938,7 +5062,7 @@ BGFX_C_API bgfx_interface_vtbl_t* bgfx_get_interface(uint32_t _version)
 	BGFX_IMPORT_FUNC(dispatch_indirect) \
 	BGFX_IMPORT_FUNC(discard) \
 	BGFX_IMPORT_FUNC(blit) \
-	BGFX_IMPORT_FUNC(save_screen_shot)
+	BGFX_IMPORT_FUNC(request_screen_shot)
 
 		static bgfx_interface_vtbl_t s_bgfx_interface =
 		{

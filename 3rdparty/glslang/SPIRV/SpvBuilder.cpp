@@ -1125,7 +1125,8 @@ Id Builder::createAccessChain(StorageClass storageClass, Id base, const std::vec
 
 Id Builder::createArrayLength(Id base, unsigned int member)
 {
-    Instruction* length = new Instruction(getUniqueId(), makeIntType(32), OpArrayLength);
+    spv::Id intType = makeIntType(32);
+    Instruction* length = new Instruction(getUniqueId(), intType, OpArrayLength);
     length->addIdOperand(base);
     length->addImmediateOperand(member);
     buildPoint->addInstruction(std::unique_ptr<Instruction>(length));
@@ -1661,7 +1662,7 @@ Id Builder::createTextureCall(Decoration precision, Id resultType, bool sparse, 
 }
 
 // Comments in header
-Id Builder::createTextureQueryCall(Op opCode, const TextureParameters& parameters)
+Id Builder::createTextureQueryCall(Op opCode, const TextureParameters& parameters, bool isUnsignedResult)
 {
     // All these need a capability
     addCapability(CapabilityImageQuery);
@@ -1694,10 +1695,12 @@ Id Builder::createTextureQueryCall(Op opCode, const TextureParameters& parameter
         }
         if (isArrayedImageType(getImageType(parameters.sampler)))
             ++numComponents;
+
+        Id intType = isUnsignedResult ? makeUintType(32) : makeIntType(32);
         if (numComponents == 1)
-            resultType = makeIntType(32);
+            resultType = intType;
         else
-            resultType = makeVectorType(makeIntType(32), numComponents);
+            resultType = makeVectorType(intType, numComponents);
 
         break;
     }
@@ -1706,7 +1709,7 @@ Id Builder::createTextureQueryCall(Op opCode, const TextureParameters& parameter
         break;
     case OpImageQueryLevels:
     case OpImageQuerySamples:
-        resultType = makeIntType(32);
+        resultType = isUnsignedResult ? makeUintType(32) : makeIntType(32);
         break;
     default:
         assert(0);

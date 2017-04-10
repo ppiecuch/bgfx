@@ -33,31 +33,6 @@ namespace stl = tinystl;
 #define VIEWID_RANGE15_PASS2    3
 #define VIEWID_RANGE1_PASS3    20
 
-uint32_t packUint32(uint8_t _x, uint8_t _y, uint8_t _z, uint8_t _w)
-{
-	union
-	{
-		uint32_t ui32;
-		uint8_t arr[4];
-	} un;
-
-	un.arr[0] = _x;
-	un.arr[1] = _y;
-	un.arr[2] = _z;
-	un.arr[3] = _w;
-
-	return un.ui32;
-}
-
-uint32_t packF4u(float _x, float _y = 0.0f, float _z = 0.0f, float _w = 0.0f)
-{
-	const uint8_t xx = uint8_t(_x*127.0f + 128.0f);
-	const uint8_t yy = uint8_t(_y*127.0f + 128.0f);
-	const uint8_t zz = uint8_t(_z*127.0f + 128.0f);
-	const uint8_t ww = uint8_t(_w*127.0f + 128.0f);
-	return packUint32(xx, yy, zz, ww);
-}
-
 struct PosNormalTexcoordVertex
 {
 	float    m_x;
@@ -85,18 +60,18 @@ bgfx::VertexDecl PosNormalTexcoordVertex::ms_decl;
 static const float s_texcoord = 50.0f;
 static PosNormalTexcoordVertex s_hplaneVertices[] =
 {
-	{ -1.0f, 0.0f,  1.0f, packF4u(0.0f, 1.0f, 0.0f), s_texcoord, s_texcoord },
-	{  1.0f, 0.0f,  1.0f, packF4u(0.0f, 1.0f, 0.0f), s_texcoord, 0.0f       },
-	{ -1.0f, 0.0f, -1.0f, packF4u(0.0f, 1.0f, 0.0f), 0.0f,       s_texcoord },
-	{  1.0f, 0.0f, -1.0f, packF4u(0.0f, 1.0f, 0.0f), 0.0f,       0.0f       },
+	{ -1.0f, 0.0f,  1.0f, encodeNormalRgba8(0.0f, 1.0f, 0.0f), s_texcoord, s_texcoord },
+	{  1.0f, 0.0f,  1.0f, encodeNormalRgba8(0.0f, 1.0f, 0.0f), s_texcoord, 0.0f       },
+	{ -1.0f, 0.0f, -1.0f, encodeNormalRgba8(0.0f, 1.0f, 0.0f), 0.0f,       s_texcoord },
+	{  1.0f, 0.0f, -1.0f, encodeNormalRgba8(0.0f, 1.0f, 0.0f), 0.0f,       0.0f       },
 };
 
 static PosNormalTexcoordVertex s_vplaneVertices[] =
 {
-	{ -1.0f,  1.0f, 0.0f, packF4u(0.0f, 0.0f, -1.0f), 1.0f, 1.0f },
-	{  1.0f,  1.0f, 0.0f, packF4u(0.0f, 0.0f, -1.0f), 1.0f, 0.0f },
-	{ -1.0f, -1.0f, 0.0f, packF4u(0.0f, 0.0f, -1.0f), 0.0f, 1.0f },
-	{  1.0f, -1.0f, 0.0f, packF4u(0.0f, 0.0f, -1.0f), 0.0f, 0.0f },
+	{ -1.0f,  1.0f, 0.0f, encodeNormalRgba8(0.0f, 0.0f, -1.0f), 1.0f, 1.0f },
+	{  1.0f,  1.0f, 0.0f, encodeNormalRgba8(0.0f, 0.0f, -1.0f), 1.0f, 0.0f },
+	{ -1.0f, -1.0f, 0.0f, encodeNormalRgba8(0.0f, 0.0f, -1.0f), 0.0f, 1.0f },
+	{  1.0f, -1.0f, 0.0f, encodeNormalRgba8(0.0f, 0.0f, -1.0f), 0.0f, 0.0f },
 };
 
 static const uint16_t s_planeIndices[] =
@@ -661,7 +636,7 @@ struct HalfEdges
 		m_offsets = (uint32_t*)malloc(numRows * sizeof(uint32_t) );
 
 		HalfEdge* he = m_data;
-		for (uint32_t ii = 0; ii < numRows; ++ii)
+		for (uint16_t ii = 0; ii < numRows; ++ii)
 		{
 			m_offsets[ii] = uint32_t(he - m_data);
 
@@ -753,7 +728,7 @@ uint16_t weldVertices(WeldedVertex* _output, const bgfx::VertexDecl& _decl, cons
 	const uint32_t hashMask = hashSize-1;
 	const float epsilonSq = _epsilon*_epsilon;
 
-	uint32_t numVertices = 0;
+	uint16_t numVertices = 0;
 
 	const uint32_t size = sizeof(uint16_t)*(hashSize + _num);
 	uint16_t* hashTable = (uint16_t*)alloca(size);
@@ -761,7 +736,7 @@ uint16_t weldVertices(WeldedVertex* _output, const bgfx::VertexDecl& _decl, cons
 
 	uint16_t* next = hashTable + hashSize;
 
-	for (uint32_t ii = 0; ii < _num; ++ii)
+	for (uint16_t ii = 0; ii < _num; ++ii)
 	{
 		float pos[4];
 		vertexUnpack(pos, bgfx::Attrib::Position, _decl, _data, ii);
@@ -988,7 +963,7 @@ namespace bgfx
 
 struct Mesh
 {
-	void load(const void* _vertices, uint32_t _numVertices, const bgfx::VertexDecl _decl, const uint16_t* _indices, uint32_t _numIndices)
+	void load(const void* _vertices, uint16_t _numVertices, const bgfx::VertexDecl _decl, const uint16_t* _indices, uint32_t _numIndices)
 	{
 		Group group;
 		const bgfx::Memory* mem;
@@ -1137,7 +1112,7 @@ struct Model
 		m_texture.idx = bgfx::invalidHandle;
 	}
 
-	void load(const void* _vertices, uint32_t _numVertices, const bgfx::VertexDecl _decl, const uint16_t* _indices, uint32_t _numIndices)
+	void load(const void* _vertices, uint16_t _numVertices, const bgfx::VertexDecl _decl, const uint16_t* _indices, uint32_t _numIndices)
 	{
 		m_mesh.load(_vertices, _numVertices, _decl, _indices, _numIndices);
 	}
@@ -1562,7 +1537,7 @@ void shadowVolumeCreate(ShadowVolume& _shadowVolume
 
 				for (uint16_t jj = 0; jj < 2; ++jj)
 				{
-					int16_t kk = res[jj] + res[jj+2];
+					int32_t kk = res[jj] + res[jj+2];
 					if (kk != 0)
 					{
 						float* v0 = (float*)&vertices[edges[ii+jj].m_i0*_stride];
@@ -1574,7 +1549,7 @@ void shadowVolumeCreate(ShadowVolume& _shadowVolume
 
 						kk = _textureAsStencil ? 1 : kk;
 						uint16_t winding = uint16_t(kk > 0);
-						for (uint8_t ll = 0, end = abs(kk); ll < end; ++ll)
+						for (int32_t ll = 0, end = abs(kk); ll < end; ++ll)
 						{
 							indicesSide[sideI++] = indexSide;
 							indicesSide[sideI++] = indexSide + 2 - winding;
@@ -1611,7 +1586,7 @@ void shadowVolumeCreate(ShadowVolume& _shadowVolume
 
 					kk = _textureAsStencil ? 1 : kk;
 					uint16_t winding = uint16_t(kk > 0);
-					for (uint8_t jj = 0, end = abs(kk); jj < end; ++jj)
+					for (int32_t jj = 0, end = abs(kk); jj < end; ++jj)
 					{
 						indicesSide[sideI++] = indexSide;
 						indicesSide[sideI++] = indexSide + 2 - winding;
@@ -1878,8 +1853,8 @@ int _main_(int _argc, char** _argv)
 
 	bgfx::TextureHandle fbtextures[] =
 	{
-		bgfx::createTexture2D(viewState.m_width, viewState.m_height, false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_U_CLAMP|BGFX_TEXTURE_V_CLAMP|BGFX_TEXTURE_RT),
-		bgfx::createTexture2D(viewState.m_width, viewState.m_height, false, 1, bgfx::TextureFormat::D16, BGFX_TEXTURE_RT_WRITE_ONLY),
+		bgfx::createTexture2D(uint16_t(viewState.m_width), uint16_t(viewState.m_height), false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_U_CLAMP | BGFX_TEXTURE_V_CLAMP | BGFX_TEXTURE_RT),
+		bgfx::createTexture2D(uint16_t(viewState.m_width), uint16_t(viewState.m_height), false, 1, bgfx::TextureFormat::D16, BGFX_TEXTURE_RT_WRITE_ONLY),
 	};
 	s_stencilFb  = bgfx::createFrameBuffer(BX_COUNTOF(fbtextures), fbtextures, true);
 
@@ -2072,8 +2047,8 @@ int _main_(int _argc, char** _argv)
 
 			bgfx::destroyFrameBuffer(s_stencilFb);
 
-			fbtextures[0] = bgfx::createTexture2D(viewState.m_width, viewState.m_height, false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_U_CLAMP|BGFX_TEXTURE_V_CLAMP|BGFX_TEXTURE_RT);
-			fbtextures[1] = bgfx::createTexture2D(viewState.m_width, viewState.m_height, false, 1, bgfx::TextureFormat::D16, BGFX_TEXTURE_RT_WRITE_ONLY);
+			fbtextures[0] = bgfx::createTexture2D(uint16_t(viewState.m_width), uint16_t(viewState.m_height), false, 1, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_U_CLAMP|BGFX_TEXTURE_V_CLAMP|BGFX_TEXTURE_RT);
+			fbtextures[1] = bgfx::createTexture2D(uint16_t(viewState.m_width), uint16_t(viewState.m_height), false, 1, bgfx::TextureFormat::D16, BGFX_TEXTURE_RT_WRITE_ONLY);
 			s_stencilFb = bgfx::createFrameBuffer(BX_COUNTOF(fbtextures), fbtextures, true);
 		}
 
@@ -2116,8 +2091,8 @@ int _main_(int _argc, char** _argv)
 			| (mouseState.m_buttons[entry::MouseButton::Right ] ? IMGUI_MBUT_RIGHT  : 0)
 			| (mouseState.m_buttons[entry::MouseButton::Middle] ? IMGUI_MBUT_MIDDLE : 0)
 			, mouseState.m_mz
-			, viewState.m_width
-			, viewState.m_height
+			, uint16_t(viewState.m_width)
+			, uint16_t(viewState.m_height)
 			);
 
 		imguiBeginScrollArea("Settings", viewState.m_width - 256 - 10, 10, 256, 700, &scrollAreaRight);
@@ -2792,7 +2767,7 @@ int _main_(int _argc, char** _argv)
 		}
 
 		// Setup view rect and transform for all used views.
-		setViewRectMask(s_viewMask, 0, 0, viewState.m_width, viewState.m_height);
+		setViewRectMask(s_viewMask, 0, 0, uint16_t(viewState.m_width), uint16_t(viewState.m_height) );
 		setViewTransformMask(s_viewMask, viewState.m_view, viewState.m_proj);
 		s_viewMask = 0;
 

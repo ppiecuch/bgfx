@@ -8,6 +8,7 @@
 BX_PRAGMA_DIAGNOSTIC_PUSH()
 BX_PRAGMA_DIAGNOSTIC_IGNORED_MSVC(4100) // error C4100: 'inclusionDepth' : unreferenced formal parameter
 BX_PRAGMA_DIAGNOSTIC_IGNORED_MSVC(4265) // error C4265: 'spv::spirvbin_t': class has virtual functions, but destructor is not virtual
+BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wshadow") // warning: declaration of 'userData' shadows a member of 'glslang::TShader::Includer::IncludeResult'
 #include <ShaderLang.h>
 #include <ResourceLimits.h>
 #include <SPIRV/SPVRemapper.h>
@@ -494,7 +495,7 @@ namespace bgfx { namespace spirv
 				const SpvReflection::Id& id = it->second;
 				uint32_t num = uint32_t(id.members.size() );
 				if (0 < num
-				&&  0 != strcmp(id.var.name.c_str(), "gl_PerVertex") )
+				&&  0 != bx::strncmp(id.var.name.c_str(), "gl_PerVertex") )
 				{
 					printf("%3d: %s %d %s\n"
 						, it->first
@@ -538,10 +539,9 @@ namespace bgfx { namespace spirv
 		{
 		case 'c': return EShLangCompute;
 		case 'f': return EShLangFragment;
-		default:  break;
+		case 'v': return EShLangVertex;
+		default:  return EShLangCount;
 		}
-
-		return EShLangVertex;
 	}
 
 //	static void printError(spv_message_level_t, const char*, const spv_position_t&, const char* _message)
@@ -553,10 +553,10 @@ namespace bgfx { namespace spirv
 	{
 		BX_UNUSED(_cmdLine, _version, _code, _writer);
 
-		const char* profile = _cmdLine.findOption('p', "profile");
-		if (NULL == profile)
+		const char* type = _cmdLine.findOption('\0', "type");
+		if (NULL == type)
 		{
-			fprintf(stderr, "Error: Shader profile must be specified.\n");
+			fprintf(stderr, "Error: Shader type must be specified.\n");
 			return false;
 		}
 
@@ -564,7 +564,12 @@ namespace bgfx { namespace spirv
 
 		glslang::TProgram* program = new glslang::TProgram;
 
-		EShLanguage stage = getLang(profile[0]);
+		EShLanguage stage = getLang(type[0]);
+		if (EShLangCount == stage)
+		{
+			fprintf(stderr, "Error: Unknown shader type %s.\n", type);
+			return false;
+		}
 		glslang::TShader* shader = new glslang::TShader(stage);
 
 		EShMessages messages = EShMessages(0
@@ -574,14 +579,12 @@ namespace bgfx { namespace spirv
 			| EShMsgSpvRules
 			);
 
-		const char* shaderStrings[] = { _code.c_str() };
-		const char* shaderNames[]   = { "" };
+		shader->setEntryPoint("main");
 
-		shader->setStringsWithLengthsAndNames(
+		const char* shaderStrings[] = { _code.c_str() };
+		shader->setStrings(
 			  shaderStrings
-			, NULL
-			, shaderNames
-			, BX_COUNTOF(shaderNames)
+			, BX_COUNTOF(shaderStrings)
 			);
 		bool compiled = shader->parse(&resourceLimits
 			, 110
@@ -603,7 +606,7 @@ namespace bgfx { namespace spirv
 				int32_t start   = 0;
 				int32_t end     = INT32_MAX;
 
-				const char* err = strstr(log, "ERROR:");
+				const char* err = bx::strnstr(log, "ERROR:");
 
 				bool found = false;
 
@@ -650,7 +653,7 @@ namespace bgfx { namespace spirv
 					uint16_t count = (uint16_t)program->getNumLiveUniformVariables();
 					bx::write(_writer, count);
 
-					uint32_t fragmentBit = profile[0] == 'p' ? BGFX_UNIFORM_FRAGMENTBIT : 0;
+					uint32_t fragmentBit = type[0] == 'f' ? BGFX_UNIFORM_FRAGMENTBIT : 0;
 					for (uint16_t ii = 0; ii < count; ++ii)
 					{
 						Uniform un;
@@ -673,15 +676,14 @@ namespace bgfx { namespace spirv
 							un.type = UniformType::End;
 							break;
 						}
-						un.num = program->getUniformArraySize(ii);
+						un.num = uint8_t(program->getUniformArraySize(ii) );
 						un.regIndex = 0;
 						un.regCount = un.num;
 
 						uint8_t nameSize = (uint8_t)un.name.size();
 						bx::write(_writer, nameSize);
 						bx::write(_writer, un.name.c_str(), nameSize);
-						uint8_t type = un.type | fragmentBit;
-						bx::write(_writer, type);
+						bx::write(_writer, uint8_t(un.type | fragmentBit));
 						bx::write(_writer, un.num);
 						bx::write(_writer, un.regIndex);
 						bx::write(_writer, un.regCount);
@@ -695,7 +697,10 @@ namespace bgfx { namespace spirv
 						);
 					}
 				}
-				program->dumpReflection();
+				if (g_verbose)
+				{
+					program->dumpReflection();
+				}
 
 				BX_UNUSED(spv::MemorySemanticsAllMemory);
 

@@ -851,10 +851,16 @@ namespace bgfx { namespace gl
 	static const char* s_ARB_shader_texture_lod[] =
 	{
 		"texture2DLod",
+		"texture2DArrayLod", // BK - interacts with ARB_texture_array.
 		"texture2DProjLod",
+		"texture2DGrad",
+		"texture2DProjGrad",
 		"texture3DLod",
 		"texture3DProjLod",
+		"texture3DGrad",
+		"texture3DProjGrad",
 		"textureCubeLod",
+		"textureCubeGrad",
 		"shadow2DLod",
 		"shadow2DProjLod",
 		NULL
@@ -869,10 +875,10 @@ namespace bgfx { namespace gl
 		"texture2DLod",
 		"texture2DProjLod",
 		"textureCubeLod",
+		"texture2DGrad",
+		"texture2DProjGrad",
+		"textureCubeGrad",
 		NULL
-		// "texture2DGrad",
-		// "texture2DProjGrad",
-		// "textureCubeGrad",
 	};
 
 	static const char* s_EXT_shadow_samplers[] =
@@ -1055,7 +1061,7 @@ namespace bgfx { namespace gl
 			while (pos < end)
 			{
 				uint32_t len;
-				const char* space = strchr(pos, ' ');
+				const char* space = bx::strnchr(pos, ' ');
 				if (NULL != space)
 				{
 					len = bx::uint32_min(sizeof(name), (uint32_t)(space - pos) );
@@ -1065,7 +1071,7 @@ namespace bgfx { namespace gl
 					len = bx::uint32_min(sizeof(name), (uint32_t)bx::strnlen(pos) );
 				}
 
-				strncpy(name, pos, len);
+				bx::strlncpy(name, BX_COUNTOF(name), pos, len);
 				name[len] = '\0';
 
 				BX_TRACE("\t%s", name);
@@ -1147,10 +1153,10 @@ namespace bgfx { namespace gl
 			: tfi.m_internalFmt
 			;
 
-		GLsizei size = (16*16*getBitsPerPixel(_format) )/8;
+		GLsizei size = (16*16*bimg::getBitsPerPixel(bimg::TextureFormat::Enum(_format) ) )/8;
 		void* data = NULL;
 
-		if (isDepth(_format) )
+		if (bimg::isDepth(bimg::TextureFormat::Enum(_format) ) )
 		{
 			_srgb    = false;
 			_mipmaps = false;
@@ -1163,7 +1169,7 @@ namespace bgfx { namespace gl
 		flushGlError();
 		GLenum err = 0;
 
-		if (isCompressed(_format) )
+		if (bimg::isCompressed(bimg::TextureFormat::Enum(_format) ) )
 		{
 			glCompressedTexImage2D(GL_TEXTURE_2D, 0, internalFmt, 16, 16, 0, size, data);
 			err |= glGetError();
@@ -1288,9 +1294,9 @@ namespace bgfx { namespace gl
 		GLenum err = initTestTexture(_format, _srgb, false);
 
 		GLenum attachment;
-		if (isDepth(_format) )
+		if (bimg::isDepth(bimg::TextureFormat::Enum(_format) ) )
 		{
-			const ImageBlockInfo& info = getBlockInfo(_format);
+			const bimg::ImageBlockInfo& info = bimg::getBlockInfo(bimg::TextureFormat::Enum(_format) );
 			if (0 == info.depthBits)
 			{
 				attachment = GL_STENCIL_ATTACHMENT;
@@ -1349,7 +1355,7 @@ namespace bgfx { namespace gl
 			&&  extension.m_initialize)
 			{
 				const char* ext = _name;
-				if (0 == strncmp(ext, "GL_", 3) ) // skip GL_
+				if (0 == bx::strncmp(ext, "GL_", 3) ) // skip GL_
 				{
 					ext += 3;
 				}
@@ -1404,6 +1410,16 @@ namespace bgfx { namespace gl
 		{ "NVIDIA Corporation",           BGFX_PCI_ID_NVIDIA },
 		{ "Advanced Micro Devices, Inc.", BGFX_PCI_ID_AMD    },
 		{ "Intel",                        BGFX_PCI_ID_INTEL  },
+	};
+
+	struct Workaround
+	{
+		void reset()
+		{
+			m_detachShader = true;
+		}
+
+		bool m_detachShader;
 	};
 
 	struct RendererContextGL : public RendererContextI
@@ -1469,12 +1485,14 @@ namespace bgfx { namespace gl
 			for (uint32_t ii = 0; ii < BX_COUNTOF(s_vendorIds); ++ii)
 			{
 				const VendorId& vendorId = s_vendorIds[ii];
-				if (0 == strncmp(vendorId.name, m_vendor, bx::strnlen(vendorId.name) ) )
+				if (0 == bx::strncmp(vendorId.name, m_vendor, bx::strnlen(vendorId.name) ) )
 				{
 					g_caps.vendorId = vendorId.id;
 					break;
 				}
 			}
+
+			m_workaround.reset();
 
 			GLint numCmpFormats = 0;
 			GL_CHECK(glGetIntegerv(GL_NUM_COMPRESSED_TEXTURE_FORMATS, &numCmpFormats) );
@@ -1544,7 +1562,7 @@ namespace bgfx { namespace gl
 
 			if (BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES >= 31)
 			&&  0    == bx::strncmp(m_vendor,  "Imagination Technologies")
-			&&  NULL != strstr(m_version, "(SDK 3.5@3510720)") )
+			&&  NULL != bx::strnstr(m_version, "(SDK 3.5@3510720)") )
 			{
 				// Skip initializing extensions that are broken in emulator.
 				s_extension[Extension::ARB_program_interface_query     ].m_initialize =
@@ -1564,7 +1582,7 @@ namespace bgfx { namespace gl
 					while (pos < end)
 					{
 						uint32_t len;
-						const char* space = strchr(pos, ' ');
+						const char* space = bx::strnchr(pos, ' ');
 						if (NULL != space)
 						{
 							len = bx::uint32_min(sizeof(name), (uint32_t)(space - pos) );
@@ -1574,7 +1592,7 @@ namespace bgfx { namespace gl
 							len = bx::uint32_min(sizeof(name), (uint32_t)bx::strnlen(pos) );
 						}
 
-						strncpy(name, pos, len);
+						bx::strlncpy(name, BX_COUNTOF(name), pos, len);
 						name[len] = '\0';
 
 						updateExtension(name);
@@ -2270,7 +2288,12 @@ namespace bgfx { namespace gl
 		{
 			return BGFX_RENDERER_OPENGL_NAME;
 		}
-  
+
+		bool isDeviceRemoved() BX_OVERRIDE
+		{
+			return false;
+		}
+
 		void flip(HMD& _hmd)
 		{
 			if (m_flip)
@@ -2289,6 +2312,9 @@ namespace bgfx { namespace gl
 				{
 					m_ovr.flip();
 					m_ovr.swap(_hmd);
+
+					// Ensure the back buffer is bound as the source of the flip
+					GL_CHECK(glBindFramebuffer(GL_FRAMEBUFFER, m_backBufferFbo));
 
 					// need to swap GL render context even if OVR is enabled to get
 					// the mirror texture in the output
@@ -2404,7 +2430,7 @@ namespace bgfx { namespace gl
 			if (m_readBackSupported)
 			{
 				const TextureGL& texture = m_textures[_handle.idx];
-				const bool compressed    = isCompressed(TextureFormat::Enum(texture.m_textureFormat) );
+				const bool compressed    = bimg::isCompressed(bimg::TextureFormat::Enum(texture.m_textureFormat) );
 
 				GL_CHECK(glBindTexture(texture.m_target, texture.m_id) );
 
@@ -2520,13 +2546,23 @@ namespace bgfx { namespace gl
 			m_uniformReg.remove(_handle);
 		}
 
-		void saveScreenShot(const char* _filePath) BX_OVERRIDE
+		void requestScreenShot(FrameBufferHandle _handle, const char* _filePath) BX_OVERRIDE
 		{
-			uint32_t length = m_resolution.m_width*m_resolution.m_height*4;
-			uint8_t* data = (uint8_t*)BX_ALLOC(g_allocator, length);
-
+			SwapChainGL* swapChain = NULL;
 			uint32_t width  = m_resolution.m_width;
 			uint32_t height = m_resolution.m_height;
+
+			if (isValid(_handle) )
+			{
+				const FrameBufferGL& frameBuffer = m_frameBuffers[_handle.idx];
+				swapChain = frameBuffer.m_swapChain;
+				width  = frameBuffer.m_width;
+				height = frameBuffer.m_height;
+			}
+			m_glctx.makeCurrent(swapChain);
+
+			uint32_t length = width*height*4;
+			uint8_t* data = (uint8_t*)BX_ALLOC(g_allocator, length);
 
 			GL_CHECK(glReadPixels(0
 				, 0
@@ -2539,7 +2575,7 @@ namespace bgfx { namespace gl
 
 			if (GL_RGBA == m_readPixelsFmt)
 			{
-				imageSwizzleBgra8(data, width, height, width*4, data);
+				bimg::imageSwizzleBgra8(data, width, height, width*4, data);
 			}
 
 			g_callback->screenShot(_filePath
@@ -2569,6 +2605,11 @@ namespace bgfx { namespace gl
 		void setMarker(const char* _marker, uint32_t _size) BX_OVERRIDE
 		{
 			GL_CHECK(glInsertEventMarker(_size, _marker) );
+		}
+
+		void invalidateOcclusionQuery(OcclusionQueryHandle _handle) BX_OVERRIDE
+		{
+			m_occlusionQuery.invalidate(_handle);
 		}
 
 		void submit(Frame* _render, ClearQuad& _clearQuad, TextVideoMemBlitter& _textVideoMemBlitter) BX_OVERRIDE;
@@ -2638,7 +2679,9 @@ namespace bgfx { namespace gl
 				GL_CHECK(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ib.m_id) );
 
 				ProgramGL& program = m_program[_blitter.m_program.idx];
+				program.bindAttributesBegin();
 				program.bindAttributes(_blitter.m_decl, 0);
+				program.bindAttributesEnd();
 
 				GL_CHECK(glDrawElements(GL_TRIANGLES
 					, _numIndices
@@ -3101,7 +3144,7 @@ namespace bgfx { namespace gl
 
 				if (GL_RGBA == m_readPixelsFmt)
 				{
-					imageSwizzleBgra8(m_capture, m_resolution.m_width, m_resolution.m_height, m_resolution.m_width*4, m_capture);
+					bimg::imageSwizzleBgra8(m_capture, m_resolution.m_width, m_resolution.m_height, m_resolution.m_width*4, m_capture);
 				}
 
 				g_callback->captureFrame(m_capture, m_captureSize);
@@ -3391,7 +3434,9 @@ namespace bgfx { namespace gl
 
 				ProgramGL& program = m_program[_clearQuad.m_program[numMrt-1].idx];
 				GL_CHECK(glUseProgram(program.m_id) );
+				program.bindAttributesBegin();
 				program.bindAttributes(vertexDecl, 0);
+				program.bindAttributesEnd();
 
 				float mrtClear[BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS][4];
 
@@ -3491,6 +3536,8 @@ namespace bgfx { namespace gl
 		const char* m_renderer;
 		const char* m_version;
 		const char* m_glslVersion;
+
+		Workaround m_workaround;
 
 		GLuint m_currentFbo;
 
@@ -3980,7 +4027,7 @@ namespace bgfx { namespace gl
 			{
 				BX_WARN(0 != _vsh.m_id, "Invalid vertex/compute shader.");
 				GL_CHECK(glDeleteProgram(m_id) );
-				m_used[0] = Attrib::Count;
+				m_usedCount = 0;
 				m_id = 0;
 				return;
 			}
@@ -3990,7 +4037,8 @@ namespace bgfx { namespace gl
 
 		init();
 
-		if (!cached)
+		if (!cached
+		&&  s_renderGL->m_workaround.m_detachShader)
 		{
 			// Must be after init, otherwise init might fail to lookup shader
 			// info (NVIDIA Tegra 3 OpenGL ES 2.0 14.01003).
@@ -4105,7 +4153,7 @@ namespace bgfx { namespace gl
 				GLint  num;
 			};
 			VariableInfo vi;
-			GLenum props[] ={ GL_TYPE, GL_LOCATION, GL_ARRAY_SIZE };
+			GLenum props[] = { GL_TYPE, GL_LOCATION, GL_ARRAY_SIZE };
 
 			GLenum gltype;
 			GLint num;
@@ -4144,13 +4192,13 @@ namespace bgfx { namespace gl
 			num = bx::uint32_max(num, 1);
 
 			int offset = 0;
-			char* array = strchr(name, '[');
+			char* array = const_cast<char*>(bx::strnchr(name, '[') );
 			if (NULL != array)
 			{
 				BX_TRACE("--- %s", name);
 				*array = '\0';
 				array++;
-				char* end = strchr(array, ']');
+				char* end = const_cast<char*>(bx::strnchr(array, ']') );
 				if (NULL != end)
 				{ // Some devices (Amazon Fire) might not return terminating brace.
 					*end = '\0';
@@ -4310,11 +4358,8 @@ namespace bgfx { namespace gl
 				m_used[used++] = ii;
 			}
 		}
-		BX_CHECK(used < BX_COUNTOF(m_used), "Out of bounds %d > array size %d."
-				, used
-				, BX_COUNTOF(m_used)
-				);
-		m_used[used] = Attrib::Count;
+		BX_CHECK(used < BX_COUNTOF(m_used), "Out of bounds %d > array size %d.", used, Attrib::Count);
+		m_usedCount = (uint8_t)used;
 
 		used = 0;
 		for (uint32_t ii = 0; ii < BX_COUNTOF(s_instanceDataName); ++ii)
@@ -4333,9 +4378,9 @@ namespace bgfx { namespace gl
 		m_instanceData[used] = 0xffff;
 	}
 
-	void ProgramGL::bindAttributes(const VertexDecl& _vertexDecl, uint32_t _baseVertex) const
+	void ProgramGL::bindAttributes(const VertexDecl& _vertexDecl, uint32_t _baseVertex)
 	{
-		for (uint32_t ii = 0; Attrib::Count != m_used[ii]; ++ii)
+		for (uint32_t ii = 0, iiEnd = m_usedCount; ii < iiEnd; ++ii)
 		{
 			Attrib::Enum attr = Attrib::Enum(m_used[ii]);
 			GLint loc = m_attributes[attr];
@@ -4375,10 +4420,8 @@ namespace bgfx { namespace gl
 								, (void*)(uintptr_t)baseVertex)
 								);
 					}
-				}
-				else
-				{
-					GL_CHECK(glDisableVertexAttribArray(loc) );
+
+					m_unboundUsedAttrib[ii] = Attrib::Count;
 				}
 			}
 		}
@@ -4667,6 +4710,7 @@ namespace bgfx { namespace gl
 			GL_CHECK(glGenTextures(1, &m_id) );
 			BX_CHECK(0 != m_id, "Failed to generate texture id.");
 			GL_CHECK(glBindTexture(_target, m_id) );
+			GL_CHECK(glPixelStorei(GL_UNPACK_ALIGNMENT, 1) );
 
 			const TextureFormatInfo& tfi = s_textureFormat[m_textureFormat];
 			m_fmt  = tfi.m_fmt;
@@ -4786,9 +4830,9 @@ namespace bgfx { namespace gl
 
 	void TextureGL::create(const Memory* _mem, uint32_t _flags, uint8_t _skip)
 	{
-		ImageContainer imageContainer;
+		bimg::ImageContainer imageContainer;
 
-		if (imageParse(imageContainer, _mem->data, _mem->size) )
+		if (bimg::imageParse(imageContainer, _mem->data, _mem->size) )
 		{
 			uint8_t numMips = imageContainer.m_numMips;
 			const uint8_t startLod = uint8_t(bx::uint32_min(_skip, numMips-1) );
@@ -4798,7 +4842,7 @@ namespace bgfx { namespace gl
 			uint32_t textureHeight;
 			uint32_t textureDepth;
 			{
-				const ImageBlockInfo& ibi = getBlockInfo(TextureFormat::Enum(imageContainer.m_format) );
+				const bimg::ImageBlockInfo& ibi = bimg::getBlockInfo(bimg::TextureFormat::Enum(imageContainer.m_format) );
 				textureWidth  = bx::uint32_max(ibi.blockWidth,  imageContainer.m_width >>startLod);
 				textureHeight = bx::uint32_max(ibi.blockHeight, imageContainer.m_height>>startLod);
 				textureDepth  = 1 < imageContainer.m_depth
@@ -4864,7 +4908,7 @@ namespace bgfx { namespace gl
 				&& !s_textureFormat[m_requestedFormat].m_supported
 				&& !s_renderGL->m_textureSwizzleSupport
 				;
-			const bool compressed = isCompressed(TextureFormat::Enum(m_requestedFormat) );
+			const bool compressed = bimg::isCompressed(bimg::TextureFormat::Enum(m_requestedFormat) );
 			const bool convert    = false
 				|| m_textureFormat != m_requestedFormat
 				|| swizzle
@@ -4917,8 +4961,8 @@ namespace bgfx { namespace gl
 						: side
 						;
 
-					ImageMip mip;
-					if (imageGetRawData(imageContainer, side, lod+startLod, _mem->data, _mem->size, mip) )
+					bimg::ImageMip mip;
+					if (bimg::imageGetRawData(imageContainer, side, lod+startLod, _mem->data, _mem->size, mip) )
 					{
 						if (compressed
 						&& !convert)
@@ -4970,7 +5014,7 @@ namespace bgfx { namespace gl
 						{
 							uint32_t size = bx::uint32_max(1, (width  + 3)>>2)
 										  * bx::uint32_max(1, (height + 3)>>2)
-										  * 4*4*getBitsPerPixel(TextureFormat::Enum(m_textureFormat) )/8
+										  * 4*4* bimg::getBitsPerPixel(bimg::TextureFormat::Enum(m_textureFormat) )/8
 										  ;
 
 							compressedTexImage(imageTarget
@@ -5042,7 +5086,7 @@ namespace bgfx { namespace gl
 
 	void TextureGL::update(uint8_t _side, uint8_t _mip, const Rect& _rect, uint16_t _z, uint16_t _depth, uint16_t _pitch, const Memory* _mem)
 	{
-		const uint32_t bpp = getBitsPerPixel(TextureFormat::Enum(m_textureFormat) );
+		const uint32_t bpp = bimg::getBitsPerPixel(bimg::TextureFormat::Enum(m_textureFormat) );
 		const uint32_t rectpitch = _rect.m_width*bpp/8;
 		uint32_t srcpitch  = UINT16_MAX == _pitch ? rectpitch : _pitch;
 
@@ -5060,7 +5104,7 @@ namespace bgfx { namespace gl
 			&& !s_renderGL->m_textureSwizzleSupport
 			;
 		const bool unpackRowLength = BX_IGNORE_C4127(!!BGFX_CONFIG_RENDERER_OPENGL || s_extension[Extension::EXT_unpack_subimage].m_supported);
-		const bool compressed      = isCompressed(TextureFormat::Enum(m_requestedFormat) );
+		const bool compressed      = bimg::isCompressed(bimg::TextureFormat::Enum(m_requestedFormat) );
 		const bool convert         = false
 			|| (compressed && m_textureFormat != m_requestedFormat)
 			|| swizzle
@@ -5086,7 +5130,7 @@ namespace bgfx { namespace gl
 
 			if (!unpackRowLength)
 			{
-				imageCopy(temp, width, height, bpp, srcpitch, data);
+				bimg::imageCopy(temp, width, height, bpp, srcpitch, data);
 				data = temp;
 			}
 
@@ -5109,7 +5153,7 @@ namespace bgfx { namespace gl
 
 			if (convert)
 			{
-				imageDecodeToRgba8(temp, data, width, height, srcpitch, TextureFormat::Enum(m_requestedFormat) );
+				bimg::imageDecodeToRgba8(temp, data, width, height, srcpitch, bimg::TextureFormat::Enum(m_requestedFormat) );
 				data = temp;
 				srcpitch = rectpitch;
 			}
@@ -5117,7 +5161,7 @@ namespace bgfx { namespace gl
 			if (!unpackRowLength
 			&&  !convert)
 			{
-				imageCopy(temp, width, height, bpp, srcpitch, data);
+				bimg::imageCopy(temp, width, height, bpp, srcpitch, data);
 				data = temp;
 			}
 
@@ -5481,15 +5525,20 @@ namespace bgfx { namespace gl
 
 					if (usesTextureLod)
 					{
-						BX_WARN(s_extension[Extension::EXT_shader_texture_lod].m_supported, "EXT_shader_texture_lod is used but not supported by GLES2 driver.");
-						if (s_extension[Extension::EXT_shader_texture_lod].m_supported
-						/*&&  GL_VERTEX_SHADER == m_type*/)
+						BX_WARN(s_extension[Extension::ARB_shader_texture_lod].m_supported
+							, "ARB_shader_texture_lod is used but not supported by GLES2 driver."
+							);
+
+						if (s_extension[Extension::ARB_shader_texture_lod].m_supported)
 						{
 							writeString(&writer
-								, "#extension GL_EXT_shader_texture_lod : enable\n"
-								  "#define texture2DLod texture2DLodEXT\n"
-								  "#define texture2DProjLod texture2DProjLodEXT\n"
-								  "#define textureCubeLod textureCubeLodEXT\n"
+								, "#extension GL_ARB_shader_texture_lod : enable\n"
+								  "#define texture2DLod texture2DLodARB\n"
+								  "#define texture2DProjLod texture2DProjLodARB\n"
+								  "#define textureCubeLod textureCubeLodARB\n"
+								  "#define texture2DGrad texture2DGradARB\n"
+								  "#define texture2DProjGrad texture2DProjGradARB\n"
+								  "#define textureCubeGrad textureCubeGradARB\n"
 								);
 						}
 						else
@@ -5523,10 +5572,10 @@ namespace bgfx { namespace gl
 
 					if (insertFragDepth)
 					{
-						char* entry = strstr(temp, "void main ()");
+						const char* entry = bx::strnstr(temp, "void main ()");
 						if (NULL != entry)
 						{
-							char* brace = strstr(entry, "{");
+							char* brace = const_cast<char*>(bx::strnstr(entry, "{") );
 							if (NULL != brace)
 							{
 								const char* end = bx::strmb(brace, '{', '}');
@@ -5561,7 +5610,7 @@ namespace bgfx { namespace gl
 					const bool usesPacking      = !!bx::findIdentifierMatch(code, s_ARB_shading_language_packing);
 
 					uint32_t version =
-						  usesIUsamplers || usesTexelFetch ? 130
+						  usesIUsamplers || usesTexelFetch || usesGpuShader5 ? 130
 						: usesTextureLod ? 120
 						: 120
 						;
@@ -5575,7 +5624,12 @@ namespace bgfx { namespace gl
 					{
 						if (m_type == GL_FRAGMENT_SHADER)
 						{
-							writeString(&writer, "#extension GL_ARB_shader_texture_lod : enable\n");
+							writeString(&writer
+								, "#extension GL_ARB_shader_texture_lod : enable\n"
+								  "#define texture2DGrad texture2DGradARB\n"
+								  "#define texture2DProjGrad texture2DProjGradARB\n"
+								  "#define textureCubeGrad textureCubeGradARB\n"
+								);
 						}
 					}
 
@@ -5619,7 +5673,7 @@ namespace bgfx { namespace gl
 							{
 								char tmpFragData[16];
 								bx::snprintf(tmpFragData, BX_COUNTOF(tmpFragData), "gl_FragData[%d]", ii);
-								fragData = bx::uint32_max(fragData, NULL == strstr(code, tmpFragData) ? 0 : ii+1);
+								fragData = bx::uint32_max(fragData, NULL == bx::strnstr(code, tmpFragData) ? 0 : ii+1);
 							}
 
 							BGFX_FATAL(0 != fragData, Fatal::InvalidShader, "Unable to find and patch gl_FragData!");
@@ -5677,9 +5731,12 @@ namespace bgfx { namespace gl
 						writeString(&writer, "#version 140\n");
 					}
 
-					writeString(&writer, "#define texture2DLod textureLod\n");
-					writeString(&writer, "#define texture3DLod textureLod\n");
-					writeString(&writer, "#define textureCubeLod textureLod\n");
+					writeString(&writer, "#define texture2DLod    textureLod\n");
+					writeString(&writer, "#define texture3DLod    textureLod\n");
+					writeString(&writer, "#define textureCubeLod  textureLod\n");
+					writeString(&writer, "#define texture2DGrad   textureGrad\n");
+					writeString(&writer, "#define texture3DGrad   textureGrad\n");
+					writeString(&writer, "#define textureCubeGrad textureGrad\n");
 
 					if (m_type == GL_FRAGMENT_SHADER)
 					{
@@ -5709,7 +5766,7 @@ namespace bgfx { namespace gl
 							{
 								char tmpFragData[16];
 								bx::snprintf(tmpFragData, BX_COUNTOF(tmpFragData), "gl_FragData[%d]", ii);
-								fragData = bx::uint32_max(fragData, NULL == strstr(code, tmpFragData) ? 0 : ii+1);
+								fragData = bx::uint32_max(fragData, NULL == bx::strnstr(code, tmpFragData) ? 0 : ii+1);
 							}
 
 							BGFX_FATAL(0 != fragData, Fatal::InvalidShader, "Unable to find and patch gl_FragData!");
@@ -5846,10 +5903,10 @@ namespace bgfx { namespace gl
 					}
 
 					GLenum attachment = GL_COLOR_ATTACHMENT0 + colorIdx;
-					TextureFormat::Enum format = (TextureFormat::Enum)texture.m_textureFormat;
-					if (isDepth(format) )
+					bimg::TextureFormat::Enum format = bimg::TextureFormat::Enum(texture.m_textureFormat);
+					if (bimg::isDepth(format) )
 					{
-						const ImageBlockInfo& info = getBlockInfo(format);
+						const bimg::ImageBlockInfo& info = bimg::getBlockInfo(format);
 						if (0 < info.stencilBits)
 						{
 							attachment = GL_DEPTH_STENCIL_ATTACHMENT;
@@ -5936,7 +5993,7 @@ namespace bgfx { namespace gl
 						if (0 != texture.m_id)
 						{
 							GLenum attachment = GL_COLOR_ATTACHMENT0 + colorIdx;
-							if (!isDepth( (TextureFormat::Enum)texture.m_textureFormat) )
+							if (!bimg::isDepth(bimg::TextureFormat::Enum(texture.m_textureFormat) ) )
 							{
 								++colorIdx;
 
@@ -6112,21 +6169,40 @@ namespace bgfx { namespace gl
 		while (0 != m_control.available() )
 		{
 			Query& query = m_query[m_control.m_read];
-			int32_t result;
 
-			if (!_wait)
+			if (isValid(query.m_handle) )
 			{
-				GL_CHECK(glGetQueryObjectiv(query.m_id, GL_QUERY_RESULT_AVAILABLE, &result) );
+				int32_t result;
 
-				if (!result)
+				if (!_wait)
 				{
-					break;
+					GL_CHECK(glGetQueryObjectiv(query.m_id, GL_QUERY_RESULT_AVAILABLE, &result) );
+
+					if (!result)
+					{
+						break;
+					}
 				}
+
+				GL_CHECK(glGetQueryObjectiv(query.m_id, GL_QUERY_RESULT, &result) );
+				_render->m_occlusion[query.m_handle.idx] = int32_t(result);
 			}
 
-			GL_CHECK(glGetQueryObjectiv(query.m_id, GL_QUERY_RESULT, &result) );
-			_render->m_occlusion[query.m_handle.idx] = 0 < result;
 			m_control.consume(1);
+		}
+	}
+
+	void OcclusionQueryGL::invalidate(OcclusionQueryHandle _handle)
+	{
+		const uint32_t size = m_control.m_size;
+
+		for (uint32_t ii = 0, num = m_control.available(); ii < num; ++ii)
+		{
+			Query& query = m_query[(m_control.m_read + ii) % size];
+			if (query.m_handle.idx == _handle.idx)
+			{
+				query.m_handle.idx = bgfx::invalidHandle;
+			}
 		}
 	}
 
@@ -6188,6 +6264,9 @@ namespace bgfx { namespace gl
 		currentState.m_stateFlags = BGFX_STATE_NONE;
 		currentState.m_stencil    = packStencil(BGFX_STENCIL_NONE, BGFX_STENCIL_NONE);
 
+		RenderBind currentBind;
+		currentBind.clear();
+
 		_render->m_hmdInitialized = m_ovr.isInitialized();
 
 		const bool hmdEnabled = m_ovr.isEnabled();
@@ -6223,7 +6302,6 @@ namespace bgfx { namespace gl
 			: GL_FILL
 			) );
 
-		uint32_t baseVertex = 0;
 		GLuint currentVao = 0;
 		bool wasCompute = false;
 		bool viewHasScissor = false;
@@ -6269,7 +6347,9 @@ namespace bgfx { namespace gl
 					|| item == numItems
 					;
 
-				const RenderItem& renderItem = _render->m_renderItem[_render->m_sortValues[item] ];
+				const uint32_t itemIdx       = _render->m_sortValues[item];
+				const RenderItem& renderItem = _render->m_renderItem[itemIdx];
+				const RenderBind& renderBind = _render->m_renderItemBind[itemIdx];
 				++item;
 
 				if (viewChanged)
@@ -6444,7 +6524,7 @@ namespace bgfx { namespace gl
 						GLbitfield barrier = 0;
 						for (uint32_t ii = 0; ii < BGFX_MAX_COMPUTE_BINDINGS; ++ii)
 						{
-							const Binding& bind = compute.m_bind[ii];
+							const Binding& bind = renderBind.m_bind[ii];
 							if (invalidHandle != bind.m_idx)
 							{
 								switch (bind.m_type)
@@ -6575,6 +6655,8 @@ namespace bgfx { namespace gl
 					changedStencil = packStencil(BGFX_STENCIL_MASK, BGFX_STENCIL_MASK);
 					currentState.m_stateFlags = newFlags;
 					currentState.m_stencil    = newStencil;
+
+					currentBind.clear();
 				}
 
 				uint16_t scissor = draw.m_scissor;
@@ -6930,16 +7012,40 @@ namespace bgfx { namespace gl
 					{
 						for (uint32_t stage = 0; stage < BGFX_CONFIG_MAX_TEXTURE_SAMPLERS; ++stage)
 						{
-							const Binding& bind = draw.m_bind[stage];
-							Binding& current = currentState.m_bind[stage];
+							const Binding& bind = renderBind.m_bind[stage];
+							Binding& current = currentBind.m_bind[stage];
 							if (current.m_idx != bind.m_idx
+							||  current.m_type != bind.m_type
 							||  current.m_un.m_draw.m_textureFlags != bind.m_un.m_draw.m_textureFlags
 							||  programChanged)
 							{
 								if (invalidHandle != bind.m_idx)
 								{
-									TextureGL& texture = m_textures[bind.m_idx];
-									texture.commit(stage, bind.m_un.m_draw.m_textureFlags, _render->m_colorPalette);
+									switch (bind.m_type)
+									{
+									case Binding::Texture:
+										{
+											TextureGL& texture = m_textures[bind.m_idx];
+											texture.commit(stage, bind.m_un.m_draw.m_textureFlags, _render->m_colorPalette);
+										}
+										break;
+
+									case Binding::IndexBuffer:
+										{
+											const IndexBufferGL& buffer = m_indexBuffers[bind.m_idx];
+											GL_CHECK(glBindBufferBase(GL_SHADER_STORAGE_BUFFER, stage, buffer.m_id) );
+											// TODO: barriers?
+										}
+										break;
+
+									case Binding::VertexBuffer:
+										{
+											const VertexBufferGL& buffer = m_vertexBuffers[bind.m_idx];
+											GL_CHECK(glBindBufferBase(GL_SHADER_STORAGE_BUFFER, stage, buffer.m_id) );
+											// TODO: barriers?
+										}
+										break;
+									}
 								}
 							}
 
@@ -6951,27 +7057,63 @@ namespace bgfx { namespace gl
 					&&  0 == draw.m_stream[0].m_startVertex
 					&&  0 == draw.m_instanceDataOffset)
 					{
+						bool diffStartVertex = false;
+						bool diffStreamHandles = false;
+						for (uint32_t idx = 0, streamMask = draw.m_streamMask, ntz = bx::uint32_cnttz(streamMask)
+							; 0 != streamMask
+							; streamMask >>= 1, idx += 1, ntz = bx::uint32_cnttz(streamMask)
+							)
+						{
+							streamMask >>= ntz;
+							idx         += ntz;
+
+							if (currentState.m_stream[idx].m_handle.idx != draw.m_stream[idx].m_handle.idx)
+							{
+								diffStreamHandles = true;
+								break;
+							}
+
+							if (currentState.m_stream[idx].m_startVertex != draw.m_stream[idx].m_startVertex)
+							{
+								diffStartVertex = true;
+								break;
+							}
+						}
+
 						if (programChanged
-						||  baseVertex                            != draw.m_stream[0].m_startVertex
 						||  currentState.m_streamMask             != draw.m_streamMask
-						||  currentState.m_stream[0].m_handle.idx != draw.m_stream[0].m_handle.idx
 						||  currentState.m_indexBuffer.idx        != draw.m_indexBuffer.idx
 						||  currentState.m_instanceDataOffset     != draw.m_instanceDataOffset
 						||  currentState.m_instanceDataStride     != draw.m_instanceDataStride
-						||  currentState.m_instanceDataBuffer.idx != draw.m_instanceDataBuffer.idx)
+						||  currentState.m_instanceDataBuffer.idx != draw.m_instanceDataBuffer.idx
+						||  diffStartVertex
+						||  diffStreamHandles)
 						{
 							bx::HashMurmur2A murmur;
 							murmur.begin();
 
-							const Stream& stream = draw.m_stream[0];
-							murmur.add(stream.m_handle.idx);
-
-							if (isValid(stream.m_handle) )
+							for (uint32_t idx = 0, streamMask = draw.m_streamMask, ntz = bx::uint32_cnttz(streamMask)
+								; 0 != streamMask
+								; streamMask >>= 1, idx += 1, ntz = bx::uint32_cnttz(streamMask)
+								)
 							{
-								const VertexBufferGL& vb = m_vertexBuffers[stream.m_handle.idx];
-								uint16_t decl = !isValid(vb.m_decl) ? stream.m_decl.idx : vb.m_decl.idx;
-								murmur.add(decl);
+								streamMask >>= ntz;
+								idx         += ntz;
+
+								const Stream& stream = draw.m_stream[idx];
+								murmur.add(stream.m_handle.idx);
+
+								if (isValid(stream.m_handle) )
+								{
+									const VertexBufferGL& vb = m_vertexBuffers[stream.m_handle.idx];
+									uint16_t decl = !isValid(vb.m_decl) ? stream.m_decl.idx : vb.m_decl.idx;
+									murmur.add(decl);
+								}
+
+								currentState.m_stream[idx].m_handle      = stream.m_handle;
+								currentState.m_stream[idx].m_startVertex = stream.m_startVertex;
 							}
+							currentState.m_streamMask = draw.m_streamMask;
 
 							murmur.add(draw.m_indexBuffer.idx);
 							murmur.add(draw.m_instanceDataBuffer.idx);
@@ -6980,11 +7122,7 @@ namespace bgfx { namespace gl
 							murmur.add(programIdx);
 							uint32_t hash = murmur.end();
 
-							currentState.m_streamMask         = draw.m_streamMask;
-							currentState.m_stream[0].m_handle = stream.m_handle;
-							baseVertex                        = stream.m_startVertex;
-
-							currentState.m_indexBuffer = draw.m_indexBuffer;
+							currentState.m_indexBuffer        = draw.m_indexBuffer;
 							currentState.m_instanceDataOffset = draw.m_instanceDataOffset;
 							currentState.m_instanceDataStride = draw.m_instanceDataStride;
 
@@ -7002,14 +7140,26 @@ namespace bgfx { namespace gl
 
 								program.add(hash);
 
-								if (isValid(stream.m_handle) )
+								program.bindAttributesBegin();
+								for (uint32_t idx = 0, streamMask = draw.m_streamMask, ntz = bx::uint32_cnttz(streamMask)
+									; 0 != streamMask
+									; streamMask >>= 1, idx += 1, ntz = bx::uint32_cnttz(streamMask)
+									)
 								{
-									VertexBufferGL& vb = m_vertexBuffers[stream.m_handle.idx];
-									vb.add(hash);
-									GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, vb.m_id) );
+									streamMask >>= ntz;
+									idx         += ntz;
 
-									uint16_t decl = !isValid(vb.m_decl) ? stream.m_decl.idx : vb.m_decl.idx;
-									program.bindAttributes(m_vertexDecls[decl], stream.m_startVertex);
+									const Stream& stream = draw.m_stream[idx];
+
+									if (isValid(stream.m_handle) )
+									{
+										VertexBufferGL& vb = m_vertexBuffers[stream.m_handle.idx];
+										vb.add(hash);
+
+										uint16_t decl = !isValid(vb.m_decl) ? stream.m_decl.idx : vb.m_decl.idx;
+										GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, vb.m_id) );
+										program.bindAttributes(m_vertexDecls[decl], stream.m_startVertex);
+									}
 
 									if (isValid(draw.m_instanceDataBuffer) )
 									{
@@ -7019,10 +7169,7 @@ namespace bgfx { namespace gl
 										program.bindInstanceData(draw.m_instanceDataStride, draw.m_instanceDataOffset);
 									}
 								}
-								else
-								{
-									GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, 0) );
-								}
+								program.bindAttributesEnd();
 
 								if (isValid(draw.m_indexBuffer) )
 								{
@@ -7043,37 +7190,56 @@ namespace bgfx { namespace gl
 						&&  0 != currentVao)
 						{
 							GL_CHECK(glBindVertexArray(defaultVao) );
-							currentState.m_streamMask             = 0;
-							currentState.m_stream[0].m_handle.idx = invalidHandle;
-							currentState.m_indexBuffer.idx        = invalidHandle;
+							currentState.m_streamMask = 0;
+							for (size_t ii = 0; ii < BGFX_CONFIG_MAX_VERTEX_STREAMS; ++ii)
+							{
+								currentState.m_stream[ii].m_handle.idx = invalidHandle;
+							}
+							currentState.m_indexBuffer.idx = invalidHandle;
 							bindAttribs = true;
 							currentVao = 0;
 						}
 
+						bool diffStreamHandles = false;
+						for (uint32_t idx = 0, streamMask = draw.m_streamMask, ntz = bx::uint32_cnttz(streamMask)
+							; 0 != streamMask
+							; streamMask >>= 1, idx += 1, ntz = bx::uint32_cnttz(streamMask)
+							)
+						{
+							streamMask >>= ntz;
+							idx         += ntz;
+
+							if (currentState.m_stream[idx].m_handle.idx != draw.m_stream[idx].m_handle.idx)
+							{
+								diffStreamHandles = true;
+								break;
+							}
+						}
+
 						if (programChanged
 						||  currentState.m_streamMask             != draw.m_streamMask
-						||  currentState.m_stream[0].m_handle.idx != draw.m_stream[0].m_handle.idx
 						||  currentState.m_instanceDataBuffer.idx != draw.m_instanceDataBuffer.idx
 						||  currentState.m_instanceDataOffset     != draw.m_instanceDataOffset
-						||  currentState.m_instanceDataStride     != draw.m_instanceDataStride)
+						||  currentState.m_instanceDataStride     != draw.m_instanceDataStride
+						||  diffStreamHandles)
 						{
 							currentState.m_streamMask             = draw.m_streamMask;
-							currentState.m_stream[0].m_handle     = draw.m_stream[0].m_handle;
 							currentState.m_instanceDataBuffer.idx = draw.m_instanceDataBuffer.idx;
 							currentState.m_instanceDataOffset     = draw.m_instanceDataOffset;
 							currentState.m_instanceDataStride     = draw.m_instanceDataStride;
 
-							uint16_t handle = draw.m_stream[0].m_handle.idx;
-							if (invalidHandle != handle)
+							for (uint32_t idx = 0, streamMask = draw.m_streamMask, ntz = bx::uint32_cnttz(streamMask)
+								; 0 != streamMask
+								; streamMask >>= 1, idx += 1, ntz = bx::uint32_cnttz(streamMask)
+								)
 							{
-								VertexBufferGL& vb = m_vertexBuffers[handle];
-								GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, vb.m_id) );
-								bindAttribs = true;
+								streamMask >>= ntz;
+								idx         += ntz;
+
+								currentState.m_stream[idx].m_handle = draw.m_stream[idx].m_handle;
 							}
-							else
-							{
-								GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, 0) );
-							}
+
+							bindAttribs = true;
 						}
 
 						if (currentState.m_indexBuffer.idx != draw.m_indexBuffer.idx)
@@ -7094,13 +7260,41 @@ namespace bgfx { namespace gl
 
 						if (0 != currentState.m_streamMask)
 						{
-							if (baseVertex != draw.m_stream[0].m_startVertex
-							||  bindAttribs)
+							bool diffStartVertex = false;
+							for (uint32_t idx = 0, streamMask = draw.m_streamMask, ntz = bx::uint32_cnttz(streamMask)
+								; 0 != streamMask
+								; streamMask >>= 1, idx += 1, ntz = bx::uint32_cnttz(streamMask)
+								)
 							{
-								baseVertex = draw.m_stream[0].m_startVertex;
-								const VertexBufferGL& vb = m_vertexBuffers[draw.m_stream[0].m_handle.idx];
-								uint16_t decl = !isValid(vb.m_decl) ? draw.m_stream[0].m_decl.idx : vb.m_decl.idx;
-								program.bindAttributes(m_vertexDecls[decl], draw.m_stream[0].m_startVertex);
+								streamMask >>= ntz;
+								idx         += ntz;
+
+								if (currentState.m_stream[idx].m_startVertex != draw.m_stream[idx].m_startVertex)
+								{
+									diffStartVertex = true;
+									break;
+								}
+							}
+
+							if (bindAttribs || diffStartVertex)
+							{
+								program.bindAttributesBegin();
+								for (uint32_t idx = 0, streamMask = draw.m_streamMask, ntz = bx::uint32_cnttz(streamMask)
+									; 0 != streamMask
+									; streamMask >>= 1, idx += 1, ntz = bx::uint32_cnttz(streamMask)
+									)
+								{
+									streamMask >>= ntz;
+									idx         += ntz;
+
+									currentState.m_stream[idx].m_startVertex = draw.m_stream[idx].m_startVertex;
+
+									const VertexBufferGL& vb = m_vertexBuffers[draw.m_stream[idx].m_handle.idx];
+									uint16_t decl = !isValid(vb.m_decl) ? draw.m_stream[idx].m_decl.idx : vb.m_decl.idx;
+									GL_CHECK(glBindBuffer(GL_ARRAY_BUFFER, vb.m_id) );
+									program.bindAttributes(m_vertexDecls[decl], draw.m_stream[idx].m_startVertex);
+								}
+								program.bindAttributesEnd();
 
 								if (isValid(draw.m_instanceDataBuffer) )
 								{
@@ -7116,10 +7310,20 @@ namespace bgfx { namespace gl
 						uint32_t numVertices = draw.m_numVertices;
 						if (UINT32_MAX == numVertices)
 						{
-							const VertexBufferGL& vb = m_vertexBuffers[currentState.m_stream[0].m_handle.idx];
-							uint16_t decl = !isValid(vb.m_decl) ? draw.m_stream[0].m_decl.idx : vb.m_decl.idx;
-							const VertexDecl& vertexDecl = m_vertexDecls[decl];
-							numVertices = vb.m_size/vertexDecl.m_stride;
+							for (uint32_t idx = 0, streamMask = draw.m_streamMask, ntz = bx::uint32_cnttz(streamMask)
+								; 0 != streamMask
+								; streamMask >>= 1, idx += 1, ntz = bx::uint32_cnttz(streamMask)
+								)
+							{
+								streamMask >>= ntz;
+								idx         += ntz;
+
+								const VertexBufferGL& vb = m_vertexBuffers[draw.m_stream[idx].m_handle.idx];
+								uint16_t decl = !isValid(vb.m_decl) ? draw.m_stream[idx].m_decl.idx : vb.m_decl.idx;
+								const VertexDecl& vertexDecl = m_vertexDecls[decl];
+
+								numVertices = bx::uint32_min(numVertices, vb.m_size/vertexDecl.m_stride);
+							}
 						}
 
 						uint32_t numIndices        = 0;

@@ -986,7 +986,7 @@ VK_IMPORT_INSTANCE
 					{
 						uint8_t support = BGFX_CAPS_FORMAT_TEXTURE_NONE;
 
-						const bool depth = isDepth(TextureFormat::Enum(ii) );
+						const bool depth = bimg::isDepth(bimg::TextureFormat::Enum(ii) );
 						VkFormat fmt = depth
 							? s_textureFormat[ii].m_fmtDsv
 							: s_textureFormat[ii].m_fmt
@@ -1622,14 +1622,6 @@ VK_IMPORT_DEVICE
 				VkCommandBuffer commandBuffer = m_commandBuffers[0];
 				VK_CHECK(vkBeginCommandBuffer(commandBuffer, &cbbi) );
 
-				VkClearValue clearValue[2];
-				clearValue[0].color.float32[0] = 0.0f;
-				clearValue[0].color.float32[1] = 0.0f;
-				clearValue[0].color.float32[2] = 0.0f;
-				clearValue[0].color.float32[3] = 1.0f;
-				clearValue[1].depthStencil.depth   = 0.0f;
-				clearValue[1].depthStencil.stencil = 0;
-
 				VkRenderPassBeginInfo rpbi;
 				rpbi.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 				rpbi.pNext = NULL;
@@ -1637,8 +1629,8 @@ VK_IMPORT_DEVICE
 				rpbi.renderArea.offset.x = 0;
 				rpbi.renderArea.offset.y = 0;
 				rpbi.renderArea.extent = m_sci.imageExtent;
-				rpbi.clearValueCount = BX_COUNTOF(clearValue);
-				rpbi.pClearValues    = clearValue;
+				rpbi.clearValueCount = 0;
+				rpbi.pClearValues = NULL;
 
 				setImageMemoryBarrier(commandBuffer
 					, m_backBufferDepthStencilImage
@@ -1927,6 +1919,11 @@ VK_IMPORT_DEVICE
 			return BGFX_RENDERER_VULKAN_NAME;
 		}
 
+		bool isDeviceRemoved() BX_OVERRIDE
+		{
+			return false;
+		}
+
 		void flip(HMD& /*_hmd*/) BX_OVERRIDE
 		{
 			if (VK_NULL_HANDLE != m_swapchain)
@@ -2097,7 +2094,7 @@ VK_IMPORT_DEVICE
 			m_uniforms[_handle.idx] = NULL;
 		}
 
-		void saveScreenShot(const char* /*_filePath*/) BX_OVERRIDE
+		void requestScreenShot(FrameBufferHandle /*_handle*/, const char* /*_filePath*/) BX_OVERRIDE
 		{
 		}
 
@@ -2116,6 +2113,11 @@ VK_IMPORT_DEVICE
 
 		void setMarker(const char* /*_marker*/, uint32_t /*_size*/) BX_OVERRIDE
 		{
+		}
+
+		void invalidateOcclusionQuery(OcclusionQueryHandle _handle) BX_OVERRIDE
+		{
+			BX_UNUSED(_handle);
 		}
 
 		void submit(Frame* _render, ClearQuad& _clearQuad, TextVideoMemBlitter& _textVideoMemBlitter) BX_OVERRIDE;
@@ -2867,7 +2869,6 @@ VK_IMPORT_DEVICE
 
 			VkClearAttachment attachments[BGFX_CONFIG_MAX_FRAME_BUFFERS];
 			uint32_t mrt = 0;
-			attachments[mrt].aspectMask = 0;
 
 			if (true //NULL != m_currentColor
 			&&  BGFX_CLEAR_COLOR & _clear.m_flags)
@@ -2907,6 +2908,7 @@ VK_IMPORT_DEVICE
 			&& (BGFX_CLEAR_DEPTH | BGFX_CLEAR_STENCIL) & _clear.m_flags)
 			{
 				attachments[mrt].colorAttachment = mrt;
+				attachments[mrt].aspectMask = 0;
 				attachments[mrt].aspectMask |= (_clear.m_flags & BGFX_CLEAR_DEPTH  ) ? VK_IMAGE_ASPECT_DEPTH_BIT   : 0;
 				attachments[mrt].aspectMask |= (_clear.m_flags & BGFX_CLEAR_STENCIL) ? VK_IMAGE_ASPECT_STENCIL_BIT : 0;
 
@@ -3748,7 +3750,9 @@ VK_DESTROY
 					|| item == numItems
 					;
 
-				const RenderItem& renderItem = _render->m_renderItem[_render->m_sortValues[item] ];
+				const uint32_t itemIdx       = _render->m_sortValues[item];
+				const RenderItem& renderItem = _render->m_renderItem[itemIdx];
+				const RenderBind& renderBind = _render->m_renderItemBind[itemIdx];
 				++item;
 
 				if (viewChanged)
@@ -3915,7 +3919,7 @@ BX_UNUSED(currentSamplerStateIdx);
 						currentBindHash = 0;
 					}
 
-//					uint32_t bindHash = bx::hashMurmur2A(compute.m_bind, sizeof(compute.m_bind) );
+//					uint32_t bindHash = bx::hashMurmur2A(renderBind.m_bind, sizeof(renderBind.m_bind) );
 //					if (currentBindHash != bindHash)
 //					{
 //						currentBindHash  = bindHash;
@@ -3928,7 +3932,7 @@ BX_UNUSED(currentSamplerStateIdx);
 //
 //							for (uint32_t ii = 0; ii < BGFX_MAX_COMPUTE_BINDINGS; ++ii)
 //							{
-//								const Binding& bind = compute.m_bind[ii];
+//								const Binding& bind = renderBind.m_bind[ii];
 //								if (invalidHandle != bind.m_idx)
 //								{
 //									switch (bind.m_type)
@@ -4141,7 +4145,7 @@ BX_UNUSED(currentSamplerStateIdx);
 							);
 
 					uint16_t scissor = draw.m_scissor;
-					uint32_t bindHash = bx::hashMurmur2A(draw.m_bind, sizeof(draw.m_bind) );
+					uint32_t bindHash = bx::hashMurmur2A(renderBind.m_bind, sizeof(renderBind.m_bind) );
 					if (currentBindHash != bindHash
 					||  0 != changedStencil
 					|| (hasFactor && blendFactor != draw.m_rgba)
@@ -4167,7 +4171,7 @@ BX_UNUSED(currentSamplerStateIdx);
 //								srvHandle[0].ptr = 0;
 //								for (uint32_t stage = 0; stage < BGFX_CONFIG_MAX_TEXTURE_SAMPLERS; ++stage)
 //								{
-//									const Binding& bind = draw.m_bind[stage];
+//									const Binding& bind = renderBind.m_bind[stage];
 //									if (invalidHandle != bind.m_idx)
 //									{
 //										TextureD3D12& texture = m_textures[bind.m_idx];

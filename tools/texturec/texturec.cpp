@@ -3,69 +3,13 @@
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
+#include <stdio.h>
 #include <bx/allocator.h>
 #include <bx/readerwriter.h>
 #include <bx/endian.h>
 
-#include <bgfx/bgfx.h>
-
-#include "image.h"
-
-#include <libsquish/squish.h>
-#include <etc1/etc1.h>
-#include <etc2/ProcessRGB.hpp>
-#include <nvtt/nvtt.h>
-#include <pvrtc/PvrTcEncoder.h>
-
-#include <edtaa3/edtaa3func.h>
-
-extern "C" {
-#include <iqa.h>
-}
-
-#define LODEPNG_NO_COMPILE_ENCODER
-#define LODEPNG_NO_COMPILE_DISK
-#define LODEPNG_NO_COMPILE_ANCILLARY_CHUNKS
-#define LODEPNG_NO_COMPILE_ERROR_TEXT
-#define LODEPNG_NO_COMPILE_ALLOCATORS
-#define LODEPNG_NO_COMPILE_CPP
-#include <lodepng/lodepng.cpp>
-
-void* lodepng_malloc(size_t _size)
-{
-	return ::malloc(_size);
-}
-
-void* lodepng_realloc(void* _ptr, size_t _size)
-{
-	return ::realloc(_ptr, _size);
-}
-
-void lodepng_free(void* _ptr)
-{
-	::free(_ptr);
-}
-
-BX_PRAGMA_DIAGNOSTIC_PUSH();
-BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wmissing-field-initializers");
-BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wshadow");
-BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wint-to-pointer-cast")
-#define STBI_MALLOC(_size)        lodepng_malloc(_size)
-#define STBI_REALLOC(_ptr, _size) lodepng_realloc(_ptr, _size)
-#define STBI_FREE(_ptr)           lodepng_free(_ptr)
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb/stb_image.c>
-BX_PRAGMA_DIAGNOSTIC_POP();
-
-BX_PRAGMA_DIAGNOSTIC_PUSH()
-BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wtype-limits")
-BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wunused-parameter")
-BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wunused-value")
-BX_PRAGMA_DIAGNOSTIC_IGNORED_MSVC(4100) // error C4100: '' : unreferenced formal parameter
-#define MINIZ_NO_STDIO
-#define TINYEXR_IMPLEMENTATION
-#include <tinyexr/tinyexr.h>
-BX_PRAGMA_DIAGNOSTIC_POP()
+#include <bimg/decode.h>
+#include <bimg/encode.h>
 
 #if 0
 #	define BX_TRACE(_format, ...) fprintf(stderr, "" _format "\n", ##__VA_ARGS__)
@@ -76,403 +20,9 @@ BX_PRAGMA_DIAGNOSTIC_POP()
 #include <bx/crtimpl.h>
 #include <bx/uint32_t.h>
 
-namespace bgfx
-{
-	bool imageParse(ImageContainer& _imageContainer, const void* _data, uint32_t _size, void** _out)
-	{
-		*_out = NULL;
-		bool loaded = imageParse(_imageContainer, _data, _size);
-		if (!loaded)
-		{
-			bgfx::TextureFormat::Enum format = bgfx::TextureFormat::RGBA8;
-			uint32_t bpp = 32;
-
-			uint32_t width  = 0;
-			uint32_t height = 0;
-
-			uint8_t* out = NULL;
-			static uint8_t pngMagic[] = { 0x89, 0x50, 0x4E, 0x47, 0x0d, 0x0a };
-			if (0 == memcmp(_data, pngMagic, sizeof(pngMagic) ) )
-			{
-				unsigned error;
-				LodePNGState state;
-				lodepng_state_init(&state);
-				state.decoder.color_convert = 0;
-				error = lodepng_decode(&out, &width, &height, &state, (uint8_t*)_data, _size);
-
-				if (0 == error)
-				{
-					*_out = out;
-
-					switch (state.info_raw.bitdepth)
-					{
-					case 8:
-						switch (state.info_raw.colortype)
-						{
-						case LCT_GREY:
-							format = bgfx::TextureFormat::R8;
-							bpp    = 8;
-							break;
-
-						case LCT_GREY_ALPHA:
-							format = bgfx::TextureFormat::RG8;
-							bpp    = 16;
-							break;
-
-						case LCT_RGB:
-							format = bgfx::TextureFormat::RGB8;
-							bpp    = 24;
-							break;
-
-						case LCT_RGBA:
-							format = bgfx::TextureFormat::RGBA8;
-							bpp    = 32;
-							break;
-
-						case LCT_PALETTE:
-							break;
-						}
-						break;
-
-					case 16:
-						switch (state.info_raw.colortype)
-						{
-						case LCT_GREY:
-							for (uint32_t ii = 0, num = width*height; ii < num; ++ii)
-							{
-								uint16_t* rgba = (uint16_t*)out + ii;
-								rgba[0] = bx::toHostEndian(rgba[0], false);
-							}
-							format = bgfx::TextureFormat::R16;
-							bpp    = 16;
-							break;
-
-						case LCT_GREY_ALPHA:
-							for (uint32_t ii = 0, num = width*height; ii < num; ++ii)
-							{
-								uint16_t* rgba = (uint16_t*)out + ii*2;
-								rgba[0] = bx::toHostEndian(rgba[0], false);
-								rgba[1] = bx::toHostEndian(rgba[1], false);
-							}
-							format = bgfx::TextureFormat::RG16;
-							bpp    = 32;
-							break;
-
-						case LCT_RGBA:
-							for (uint32_t ii = 0, num = width*height; ii < num; ++ii)
-							{
-								uint16_t* rgba = (uint16_t*)out + ii*4;
-								rgba[0] = bx::toHostEndian(rgba[0], false);
-								rgba[1] = bx::toHostEndian(rgba[1], false);
-								rgba[2] = bx::toHostEndian(rgba[2], false);
-								rgba[3] = bx::toHostEndian(rgba[3], false);
-							}
-							format = bgfx::TextureFormat::RGBA16;
-							bpp    = 64;
-							break;
-
-						case LCT_RGB:
-						case LCT_PALETTE:
-							break;
-						}
-						break;
-
-					default:
-						break;
-					}
-				}
-
-				lodepng_state_cleanup(&state);
-			}
-			else
-			{
-				int comp = 0;
-				*_out = stbi_load_from_memory( (uint8_t*)_data, _size, (int*)&width, (int*)&height, &comp, 4);
-			}
-
-			loaded = NULL != *_out;
-
-			if (loaded)
-			{
-				_imageContainer.m_data      = *_out;
-				_imageContainer.m_size      = width*height*bpp/8;
-				_imageContainer.m_offset    = 0;
-				_imageContainer.m_width     = width;
-				_imageContainer.m_height    = height;
-				_imageContainer.m_depth     = 1;
-				_imageContainer.m_numLayers = 1;
-				_imageContainer.m_format    = format;
-				_imageContainer.m_numMips   = 1;
-				_imageContainer.m_hasAlpha  = true;
-				_imageContainer.m_cubeMap   = false;
-				_imageContainer.m_ktx       = false;
-				_imageContainer.m_ktxLE     = false;
-				_imageContainer.m_srgb      = false;
-			}
-		}
-
-		return loaded;
-	}
-
-	bool imageEncodeFromRgba8(void* _dst, const void* _src, uint32_t _width, uint32_t _height, uint8_t _format)
-	{
-		TextureFormat::Enum format = TextureFormat::Enum(_format);
-
-		switch (format)
-		{
-		case TextureFormat::BC1:
-		case TextureFormat::BC2:
-		case TextureFormat::BC3:
-		case TextureFormat::BC4:
-		case TextureFormat::BC5:
-			squish::CompressImage( (const uint8_t*)_src, _width, _height, _dst
-				, format == TextureFormat::BC2 ? squish::kDxt3
-				: format == TextureFormat::BC3 ? squish::kDxt5
-				: format == TextureFormat::BC4 ? squish::kBc4
-				: format == TextureFormat::BC5 ? squish::kBc5
-				:                                squish::kDxt1
-				);
-			return true;
-
-		case TextureFormat::BC6H:
-			nvtt::compressBC6H( (const uint8_t*)_src, _width, _height, 4, _dst);
-			return true;
-
-		case TextureFormat::BC7:
-			nvtt::compressBC7( (const uint8_t*)_src, _width, _height, 4, _dst);
-			return true;
-
-		case TextureFormat::ETC1:
-			etc1_encode_image( (const uint8_t*)_src, _width, _height, 4, _width*4, (uint8_t*)_dst);
-			return true;
-
-		case TextureFormat::ETC2:
-			{
-				const uint32_t blockWidth  = (_width +3)/4;
-				const uint32_t blockHeight = (_height+3)/4;
-				const uint32_t pitch = _width*4;
-				const uint8_t* src = (const uint8_t*)_src;
-				uint64_t* dst = (uint64_t*)_dst;
-				for (uint32_t yy = 0; yy < blockHeight; ++yy)
-				{
-					for (uint32_t xx = 0; xx < blockWidth; ++xx)
-					{
-						uint8_t block[4*4*4];
-						const uint8_t* ptr = &src[(yy*pitch+xx*4)*4];
-
-						for (uint32_t ii = 0; ii < 16; ++ii)
-						{ // BGRx
-							memcpy(&block[ii*4], &ptr[(ii%4)*pitch + (ii&~3)], 4);
-							bx::xchg(block[ii*4+0], block[ii*4+2]);
-						}
-
-						*dst++ = ProcessRGB_ETC2(block);
-					}
-				}
-			}
-			return true;
-
-		case TextureFormat::PTC14:
-			{
-				using namespace Javelin;
-				RgbaBitmap bmp;
-				bmp.width  = _width;
-				bmp.height = _height;
-				bmp.data   = (uint8_t*)const_cast<void*>(_src);
-				PvrTcEncoder::EncodeRgb4Bpp(_dst, bmp);
-				bmp.data = NULL;
-			}
-			return true;
-
-		case TextureFormat::PTC14A:
-			{
-				using namespace Javelin;
-				RgbaBitmap bmp;
-				bmp.width  = _width;
-				bmp.height = _height;
-				bmp.data   = (uint8_t*)const_cast<void*>(_src);
-				PvrTcEncoder::EncodeRgba4Bpp(_dst, bmp);
-				bmp.data = NULL;
-			}
-			return true;
-
-		case TextureFormat::BGRA8:
-			imageSwizzleBgra8(_dst, _width, _height, _width*4, _src);
-			return true;
-
-		case TextureFormat::RGBA8:
-			memcpy(_dst, _src, _width*_height*4);
-			return true;
-
-		default:
-			return imageConvert(_dst, format, _src, TextureFormat::RGBA8, _width, _height);
-		}
-
-		return false;
-	}
-
-	bool imageEncodeFromRgba32f(bx::AllocatorI* _allocator, void* _dst, const void* _src, uint32_t _width, uint32_t _height, uint8_t _format)
-	{
-		TextureFormat::Enum format = TextureFormat::Enum(_format);
-
-		const uint8_t* src = (const uint8_t*)_src;
-
-		switch (format)
-		{
-		case TextureFormat::RGBA8:
-			{
-				uint8_t* dst = (uint8_t*)_dst;
-				for (uint32_t yy = 0; yy < _height; ++yy)
-				{
-					for (uint32_t xx = 0; xx < _width; ++xx)
-					{
-						const uint32_t offset = yy*_width + xx;
-						const float* input = (const float*)&src[offset * 16];
-						uint8_t* output    = &dst[offset * 4];
-						output[0] = uint8_t(input[0]*255.0f + 0.5f);
-						output[1] = uint8_t(input[1]*255.0f + 0.5f);
-						output[2] = uint8_t(input[2]*255.0f + 0.5f);
-						output[3] = uint8_t(input[3]*255.0f + 0.5f);
-					}
-				}
-			}
-			return true;
-
-		case TextureFormat::BC5:
-			{
-				uint8_t* temp = (uint8_t*)BX_ALLOC(_allocator, _width*_height*4);
-				for (uint32_t yy = 0; yy < _height; ++yy)
-				{
-					for (uint32_t xx = 0; xx < _width; ++xx)
-					{
-						const uint32_t offset = yy*_width + xx;
-						const float* input = (const float*)&src[offset * 16];
-						uint8_t* output    = &temp[offset * 4];
-						output[0] = uint8_t(input[0]*255.0f + 0.5f);
-						output[1] = uint8_t(input[1]*255.0f + 0.5f);
-						output[2] = uint8_t(input[2]*255.0f + 0.5f);
-						output[3] = uint8_t(input[3]*255.0f + 0.5f);
-					}
-				}
-
-				imageEncodeFromRgba8(_dst, temp, _width, _height, _format);
-				BX_FREE(_allocator, temp);
-			}
-			return true;
-
-		default:
-			return imageConvert(_dst, format, _src, TextureFormat::RGBA32F, _width, _height);
-		}
-
-		return false;
-	}
-
-	void imageRgba32f11to01(void* _dst, uint32_t _width, uint32_t _height, uint32_t _pitch, const void* _src)
-	{
-		const uint8_t* src = (const uint8_t*)_src;
-		uint8_t* dst = (uint8_t*)_dst;
-
-		for (uint32_t yy = 0; yy < _height; ++yy)
-		{
-			for (uint32_t xx = 0; xx < _width; ++xx)
-			{
-				const uint32_t offset = yy*_pitch + xx * 16;
-				const float* input = (const float*)&src[offset];
-				float* output = (float*)&dst[offset];
-				output[0] = input[0]*0.5f + 0.5f;
-				output[1] = input[1]*0.5f + 0.5f;
-				output[2] = input[2]*0.5f + 0.5f;
-				output[3] = input[3]*0.5f + 0.5f;
-			}
-		}
-	}
-
-	static void edtaa3(bx::AllocatorI* _allocator, double* _dst, uint32_t _width, uint32_t _height, double* _src)
-	{
-		const uint32_t numPixels = _width*_height;
-
-		short* xdist = (short *)BX_ALLOC(_allocator, numPixels*sizeof(short) );
-		short* ydist = (short *)BX_ALLOC(_allocator, numPixels*sizeof(short) );
-		double* gx   = (double*)BX_ALLOC(_allocator, numPixels*sizeof(double) );
-		double* gy   = (double*)BX_ALLOC(_allocator, numPixels*sizeof(double) );
-
-		::computegradient(_src, _width, _height, gx, gy);
-		::edtaa3(_src, gx, gy, _width, _height, xdist, ydist, _dst);
-
-		for (uint32_t ii = 0; ii < numPixels; ++ii)
-		{
-			if (_dst[ii] < 0.0)
-			{
-				_dst[ii] = 0.0;
-			}
-		}
-
-		BX_FREE(_allocator, xdist);
-		BX_FREE(_allocator, ydist);
-		BX_FREE(_allocator, gx);
-		BX_FREE(_allocator, gy);
-	}
-
-	inline double min(double _a, double _b)
-	{
-		return _a > _b ? _b : _a;
-	}
-
-	inline double max(double _a, double _b)
-	{
-		return _a > _b ? _a : _b;
-	}
-
-	inline double clamp(double _val, double _min, double _max)
-	{
-		return max(min(_val, _max), _min);
-	}
-
-	void imageMakeDist(bx::AllocatorI* _allocator, void* _dst, uint32_t _width, uint32_t _height, uint32_t _pitch, float _edge, const void* _src)
-	{
-		const uint32_t numPixels = _width*_height;
-
-		double* imgIn   = (double*)BX_ALLOC(_allocator, numPixels*sizeof(double) );
-		double* outside = (double*)BX_ALLOC(_allocator, numPixels*sizeof(double) );
-		double* inside  = (double*)BX_ALLOC(_allocator, numPixels*sizeof(double) );
-
-		for (uint32_t yy = 0; yy < _height; ++yy)
-		{
-			const uint8_t* src = (const uint8_t*)_src + yy*_pitch;
-			double* dst = &imgIn[yy*_width];
-			for (uint32_t xx = 0; xx < _width; ++xx)
-			{
-				dst[xx] = double(src[xx])/255.0;
-			}
-		}
-
-		edtaa3(_allocator, outside, _width, _height, imgIn);
-
-		for (uint32_t ii = 0; ii < numPixels; ++ii)
-		{
-			imgIn[ii] = 1.0 - imgIn[ii];
-		}
-
-		edtaa3(_allocator, inside, _width, _height, imgIn);
-
-		BX_FREE(_allocator, imgIn);
-
-		uint8_t* dst = (uint8_t*)_dst;
-
-		double edgeOffset = _edge*0.5;
-		double invEdge = 1.0/_edge;
-
-		for (uint32_t ii = 0; ii < numPixels; ++ii)
-		{
-			double dist = clamp( ( (outside[ii] - inside[ii])+edgeOffset) * invEdge, 0.0, 1.0);
-			dst[ii] = 255-uint8_t(dist * 255.0);
-		}
-
-		BX_FREE(_allocator, inside);
-		BX_FREE(_allocator, outside);
-	}
-
-} // namespace bgfx
+extern "C" {
+#include <iqa.h>
+}
 
 void help(const char* _error = NULL)
 {
@@ -567,28 +117,20 @@ int main(int _argc, const char* _argv[])
 	bx::close(&reader);
 
 	{
-		using namespace bgfx;
+		using namespace bimg;
 
-		uint8_t* decodedImage = NULL;
-		ImageContainer input;
+		ImageContainer* input = imageParse(&allocator, inputData, inputSize);
 
-		bool loaded = imageParse(input, inputData, inputSize, (void**)&decodedImage);
-		if (NULL != decodedImage)
+		if (NULL != input)
 		{
 			BX_FREE(&allocator, inputData);
 
-			inputData = (uint8_t*)input.m_data;
-			inputSize = input.m_size;
-		}
-
-		if (loaded)
-		{
 			const char* type = cmdLine.findOption('t');
-			bgfx::TextureFormat::Enum format = input.m_format;
+			bimg::TextureFormat::Enum format = input->m_format;
 
 			if (NULL != type)
 			{
-				format = bgfx::getFormat(type);
+				format = bimg::getFormat(type);
 
 				if (!isValid(format) )
 				{
@@ -600,10 +142,10 @@ int main(int _argc, const char* _argv[])
 			ImageContainer* output = NULL;
 
 			ImageMip mip;
-			if (imageGetRawData(input, 0, 0, inputData, inputSize, mip) )
+			if (imageGetRawData(*input, 0, 0, input->m_data, input->m_size, mip) )
 			{
 				uint8_t numMips = mips
-					? imageGetNumMips(format, mip.m_width, mip.m_height)
+					? imageGetNumMips(format, uint16_t(mip.m_width), uint16_t(mip.m_height) )
 					: 1
 					;
 
@@ -611,7 +153,7 @@ int main(int _argc, const char* _argv[])
 
 				if (normalMap)
 				{
-					output = imageAlloc(&allocator, format, mip.m_width, mip.m_height, 0, 1, false, mips);
+					output = imageAlloc(&allocator, format, uint16_t(mip.m_width), uint16_t(mip.m_height), 0, 1, false, mips);
 
 					ImageMip dstMip;
 					imageGetRawData(*output, 0, 0, NULL, 0, dstMip);
@@ -631,8 +173,8 @@ int main(int _argc, const char* _argv[])
 
 					uint32_t size = imageGetSize(
 						  NULL
-						, dstMip.m_width
-						, dstMip.m_height
+						, uint16_t(dstMip.m_width)
+						, uint16_t(dstMip.m_height)
 						, 0
 						, false
 						, false
@@ -682,9 +224,9 @@ int main(int _argc, const char* _argv[])
 
 					BX_FREE(&allocator, rgbaDst);
 				}
-				else if (8 != getBlockInfo(input.m_format).rBits)
+				else if (8 != getBlockInfo(input->m_format).rBits)
 				{
-					output = imageAlloc(&allocator, format, mip.m_width, mip.m_height, 0, 1, false, mips);
+					output = imageAlloc(&allocator, format, uint16_t(mip.m_width), uint16_t(mip.m_height), 0, 1, false, mips);
 
 					ImageMip dstMip;
 					imageGetRawData(*output, 0, 0, NULL, 0, dstMip);
@@ -704,8 +246,8 @@ int main(int _argc, const char* _argv[])
 
 					uint32_t size = imageGetSize(
 						  NULL
-						, dstMip.m_width
-						, dstMip.m_height
+						, uint16_t(dstMip.m_width)
+						, uint16_t(dstMip.m_height)
 						, 0
 						, false
 						, false
@@ -753,7 +295,7 @@ int main(int _argc, const char* _argv[])
 				}
 				else
 				{
-					output = imageAlloc(&allocator, format, mip.m_width, mip.m_height, 0, 1, false, mips);
+					output = imageAlloc(&allocator, format, uint16_t(mip.m_width), uint16_t(mip.m_height), 0, 1, false, mips);
 
 					ImageMip dstMip;
 					imageGetRawData(*output, 0, 0, NULL, 0, dstMip);
@@ -773,8 +315,8 @@ int main(int _argc, const char* _argv[])
 
 					uint32_t size = imageGetSize(
 						  NULL
-						, dstMip.m_width
-						, dstMip.m_height
+						, uint16_t(dstMip.m_width)
+						, uint16_t(dstMip.m_height)
 						, 0
 						, false
 						, false
@@ -782,7 +324,7 @@ int main(int _argc, const char* _argv[])
 						, TextureFormat::RGBA8
 						);
 					temp = BX_ALLOC(&allocator, size);
-					memset(temp, 0, size);
+					bx::memSet(temp, 0, size);
 					uint8_t* rgba = (uint8_t*)temp;
 
 					imageDecodeToRgba8(rgba
@@ -797,7 +339,7 @@ int main(int _argc, const char* _argv[])
 					if (iqa)
 					{
 						ref = BX_ALLOC(&allocator, size);
-						memcpy(ref, rgba, size);
+						bx::memCopy(ref, rgba, size);
 					}
 
 					imageEncodeFromRgba8(output->m_data, rgba, dstMip.m_width, dstMip.m_height, format);
@@ -879,8 +421,6 @@ int main(int _argc, const char* _argv[])
 			help("Failed to load input file.");
 			return EXIT_FAILURE;
 		}
-
-		BX_FREE(&allocator, inputData);
 	}
 
 	return EXIT_SUCCESS;

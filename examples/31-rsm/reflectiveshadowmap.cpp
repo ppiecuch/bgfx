@@ -3,10 +3,10 @@
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
-#include "common.h"
-#include "camera.h"
-#include "bgfx_utils.h"
-#include "imgui/imgui.h"
+#include <common.h>
+#include <camera.h>
+#include <bgfx_utils.h>
+#include <imgui/imgui.h>
 #include <bx/rng.h>
 
 /*
@@ -579,8 +579,8 @@ public:
 			// Set up transform matrix for fullscreen quad
 			float orthoProj[16];
 			bx::mtxOrtho(orthoProj, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 100.0f);
-			bgfx::setViewTransform(RENDER_PASS_COMBINE,   NULL, orthoProj);
-			bgfx::setViewRect(RENDER_PASS_COMBINE, 0, 0, m_width, m_height);
+			bgfx::setViewTransform(RENDER_PASS_COMBINE, NULL, orthoProj);
+			bgfx::setViewRect(RENDER_PASS_COMBINE, 0, 0, uint16_t(m_width), uint16_t(m_height) );
 			// Bind vertex buffer and draw quad
 			screenSpaceQuad( (float)m_width, (float)m_height, m_texelHalf, m_caps->originBottomLeft);
 			bgfx::submit(RENDER_PASS_COMBINE, m_combineProgram);
@@ -592,18 +592,23 @@ public:
 					| (m_mouseState.m_buttons[entry::MouseButton::Right] ? IMGUI_MBUT_RIGHT : 0)
 					| (m_mouseState.m_buttons[entry::MouseButton::Middle] ? IMGUI_MBUT_MIDDLE : 0)
 					, m_mouseState.m_mz
-					, m_width
-					, m_height
+					, uint16_t(m_width)
+					, uint16_t(m_height)
 					);
 
-			imguiBeginArea("RSM:", 10, 100, 300, 400);
+			ImGui::Begin("Reflective Shadow Map"
+				, NULL
+				, ImVec2(300.0f, 400.0f)
+				, ImGuiWindowFlags_AlwaysAutoResize
+				);
 
-			imguiSlider("rsm amount", m_rsmAmount, 0.0f, 0.7f, 0.01f);
-			imguiSlider("vpl radius", m_vplRadius, 0.25f, 20.0f, 0.1f);
-			imguiSlider("light azimuth", m_lightAzimuth, 0.0f, 360.0f, 0.01f);
-			imguiSlider("light elevation", m_lightElevation, 35.0f, 90.0f, 0.01f);
+			ImGui::SliderFloat("RSM Amount",      &m_rsmAmount, 0.0f, 0.7f);
+			ImGui::SliderFloat("VPL Radius",      &m_vplRadius, 0.25f, 20.0f);
+			ImGui::SliderFloat("Light Azimuth",   &m_lightAzimuth, 0.0f, 360.0f);
+			ImGui::SliderFloat("Light Elevation", &m_lightElevation, 35.0f, 90.0f);
 
-			imguiEndArea();
+			ImGui::End();
+
 			imguiEndFrame();
 
 			updateLightDir();

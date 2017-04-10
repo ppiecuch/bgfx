@@ -24,31 +24,6 @@
 
 #define MAX_NUM_LIGHTS 5
 
-uint32_t packUint32(uint8_t _x, uint8_t _y, uint8_t _z, uint8_t _w)
-{
-	union
-	{
-		uint32_t ui32;
-		uint8_t arr[4];
-	} un;
-
-	un.arr[0] = _x;
-	un.arr[1] = _y;
-	un.arr[2] = _z;
-	un.arr[3] = _w;
-
-	return un.ui32;
-}
-
-uint32_t packF4u(float _x, float _y = 0.0f, float _z = 0.0f, float _w = 0.0f)
-{
-	const uint8_t xx = uint8_t(_x*127.0f + 128.0f);
-	const uint8_t yy = uint8_t(_y*127.0f + 128.0f);
-	const uint8_t zz = uint8_t(_z*127.0f + 128.0f);
-	const uint8_t ww = uint8_t(_w*127.0f + 128.0f);
-	return packUint32(xx, yy, zz, ww);
-}
-
 struct PosNormalTexcoordVertex
 {
 	float    m_x;
@@ -76,46 +51,46 @@ bgfx::VertexDecl PosNormalTexcoordVertex::ms_decl;
 static const float s_texcoord = 5.0f;
 static PosNormalTexcoordVertex s_hplaneVertices[] =
 {
-	{ -1.0f, 0.0f,  1.0f, packF4u(0.0f, 1.0f, 0.0f), s_texcoord, s_texcoord },
-	{  1.0f, 0.0f,  1.0f, packF4u(0.0f, 1.0f, 0.0f), s_texcoord, 0.0f       },
-	{ -1.0f, 0.0f, -1.0f, packF4u(0.0f, 1.0f, 0.0f), 0.0f,       s_texcoord },
-	{  1.0f, 0.0f, -1.0f, packF4u(0.0f, 1.0f, 0.0f), 0.0f,       0.0f       },
+	{ -1.0f, 0.0f,  1.0f, encodeNormalRgba8(0.0f, 1.0f, 0.0f), s_texcoord, s_texcoord },
+	{  1.0f, 0.0f,  1.0f, encodeNormalRgba8(0.0f, 1.0f, 0.0f), s_texcoord, 0.0f       },
+	{ -1.0f, 0.0f, -1.0f, encodeNormalRgba8(0.0f, 1.0f, 0.0f), 0.0f,       s_texcoord },
+	{  1.0f, 0.0f, -1.0f, encodeNormalRgba8(0.0f, 1.0f, 0.0f), 0.0f,       0.0f       },
 };
 
 static PosNormalTexcoordVertex s_vplaneVertices[] =
 {
-	{ -1.0f,  1.0f, 0.0f, packF4u(0.0f, 0.0f, -1.0f), 1.0f, 1.0f },
-	{  1.0f,  1.0f, 0.0f, packF4u(0.0f, 0.0f, -1.0f), 1.0f, 0.0f },
-	{ -1.0f, -1.0f, 0.0f, packF4u(0.0f, 0.0f, -1.0f), 0.0f, 1.0f },
-	{  1.0f, -1.0f, 0.0f, packF4u(0.0f, 0.0f, -1.0f), 0.0f, 0.0f },
+	{ -1.0f,  1.0f, 0.0f, encodeNormalRgba8(0.0f, 0.0f, -1.0f), 1.0f, 1.0f },
+	{  1.0f,  1.0f, 0.0f, encodeNormalRgba8(0.0f, 0.0f, -1.0f), 1.0f, 0.0f },
+	{ -1.0f, -1.0f, 0.0f, encodeNormalRgba8(0.0f, 0.0f, -1.0f), 0.0f, 1.0f },
+	{  1.0f, -1.0f, 0.0f, encodeNormalRgba8(0.0f, 0.0f, -1.0f), 0.0f, 0.0f },
 };
 
 static const PosNormalTexcoordVertex s_cubeVertices[] =
 {
-	{ -1.0f,  1.0f,  1.0f, packF4u( 0.0f,  1.0f,  0.0f), 1.0f, 1.0f },
-	{  1.0f,  1.0f,  1.0f, packF4u( 0.0f,  1.0f,  0.0f), 0.0f, 1.0f },
-	{ -1.0f,  1.0f, -1.0f, packF4u( 0.0f,  1.0f,  0.0f), 1.0f, 0.0f },
-	{  1.0f,  1.0f, -1.0f, packF4u( 0.0f,  1.0f,  0.0f), 0.0f, 0.0f },
-	{ -1.0f, -1.0f,  1.0f, packF4u( 0.0f, -1.0f,  0.0f), 1.0f, 1.0f },
-	{  1.0f, -1.0f,  1.0f, packF4u( 0.0f, -1.0f,  0.0f), 0.0f, 1.0f },
-	{ -1.0f, -1.0f, -1.0f, packF4u( 0.0f, -1.0f,  0.0f), 1.0f, 0.0f },
-	{  1.0f, -1.0f, -1.0f, packF4u( 0.0f, -1.0f,  0.0f), 0.0f, 0.0f },
-	{  1.0f, -1.0f,  1.0f, packF4u( 0.0f,  0.0f,  1.0f), 0.0f, 0.0f },
-	{  1.0f,  1.0f,  1.0f, packF4u( 0.0f,  0.0f,  1.0f), 0.0f, 1.0f },
-	{ -1.0f, -1.0f,  1.0f, packF4u( 0.0f,  0.0f,  1.0f), 1.0f, 0.0f },
-	{ -1.0f,  1.0f,  1.0f, packF4u( 0.0f,  0.0f,  1.0f), 1.0f, 1.0f },
-	{  1.0f, -1.0f, -1.0f, packF4u( 0.0f,  0.0f, -1.0f), 0.0f, 0.0f },
-	{  1.0f,  1.0f, -1.0f, packF4u( 0.0f,  0.0f, -1.0f), 0.0f, 1.0f },
-	{ -1.0f, -1.0f, -1.0f, packF4u( 0.0f,  0.0f, -1.0f), 1.0f, 0.0f },
-	{ -1.0f,  1.0f, -1.0f, packF4u( 0.0f,  0.0f, -1.0f), 1.0f, 1.0f },
-	{  1.0f,  1.0f, -1.0f, packF4u( 1.0f,  0.0f,  0.0f), 1.0f, 1.0f },
-	{  1.0f,  1.0f,  1.0f, packF4u( 1.0f,  0.0f,  0.0f), 0.0f, 1.0f },
-	{  1.0f, -1.0f, -1.0f, packF4u( 1.0f,  0.0f,  0.0f), 1.0f, 0.0f },
-	{  1.0f, -1.0f,  1.0f, packF4u( 1.0f,  0.0f,  0.0f), 0.0f, 0.0f },
-	{ -1.0f,  1.0f, -1.0f, packF4u(-1.0f,  0.0f,  0.0f), 1.0f, 1.0f },
-	{ -1.0f,  1.0f,  1.0f, packF4u(-1.0f,  0.0f,  0.0f), 0.0f, 1.0f },
-	{ -1.0f, -1.0f, -1.0f, packF4u(-1.0f,  0.0f,  0.0f), 1.0f, 0.0f },
-	{ -1.0f, -1.0f,  1.0f, packF4u(-1.0f,  0.0f,  0.0f), 0.0f, 0.0f },
+	{ -1.0f,  1.0f,  1.0f, encodeNormalRgba8( 0.0f,  1.0f,  0.0f), 1.0f, 1.0f },
+	{  1.0f,  1.0f,  1.0f, encodeNormalRgba8( 0.0f,  1.0f,  0.0f), 0.0f, 1.0f },
+	{ -1.0f,  1.0f, -1.0f, encodeNormalRgba8( 0.0f,  1.0f,  0.0f), 1.0f, 0.0f },
+	{  1.0f,  1.0f, -1.0f, encodeNormalRgba8( 0.0f,  1.0f,  0.0f), 0.0f, 0.0f },
+	{ -1.0f, -1.0f,  1.0f, encodeNormalRgba8( 0.0f, -1.0f,  0.0f), 1.0f, 1.0f },
+	{  1.0f, -1.0f,  1.0f, encodeNormalRgba8( 0.0f, -1.0f,  0.0f), 0.0f, 1.0f },
+	{ -1.0f, -1.0f, -1.0f, encodeNormalRgba8( 0.0f, -1.0f,  0.0f), 1.0f, 0.0f },
+	{  1.0f, -1.0f, -1.0f, encodeNormalRgba8( 0.0f, -1.0f,  0.0f), 0.0f, 0.0f },
+	{  1.0f, -1.0f,  1.0f, encodeNormalRgba8( 0.0f,  0.0f,  1.0f), 0.0f, 0.0f },
+	{  1.0f,  1.0f,  1.0f, encodeNormalRgba8( 0.0f,  0.0f,  1.0f), 0.0f, 1.0f },
+	{ -1.0f, -1.0f,  1.0f, encodeNormalRgba8( 0.0f,  0.0f,  1.0f), 1.0f, 0.0f },
+	{ -1.0f,  1.0f,  1.0f, encodeNormalRgba8( 0.0f,  0.0f,  1.0f), 1.0f, 1.0f },
+	{  1.0f, -1.0f, -1.0f, encodeNormalRgba8( 0.0f,  0.0f, -1.0f), 0.0f, 0.0f },
+	{  1.0f,  1.0f, -1.0f, encodeNormalRgba8( 0.0f,  0.0f, -1.0f), 0.0f, 1.0f },
+	{ -1.0f, -1.0f, -1.0f, encodeNormalRgba8( 0.0f,  0.0f, -1.0f), 1.0f, 0.0f },
+	{ -1.0f,  1.0f, -1.0f, encodeNormalRgba8( 0.0f,  0.0f, -1.0f), 1.0f, 1.0f },
+	{  1.0f,  1.0f, -1.0f, encodeNormalRgba8( 1.0f,  0.0f,  0.0f), 1.0f, 1.0f },
+	{  1.0f,  1.0f,  1.0f, encodeNormalRgba8( 1.0f,  0.0f,  0.0f), 0.0f, 1.0f },
+	{  1.0f, -1.0f, -1.0f, encodeNormalRgba8( 1.0f,  0.0f,  0.0f), 1.0f, 0.0f },
+	{  1.0f, -1.0f,  1.0f, encodeNormalRgba8( 1.0f,  0.0f,  0.0f), 0.0f, 0.0f },
+	{ -1.0f,  1.0f, -1.0f, encodeNormalRgba8(-1.0f,  0.0f,  0.0f), 1.0f, 1.0f },
+	{ -1.0f,  1.0f,  1.0f, encodeNormalRgba8(-1.0f,  0.0f,  0.0f), 0.0f, 1.0f },
+	{ -1.0f, -1.0f, -1.0f, encodeNormalRgba8(-1.0f,  0.0f,  0.0f), 1.0f, 0.0f },
+	{ -1.0f, -1.0f,  1.0f, encodeNormalRgba8(-1.0f,  0.0f,  0.0f), 0.0f, 0.0f },
 };
 
 static const uint16_t s_cubeIndices[] =
@@ -937,8 +912,8 @@ int _main_(int _argc, char** _argv)
 			| (mouseState.m_buttons[entry::MouseButton::Right ] ? IMGUI_MBUT_RIGHT  : 0)
 			| (mouseState.m_buttons[entry::MouseButton::Middle] ? IMGUI_MBUT_MIDDLE : 0)
 			, mouseState.m_mz
-			, viewState.m_width
-			, viewState.m_height
+			, uint16_t(viewState.m_width)
+			, uint16_t(viewState.m_height)
 			);
 
 		static int32_t scrollArea = 0;
@@ -1358,7 +1333,7 @@ int _main_(int _argc, char** _argv)
 			);
 
 		// Setup view rect and transform for all used views.
-		setViewRectMask(s_viewMask, 0, 0, viewState.m_width, viewState.m_height);
+		setViewRectMask(s_viewMask, 0, 0, uint16_t(viewState.m_width), uint16_t(viewState.m_height) );
 		setViewTransformMask(s_viewMask, viewState.m_view, viewState.m_proj);
 		s_viewMask = 0;
 

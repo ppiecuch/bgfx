@@ -10,7 +10,7 @@
 #include <stdint.h> // uint32_t
 #include <stdlib.h> // NULL
 
-#include <bgfx/defines.h>
+#include "defines.h"
 
 ///
 #define BGFX_HANDLE(_name) \
@@ -691,16 +691,16 @@ namespace bgfx
 			float translation[3];       //!< Eye translation.
 			float fov[4];               //!< Field of view (up, down, left, right).
 			float viewOffset[3];        //!< Eye view matrix translation adjustment.
-			float projection[16];       //!< Eye projection matrix
+			float projection[16];       //!< Eye projection matrix.
 			float pixelsPerTanAngle[2]; //!< Number of pixels that fit in tan(angle) = 1.
 		};
 
 		Eye eye[2];
-		uint16_t width;        //!< Framebuffer width.
-		uint16_t height;       //!< Framebuffer width.
-		uint32_t deviceWidth;  //!< Device resolution width
-		uint32_t deviceHeight; //!< Device resolution height
-		uint8_t flags;         //!< Status flags
+		uint16_t width;        //!< Frame buffer width.
+		uint16_t height;       //!< Frame buffer height.
+		uint32_t deviceWidth;  //!< Device resolution width.
+		uint32_t deviceHeight; //!< Device resolution height.
+		uint8_t  flags;        //!< Status flags.
 	};
 
 	/// Renderer statistics data.
@@ -879,7 +879,7 @@ namespace bgfx
 	/// Convert index buffer for use with different primitive topologies.
 	///
 	/// @param[in] _conversion Conversion type, see `TopologyConvert::Enum`.
-	/// @param[in] _dst Destination index buffer. If this argument it NULL
+	/// @param[in] _dst Destination index buffer. If this argument is NULL
 	///    function will return number of indices after conversion.
 	/// @param[in] _dstSize Destination index buffer in bytes. It must be
 	///    large enough to contain output indices. If destination size is
@@ -931,44 +931,6 @@ namespace bgfx
 		, const void* _indices
 		, uint32_t _numIndices
 		, bool _index32
-		);
-
-	/// Swizzle RGBA8 image to BGRA8.
-	///
-	/// @param[in] _dst Destination image. Must be the same size as input image.
-	///   _dst might be pointer to the same memory as _src.
-	/// @param[in] _width Width of input image (pixels).
-	/// @param[in] _height Height of input image (pixels).
-	/// @param[in] _pitch Pitch of input image (bytes).
-	/// @param[in] _src Source image.
-	///
-	/// @attention C99 equivalent is `bgfx_image_swizzle_bgra8`.
-	///
-	void imageSwizzleBgra8(
-		  void* _dst
-		, uint32_t _width
-		, uint32_t _height
-		, uint32_t _pitch
-		, const void* _src
-		);
-
-	/// Downsample RGBA8 image with 2x2 pixel average filter.
-	///
-	/// @param[in] _dst Destination image. Must be at least quarter size of
-	///   input image. _dst might be pointer to the same memory as _src.
-	/// @param[in] _width Width of input image (pixels).
-	/// @param[in] _height Height of input image (pixels).
-	/// @param[in] _pitch Pitch of input image (bytes).
-	/// @param[in] _src Source image.
-	///
-	/// @attention C99 equivalent is `bgfx_image_rgba8_downsample_2x2`.
-	///
-	void imageRgba8Downsample2x2(
-		  void* _dst
-		, uint32_t _width
-		, uint32_t _height
-		, uint32_t _pitch
-		, const void* _src
 		);
 
 	/// Returns supported backend API renderers.
@@ -1215,6 +1177,8 @@ namespace bgfx
 
 	/// Destroy static index buffer.
 	///
+	/// @param[in] _handle Static index buffer handle.
+	///
 	/// @attention C99 equivalent is `bgfx_destroy_index_buffer`.
 	///
 	void destroyIndexBuffer(IndexBufferHandle _handle);
@@ -1268,6 +1232,7 @@ namespace bgfx
 	///       buffers.
 	///   - `BGFX_BUFFER_INDEX32` - Buffer is using 32-bit indices. This flag has effect only on
 	///       index buffers.
+	/// @returns Dynamic index buffer handle.
 	///
 	/// @attention C99 equivalent is `bgfx_create_dynamic_index_buffer`.
 	///
@@ -1291,6 +1256,7 @@ namespace bgfx
 	///       buffers.
 	///   - `BGFX_BUFFER_INDEX32` - Buffer is using 32-bit indices. This flag has effect only on
 	///       index buffers.
+	/// @returns Dynamic index buffer handle.
 	///
 	/// @attention C99 equivalent is `bgfx_create_dynamic_index_buffer_mem`.
 	///
@@ -1337,6 +1303,7 @@ namespace bgfx
 	///       buffers.
 	///   - `BGFX_BUFFER_INDEX32` - Buffer is using 32-bit indices. This flag has effect only on
 	///       index buffers.
+	/// @returns Dynamic vertex buffer handle.
 	///
 	/// @attention C99 equivalent is `bgfx_create_dynamic_vertex_buffer`.
 	///
@@ -1362,6 +1329,7 @@ namespace bgfx
 	///       buffers.
 	///   - `BGFX_BUFFER_INDEX32` - Buffer is using 32-bit indices. This flag has effect only on
 	///       index buffers.
+	/// @returns Dynamic vertex buffer handle.
 	///
 	/// @attention C99 equivalent is `bgfx_create_dynamic_vertex_buffer_mem`.
 	///
@@ -1386,6 +1354,8 @@ namespace bgfx
 		);
 
 	/// Destroy dynamic vertex buffer.
+	///
+	/// @param[in] _handle Dynamic vertex buffer handle.
 	///
 	/// @attention C99 equivalent is `bgfx_destroy_dynamic_vertex_buffer`.
 	///
@@ -1480,11 +1450,16 @@ namespace bgfx
 
 	/// Create draw indirect buffer.
 	///
+	/// @param[in] _num Number of indirect calls.
+	/// @returns Indirect buffer handle.
+	///
 	/// @attention C99 equivalent is `bgfx_create_indirect_buffer`.
 	///
 	IndirectBufferHandle createIndirectBuffer(uint32_t _num);
 
 	/// Destroy draw indirect buffer.
+	///
+	/// @param[in] _handle Indirect buffer handle.
 	///
 	/// @attention C99 equivalent is `bgfx_destroy_indirect_buffer`.
 	///
@@ -2044,11 +2019,13 @@ namespace bgfx
 	/// Retrieve occlusion query result from previous frame.
 	///
 	/// @param[in] _handle Handle to occlusion query object.
+	/// @param[out] _result Number of pixels that passed test. This argument
+	///   can be `NULL` if result of occlusion query is not needed.
 	/// @returns Occlusion query result.
 	///
 	/// @attention C99 equivalent is `bgfx_get_result`.
 	///
-	OcclusionQueryResult::Enum getResult(OcclusionQueryHandle _handle);
+	OcclusionQueryResult::Enum getResult(OcclusionQueryHandle _handle, int32_t* _result = NULL);
 
 	/// Destroy occlusion query.
 	///
@@ -2810,16 +2787,19 @@ namespace bgfx
 		, uint16_t _depth = UINT16_MAX
 		);
 
-	/// Request screen shot.
+	/// Request screen shot of window back buffer.
 	///
+	/// @param[in] _handle Frame buffer handle. If handle is `BGFX_INVALID_HANDLE` request will be
+	///   made for main window back buffer.
 	/// @param[in] _filePath Will be passed to `bgfx::CallbackI::screenShot` callback.
 	///
 	/// @remarks
 	///   `bgfx::CallbackI::screenShot` must be implemented.
 	///
-	/// @attention C99 equivalent is `bgfx_save_screen_shot`.
+	/// @attention Frame buffer handle must be created with OS' target native window handle.
+	/// @attention C99 equivalent is `bgfx_request_screen_shot`.
 	///
-	void saveScreenShot(const char* _filePath);
+	void requestScreenShot(FrameBufferHandle _handle, const char* _filePath);
 
 } // namespace bgfx
 

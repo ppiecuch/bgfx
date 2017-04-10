@@ -356,12 +356,12 @@ TIntermTyped* TIntermediate::addUnaryMath(TOperator op, TIntermTyped* child, TSo
     node->updatePrecision();
 
     // If it's a (non-specialization) constant, it must be folded.
-    if (child->getAsConstantUnion())
-        return child->getAsConstantUnion()->fold(op, node->getType());
+    if (node->getOperand()->getAsConstantUnion())
+        return node->getOperand()->getAsConstantUnion()->fold(op, node->getType());
 
     // If it's a specialization constant, the result is too,
     // if the operation is allowed for specialization constants.
-    if (child->getType().getQualifier().isSpecConstant() && isSpecializationOperation(*node))
+    if (node->getOperand()->getType().getQualifier().isSpecConstant() && isSpecializationOperation(*node))
         node->getWritableType().getQualifier().makeSpecConstant();
 
     return node;
@@ -920,7 +920,7 @@ bool TIntermediate::canImplicitlyPromote(TBasicType from, TBasicType to, TOperat
     case EbtUint:
         switch (from) {
         case EbtInt:
-            return version >= 400;
+            return version >= 400 || (source == EShSourceHlsl);
         case EbtUint:
             return true;
         case EbtBool:
@@ -1158,15 +1158,15 @@ TIntermAggregate* TIntermediate::growAggregate(TIntermNode* left, TIntermNode* r
         return nullptr;
 
     TIntermAggregate* aggNode = nullptr;
-    if (left)
+    if (left != nullptr)
         aggNode = left->getAsAggregate();
-    if (! aggNode || aggNode->getOp() != EOpNull) {
+    if (aggNode == nullptr || aggNode->getOp() != EOpNull) {
         aggNode = new TIntermAggregate;
-        if (left)
+        if (left != nullptr)
             aggNode->getSequence().push_back(left);
     }
 
-    if (right)
+    if (right != nullptr)
         aggNode->getSequence().push_back(right);
 
     return aggNode;

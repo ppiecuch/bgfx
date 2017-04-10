@@ -432,6 +432,46 @@ namespace bgfx { namespace d3d12
 		return createCommittedResource(_device, _heapProperty, &resourceDesc, NULL);
 	}
 
+	inline bool isLost(HRESULT _hr)
+	{
+		return false
+			|| _hr == DXGI_ERROR_DEVICE_REMOVED
+			|| _hr == DXGI_ERROR_DEVICE_HUNG
+			|| _hr == DXGI_ERROR_DEVICE_RESET
+			|| _hr == DXGI_ERROR_DRIVER_INTERNAL_ERROR
+			|| _hr == DXGI_ERROR_NOT_CURRENTLY_AVAILABLE
+			;
+	}
+
+	static const char* getLostReason(HRESULT _hr)
+	{
+		switch (_hr)
+		{
+		// The GPU device instance has been suspended. Use GetDeviceRemovedReason to determine the appropriate action.
+		case DXGI_ERROR_DEVICE_REMOVED: return "DXGI_ERROR_DEVICE_REMOVED";
+
+		// The GPU will not respond to more commands, most likely because of an invalid command passed by the calling application.
+		case DXGI_ERROR_DEVICE_HUNG: return "DXGI_ERROR_DEVICE_HUNG";
+
+		// The GPU will not respond to more commands, most likely because some other application submitted invalid commands.
+		// The calling application should re-create the device and continue.
+		case DXGI_ERROR_DEVICE_RESET: return "DXGI_ERROR_DEVICE_RESET";
+
+		// An internal issue prevented the driver from carrying out the specified operation. The driver's state is probably
+		// suspect, and the application should not continue.
+		case DXGI_ERROR_DRIVER_INTERNAL_ERROR: return "DXGI_ERROR_DRIVER_INTERNAL_ERROR";
+
+		// A resource is not available at the time of the call, but may become available later.
+		case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE: return "DXGI_ERROR_NOT_CURRENTLY_AVAILABLE";
+
+		case S_OK: return "S_OK";
+
+		default: break;
+		}
+
+		return "Unknown HRESULT?";
+	}
+
 	BX_NO_INLINE void setDebugObjectName(ID3D12Object* _object, const char* _format, ...)
 	{
 		if (BX_ENABLED(BGFX_CONFIG_DEBUG_OBJECT_NAME) )
@@ -467,6 +507,7 @@ namespace bgfx { namespace d3d12
 			, m_renderdocdll(NULL)
 			, m_featureLevel(D3D_FEATURE_LEVEL(0) )
 			, m_wireframe(false)
+			, m_lost(false)
 			, m_maxAnisotropy(1)
 			, m_depthClamp(false)
 			, m_fsChanges(0)
@@ -498,7 +539,7 @@ namespace bgfx { namespace d3d12
 			ErrorState::Enum errorState = ErrorState::Default;
 			LUID luid;
 
-//			m_renderdocdll = loadRenderDoc();
+			m_renderdocdll = loadRenderDoc();
 
 			m_fbh.idx = invalidHandle;
 			bx::memSet(m_uniforms, 0, sizeof(m_uniforms) );
@@ -629,7 +670,7 @@ namespace bgfx { namespace d3d12
 						}
 
 						if (BX_ENABLED(BGFX_CONFIG_DEBUG_PERFHUD)
-						&&  0 != strstr(description, "PerfHUD") )
+						&&  0 != bx::strnstr(description, "PerfHUD") )
 						{
 							m_adapter = adapter;
 							m_driverType = D3D_DRIVER_TYPE_REFERENCE;
@@ -1014,7 +1055,7 @@ namespace bgfx { namespace d3d12
 				{
 					uint16_t support = BGFX_CAPS_FORMAT_TEXTURE_NONE;
 
-					const DXGI_FORMAT fmt = isDepth(TextureFormat::Enum(ii) )
+					const DXGI_FORMAT fmt = bimg::isDepth(bimg::TextureFormat::Enum(ii) )
 						? s_textureFormat[ii].m_fmtDsv
 						: s_textureFormat[ii].m_fmt
 						;
@@ -1260,19 +1301,15 @@ namespace bgfx { namespace d3d12
 			return BGFX_RENDERER_DIRECT3D12_NAME;
 		}
 
-		static bool isLost(HRESULT _hr)
+		bool isDeviceRemoved() BX_OVERRIDE
 		{
-			return DXGI_ERROR_DEVICE_REMOVED == _hr
-				|| DXGI_ERROR_DEVICE_HUNG == _hr
-				|| DXGI_ERROR_DEVICE_RESET == _hr
-				|| DXGI_ERROR_DRIVER_INTERNAL_ERROR == _hr
-				|| DXGI_ERROR_NOT_CURRENTLY_AVAILABLE == _hr
-				;
+			return m_lost;
 		}
 
 		void flip(HMD& /*_hmd*/) BX_OVERRIDE
 		{
-			if (NULL != m_swapChain)
+			if (NULL != m_swapChain
+			&&  !m_lost)
 			{
 				int64_t start = bx::getHPCounter();
 
@@ -1293,16 +1330,14 @@ namespace bgfx { namespace d3d12
 				int64_t now = bx::getHPCounter();
 				m_presentElapsed = now - start;
 
-				if (FAILED(hr)
-				&&  isLost(hr) )
-				{
-					++m_lost;
-					BGFX_FATAL(10 > m_lost, bgfx::Fatal::DeviceLost, "Device is lost. FAILED 0x%08x", hr);
-				}
-				else
-				{
-					m_lost = 0;
-				}
+				m_lost = isLost(hr);
+				BGFX_FATAL(!m_lost
+					, bgfx::Fatal::DeviceLost
+					, "Device is lost. FAILED 0x%08x %s (%s)"
+					, hr
+					, getLostReason(hr)
+					, DXGI_ERROR_DEVICE_REMOVED == hr ? getLostReason(m_device->GetDeviceRemovedReason() ) : "no info"
+					);
 			}
 		}
 
@@ -1448,7 +1483,7 @@ namespace bgfx { namespace d3d12
 			uint8_t* src;
 			readback->Map(0, NULL, (void**)&src);
 
-			const uint8_t bpp = getBitsPerPixel(TextureFormat::Enum(texture.m_textureFormat) );
+			const uint8_t bpp = bimg::getBitsPerPixel(bimg::TextureFormat::Enum(texture.m_textureFormat) );
 			uint8_t* dst      = (uint8_t*)_data;
 			uint32_t dstPitch = srcWidth*bpp/8;
 
@@ -1559,8 +1594,10 @@ namespace bgfx { namespace d3d12
 			m_uniformReg.remove(_handle);
 		}
 
-		void saveScreenShot(const char* _filePath) BX_OVERRIDE
+		void requestScreenShot(FrameBufferHandle _handle, const char* _filePath) BX_OVERRIDE
 		{
+			BX_UNUSED(_handle);
+
 			uint32_t idx = (m_backBufferColorIdx-1) % m_scd.BufferCount;
 			m_cmd.finish(m_backBufferColorFence[idx]);
 			ID3D12Resource* backBuffer = m_backBufferColor[idx];
@@ -1604,7 +1641,7 @@ namespace bgfx { namespace d3d12
 
 			void* data;
 			readback->Map(0, NULL, (void**)&data);
-			imageSwizzleBgra8(
+			bimg::imageSwizzleBgra8(
 				  data
 				, width
 				, height
@@ -1635,6 +1672,11 @@ namespace bgfx { namespace d3d12
 
 		void setMarker(const char* /*_marker*/, uint32_t /*_size*/) BX_OVERRIDE
 		{
+		}
+
+		void invalidateOcclusionQuery(OcclusionQueryHandle _handle) BX_OVERRIDE
+		{
+			m_occlusionQuery.invalidate(_handle);
 		}
 
 		void submit(Frame* _render, ClearQuad& _clearQuad, TextVideoMemBlitter& _textVideoMemBlitter) BX_OVERRIDE;
@@ -1857,7 +1899,7 @@ data.NumQualityLevels = 0;
 			}
 		}
 
-		void updateResolution(const Resolution& _resolution)
+		bool updateResolution(const Resolution& _resolution)
 		{
 			if (!!(_resolution.m_flags & BGFX_RESET_MAXANISOTROPY) )
 			{
@@ -1939,6 +1981,8 @@ data.NumQualityLevels = 0;
 
 				postReset();
 			}
+
+			return false;
 		}
 
 		void setShaderUniform(uint8_t _flags, uint32_t _regIndex, const void* _val, uint32_t _numRegs)
@@ -2824,7 +2868,6 @@ data.NumQualityLevels = 0;
 #endif // BX_PLATFORM_WINDOWS
 
 		int64_t m_presentElapsed;
-		uint16_t m_lost;
 		uint16_t m_numWindows;
 		FrameBufferHandle m_windows[BGFX_CONFIG_MAX_FRAME_BUFFERS];
 
@@ -2853,6 +2896,7 @@ data.NumQualityLevels = 0;
 
 		Resolution m_resolution;
 		bool m_wireframe;
+		bool m_lost;
 
 #if BX_PLATFORM_WINDOWS
 		DXGI_SWAP_CHAIN_DESC m_scd;
@@ -3961,14 +4005,14 @@ data.NumQualityLevels = 0;
 
 	void TextureD3D12::create(const Memory* _mem, uint32_t _flags, uint8_t _skip)
 	{
-		ImageContainer imageContainer;
+		bimg::ImageContainer imageContainer;
 
-		if (imageParse(imageContainer, _mem->data, _mem->size) )
+		if (bimg::imageParse(imageContainer, _mem->data, _mem->size) )
 		{
 			uint8_t numMips = imageContainer.m_numMips;
 			const uint8_t startLod = uint8_t(bx::uint32_min(_skip, numMips-1) );
 			numMips -= startLod;
-			const ImageBlockInfo& blockInfo = getBlockInfo(TextureFormat::Enum(imageContainer.m_format) );
+			const bimg::ImageBlockInfo& blockInfo = bimg::getBlockInfo(imageContainer.m_format);
 			const uint32_t textureWidth  = bx::uint32_max(blockInfo.blockWidth,  imageContainer.m_width >>startLod);
 			const uint32_t textureHeight = bx::uint32_max(blockInfo.blockHeight, imageContainer.m_height>>startLod);
 			const uint16_t numLayers     = imageContainer.m_numLayers;
@@ -3980,7 +4024,7 @@ data.NumQualityLevels = 0;
 			m_requestedFormat  = uint8_t(imageContainer.m_format);
 			m_textureFormat    = uint8_t(getViableTextureFormat(imageContainer) );
 			const bool convert = m_textureFormat != m_requestedFormat;
-			const uint8_t bpp = getBitsPerPixel(TextureFormat::Enum(m_textureFormat) );
+			const uint8_t bpp = bimg::getBitsPerPixel(bimg::TextureFormat::Enum(m_textureFormat) );
 
 			if (imageContainer.m_cubeMap)
 			{
@@ -4002,7 +4046,7 @@ data.NumQualityLevels = 0;
 
 			uint32_t kk = 0;
 
-			const bool compressed = isCompressed(TextureFormat::Enum(m_textureFormat) );
+			const bool compressed = bimg::isCompressed(bimg::TextureFormat::Enum(m_textureFormat) );
 			const bool swizzle    = TextureFormat::BGRA8 == m_textureFormat && 0 != (m_flags&BGFX_TEXTURE_COMPUTE_WRITE);
 			uint32_t blockWidth   = 1;
 			uint32_t blockHeight  = 1;
@@ -4044,8 +4088,8 @@ data.NumQualityLevels = 0;
 					height = bx::uint32_max(blockHeight, height);
 					depth  = bx::uint32_max(1, depth);
 
-					ImageMip mip;
-					if (imageGetRawData(imageContainer, side, lod+startLod, _mem->data, _mem->size, mip) )
+					bimg::ImageMip mip;
+					if (bimg::imageGetRawData(imageContainer, side, lod+startLod, _mem->data, _mem->size, mip) )
 					{
 						if (convert)
 						{
@@ -4053,7 +4097,7 @@ data.NumQualityLevels = 0;
 							const uint32_t slice = bx::strideAlign(pitch * height, D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 
 							uint8_t* temp = (uint8_t*)BX_ALLOC(g_allocator, slice);
-							imageDecodeToBgra8(temp
+							bimg::imageDecodeToBgra8(temp
 									, mip.m_data
 									, mip.m_width
 									, mip.m_height
@@ -4071,7 +4115,7 @@ data.NumQualityLevels = 0;
 							uint32_t slice = bx::strideAlign( (mip.m_height/blockInfo.blockHeight)*pitch,           D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 
 							uint8_t* temp = (uint8_t*)BX_ALLOC(g_allocator, slice);
-							imageCopy(temp
+							bimg::imageCopy(temp
 									, mip.m_height/blockInfo.blockHeight
 									, (mip.m_width /blockInfo.blockWidth )*mip.m_blockSize
 									, mip.m_data
@@ -4089,7 +4133,7 @@ data.NumQualityLevels = 0;
 							const uint32_t slice = bx::strideAlign(pitch * mip.m_height,      D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
 
 							uint8_t* temp = (uint8_t*)BX_ALLOC(g_allocator, slice);
-							imageCopy(temp
+							bimg::imageCopy(temp
 									, mip.m_height
 									, mip.m_width*mip.m_bpp / 8
 									, mip.m_data
@@ -4157,7 +4201,7 @@ data.NumQualityLevels = 0;
 			D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
 
 			D3D12_CLEAR_VALUE* clearValue = NULL;
-			if (isDepth(TextureFormat::Enum(m_textureFormat) ) )
+			if (bimg::isDepth(bimg::TextureFormat::Enum(m_textureFormat) ) )
 			{
 				resourceDesc.Format = s_textureFormat[m_textureFormat].m_fmt;
 				resourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
@@ -4263,7 +4307,8 @@ data.NumQualityLevels = 0;
 				break;
 
 			case Texture3D:
-				resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+				resourceDesc.Dimension        = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+				resourceDesc.DepthOrArraySize = uint16_t(m_depth);
 				m_srvd.ViewDimension                 = D3D12_SRV_DIMENSION_TEXTURE3D;
 				m_srvd.Texture3D.MostDetailedMip     = 0;
 				m_srvd.Texture3D.MipLevels           = numMips;
@@ -4356,7 +4401,7 @@ data.NumQualityLevels = 0;
 		setState(_commandList, D3D12_RESOURCE_STATE_COPY_DEST);
 
 		const uint32_t subres = _mip + (_side * m_numMips);
-		const uint32_t bpp    = getBitsPerPixel(TextureFormat::Enum(m_textureFormat) );
+		const uint32_t bpp    = bimg::getBitsPerPixel(bimg::TextureFormat::Enum(m_textureFormat) );
 		const uint32_t rectpitch = _rect.m_width*bpp/8;
 		const uint32_t srcpitch  = UINT16_MAX == _pitch ? rectpitch : _pitch;
 
@@ -4473,7 +4518,7 @@ data.NumQualityLevels = 0;
 						m_height = uint32_t(desc.Height);
 					}
 
-					if (isDepth( (TextureFormat::Enum)texture.m_textureFormat) )
+					if (bimg::isDepth(bimg::TextureFormat::Enum(texture.m_textureFormat) ) )
 					{
 						BX_CHECK(!isValid(m_depth), "");
 						m_depth = handle;
@@ -4481,7 +4526,7 @@ data.NumQualityLevels = 0;
 						uint32_t dsvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 						dsvDescriptor.ptr += (1 + fbhIdx) * dsvDescriptorSize;
 
-						const ImageBlockInfo& blockInfo = getBlockInfo(TextureFormat::Enum(texture.m_textureFormat) );
+						const bimg::ImageBlockInfo& blockInfo = bimg::getBlockInfo(bimg::TextureFormat::Enum(texture.m_textureFormat) );
 						BX_UNUSED(blockInfo);
 
 						D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
@@ -4716,7 +4761,10 @@ data.NumQualityLevels = 0;
 		while (0 == m_control.reserve(1) )
 		{
 			OcclusionQueryHandle handle = m_handle[m_control.m_read];
-			_render->m_occlusion[handle.idx] = 0 < m_result[handle.idx];
+			if (isValid(handle) )
+			{
+				_render->m_occlusion[handle.idx] = int32_t(m_result[handle.idx]);
+			}
 			m_control.consume(1);
 		}
 
@@ -4744,6 +4792,20 @@ data.NumQualityLevels = 0;
 		m_control.commit(1);
 	}
 
+	void OcclusionQueryD3D12::invalidate(OcclusionQueryHandle _handle)
+	{
+		const uint32_t size = m_control.m_size;
+
+		for (uint32_t ii = 0, num = m_control.available(); ii < num; ++ii)
+		{
+			OcclusionQueryHandle& handle = m_handle[(m_control.m_read + ii) % size];
+			if (handle.idx == _handle.idx)
+			{
+				handle.idx = bgfx::invalidHandle;
+			}
+		}
+	}
+
 	struct Bind
 	{
 		D3D12_GPU_DESCRIPTOR_HANDLE m_srvHandle;
@@ -4754,7 +4816,11 @@ data.NumQualityLevels = 0;
 	{
 //		PIX_BEGINEVENT(D3DCOLOR_FRAME, L"rendererSubmit");
 
-		updateResolution(_render->m_resolution);
+		if (m_lost
+		||  updateResolution(_render->m_resolution) )
+		{
+			return;
+		}
 
 		int64_t elapsed = -bx::getHPCounter();
 		int64_t captureElapsed = 0;
@@ -4779,6 +4845,9 @@ data.NumQualityLevels = 0;
 		currentState.clear();
 		currentState.m_stateFlags = BGFX_STATE_NONE;
 		currentState.m_stencil    = packStencil(BGFX_STENCIL_NONE, BGFX_STENCIL_NONE);
+
+		RenderBind currentBind;
+		currentBind.clear();
 
 		_render->m_hmdInitialized = false;
 
@@ -4865,7 +4934,9 @@ data.NumQualityLevels = 0;
 					|| item == numItems
 					;
 
-				const RenderItem& renderItem = _render->m_renderItem[_render->m_sortValues[item] ];
+				const uint32_t itemIdx       = _render->m_sortValues[item];
+				const RenderItem& renderItem = _render->m_renderItem[itemIdx];
+				const RenderBind& renderBind = _render->m_renderItemBind[itemIdx];
 				++item;
 
 				if (viewChanged)
@@ -4982,7 +5053,7 @@ data.NumQualityLevels = 0;
 							srcLocation.Type      = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 							srcLocation.SubresourceIndex = srcZ*src.m_numMips+blit.m_srcMip;
 
-							bool depthStencil = isDepth(TextureFormat::Enum(src.m_textureFormat) );
+							bool depthStencil = bimg::isDepth(bimg::TextureFormat::Enum(src.m_textureFormat) );
 							m_commandList->CopyTextureRegion(&dstLocation
 								, blit.m_dstX
 								, blit.m_dstY
@@ -5018,7 +5089,7 @@ data.NumQualityLevels = 0;
 						currentBindHash = 0;
 					}
 
-					uint32_t bindHash = bx::hashMurmur2A(compute.m_bind, sizeof(compute.m_bind) );
+					uint32_t bindHash = bx::hashMurmur2A(renderBind.m_bind, sizeof(renderBind.m_bind) );
 					if (currentBindHash != bindHash)
 					{
 						currentBindHash  = bindHash;
@@ -5031,7 +5102,7 @@ data.NumQualityLevels = 0;
 
 							for (uint32_t ii = 0; ii < BGFX_MAX_COMPUTE_BINDINGS; ++ii)
 							{
-								const Binding& bind = compute.m_bind[ii];
+								const Binding& bind = renderBind.m_bind[ii];
 								if (invalidHandle != bind.m_idx)
 								{
 									switch (bind.m_type)
@@ -5218,6 +5289,8 @@ data.NumQualityLevels = 0;
 					currentState.m_stateFlags = newFlags;
 					currentState.m_stencil    = newStencil;
 
+					currentBind.clear();
+
 					const uint64_t pt = newFlags&BGFX_STATE_PT_MASK;
 					primIndex = uint8_t(pt>>BGFX_STATE_PT_SHIFT);
 				}
@@ -5246,7 +5319,7 @@ data.NumQualityLevels = 0;
 							);
 
 					uint16_t scissor = draw.m_scissor;
-					uint32_t bindHash = bx::hashMurmur2A(draw.m_bind, sizeof(draw.m_bind) );
+					uint32_t bindHash = bx::hashMurmur2A(renderBind.m_bind, sizeof(renderBind.m_bind) );
 					if (currentBindHash != bindHash
 					||  0 != changedStencil
 					|| (hasFactor && blendFactor != draw.m_rgba)
@@ -5272,17 +5345,47 @@ data.NumQualityLevels = 0;
 								srvHandle[0].ptr = 0;
 								for (uint32_t stage = 0; stage < BGFX_CONFIG_MAX_TEXTURE_SAMPLERS; ++stage)
 								{
-									const Binding& bind = draw.m_bind[stage];
+									const Binding& bind = renderBind.m_bind[stage];
 									if (invalidHandle != bind.m_idx)
 									{
-										TextureD3D12& texture = m_textures[bind.m_idx];
-										texture.setState(m_commandList, D3D12_RESOURCE_STATE_GENERIC_READ);
-										scratchBuffer.allocSrv(srvHandle[stage], texture);
-										samplerFlags[stage] = (0 == (BGFX_TEXTURE_INTERNAL_DEFAULT_SAMPLER & bind.m_un.m_draw.m_textureFlags)
-											? bind.m_un.m_draw.m_textureFlags
-											: texture.m_flags
-											) & (BGFX_TEXTURE_SAMPLER_BITS_MASK|BGFX_TEXTURE_BORDER_COLOR_MASK)
-											;
+										switch (bind.m_type)
+										{
+										case Binding::Texture:
+											{
+												TextureD3D12& texture = m_textures[bind.m_idx];
+												texture.setState(m_commandList, D3D12_RESOURCE_STATE_GENERIC_READ);
+												scratchBuffer.allocSrv(srvHandle[stage], texture);
+												samplerFlags[stage] = (0 == (BGFX_TEXTURE_INTERNAL_DEFAULT_SAMPLER & bind.m_un.m_draw.m_textureFlags)
+													? bind.m_un.m_draw.m_textureFlags
+													: texture.m_flags
+													) & (BGFX_TEXTURE_SAMPLER_BITS_MASK | BGFX_TEXTURE_BORDER_COLOR_MASK)
+													;
+											}
+											break;
+
+										case Binding::IndexBuffer:
+										case Binding::VertexBuffer:
+											{
+												BufferD3D12& buffer = Binding::IndexBuffer == bind.m_type
+													? m_indexBuffers[bind.m_idx]
+													: m_vertexBuffers[bind.m_idx]
+													;
+
+												if (Access::Read != bind.m_un.m_compute.m_access)
+												{
+													// The api functions prevent binding with Access::Write,
+													// but might as well allow it in here for future-proofing
+													buffer.setState(m_commandList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+													scratchBuffer.allocUav(srvHandle[stage], buffer);
+												}
+												else
+												{
+													buffer.setState(m_commandList, D3D12_RESOURCE_STATE_GENERIC_READ);
+													scratchBuffer.allocSrv(srvHandle[stage], buffer);
+												}
+											}
+											break;
+										}
 									}
 									else
 									{
@@ -5545,27 +5648,34 @@ data.NumQualityLevels = 0;
 					);
 
 #if BX_PLATFORM_WINDOWS
-				DXGI_QUERY_VIDEO_MEMORY_INFO memInfo;
-				DX_CHECK(m_adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &memInfo) );
+				DXGI_QUERY_VIDEO_MEMORY_INFO vmi[2];
+				DX_CHECK(m_adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL,     &vmi[0]) );
+				DX_CHECK(m_adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_NON_LOCAL, &vmi[1]) );
 
-				char budget[16];
-				bx::prettify(budget, BX_COUNTOF(budget), memInfo.Budget);
+				for (uint32_t ii = 0; ii < BX_COUNTOF(vmi); ++ii)
+				{
+					const DXGI_QUERY_VIDEO_MEMORY_INFO& memInfo = vmi[ii];
 
-				char currentUsage[16];
-				bx::prettify(currentUsage, BX_COUNTOF(currentUsage), memInfo.CurrentUsage);
+					char budget[16];
+					bx::prettify(budget, BX_COUNTOF(budget), memInfo.Budget);
 
-				char availableForReservation[16];
-				bx::prettify(availableForReservation, BX_COUNTOF(currentUsage), memInfo.AvailableForReservation);
+					char currentUsage[16];
+					bx::prettify(currentUsage, BX_COUNTOF(currentUsage), memInfo.CurrentUsage);
 
-				char currentReservation[16];
-				bx::prettify(currentReservation, BX_COUNTOF(currentReservation), memInfo.CurrentReservation);
+					char availableForReservation[16];
+					bx::prettify(availableForReservation, BX_COUNTOF(currentUsage), memInfo.AvailableForReservation);
 
-				tvm.printf(0, pos++, 0x8f, " Budget: %s, Usage: %s, AvailRes: %s, CurrRes: %s "
-					, budget
-					, currentUsage
-					, availableForReservation
-					, currentReservation
-					);
+					char currentReservation[16];
+					bx::prettify(currentReservation, BX_COUNTOF(currentReservation), memInfo.CurrentReservation);
+
+					tvm.printf(0, pos++, 0x8f, "   %s - Budget: %10s, Usage: %10s, AvailRes: %10s, CurrRes: %10s "
+						, 0 == ii ? "Local    " : "Non-local"
+						, budget
+						, currentUsage
+						, availableForReservation
+						, currentReservation
+						);
+				}
 #endif // BX_PLATFORM_WINDOWS
 
 				pos = 10;
