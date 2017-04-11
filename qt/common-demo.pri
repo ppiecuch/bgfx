@@ -5,26 +5,16 @@ QT += \
 CONFIG += c++11 debug
 CONFIG -= app_bundle
 
-# bgfx codes:
-macx|ios: SOURCES += \
-    ../src/amalgamated.mm
-SOURCES += \
-    ../3rdparty/bx/src/commandline.cpp \
-    ../3rdparty/bx/src/crtimpl.cpp \
-    ../3rdparty/bx/src/fpumath.cpp \
-    ../3rdparty/bx/src/debug.cpp \
-    ../3rdparty/bx/src/os.cpp \
-    ../3rdparty/bx/src/string.cpp \
-    ../3rdparty/bx/src/thread.cpp \
-    ../3rdparty/bx/src/sem.cpp \
-    ../3rdparty/bx/src/mutex.cpp
+INCLUDEPATH += ../examples/common
 
+# bgfx codes:
+macx|ios: SOURCES += ../src/amalgamated.mm
+SOURCES += ../src/amalgamated.cpp
+# 3rd party libsraries:
+SOURCES += ../3rdparty/bx/src/bx-amalgamated.cpp
 # demo codes:
-macx|ios: SOURCES += \
-    ../examples/common/osx_utils.mm
+macx|ios: SOURCES += ../examples/common/osx_utils.mm
 SOURCES += \
-    ../src/amalgamated.cpp \
-    \
     ../examples/common/bounds.cpp \
     ../examples/common/camera.cpp \
     ../examples/common/cube_atlas.cpp \
@@ -53,7 +43,7 @@ SOURCES += \
     ../3rdparty/ocornut-imgui/imgui_demo.cpp \
     \
     ../3rdparty/ib-compress/indexbuffercompression.cpp \
-    ../3rdparty/ib-compress/indexbufferdecompression.cpp \
+    ../3rdparty/ib-compress/indexbufferdecompression.cpp
 
 HEADERS += \
     ../examples/common/bounds.h \
@@ -95,3 +85,5 @@ win32 {
     L="$${TARGET}.exe"
     write_file($$run_file, L)
 }
+
+include("bimg.pri")

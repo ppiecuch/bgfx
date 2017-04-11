@@ -9,6 +9,7 @@
 
 #ifdef QT_GUI_LIB
 
+#include <bx/mutex.h>
 #include <bx/thread.h>
 #include <bx/handlealloc.h>
 #include <bx/readerwriter.h>
@@ -25,6 +26,7 @@
 #include <QFileInfo>
 #include <QDirIterator>
 #include <QPaintDeviceWindow>
+#include <QThread>
 #include <QApplication>
 #include <QGuiApplication>
 
@@ -122,7 +124,7 @@ namespace entry
 		void setWindowSize(WindowHandle _handle, uint32_t _width, uint32_t _height, bool _force = false);
 
 		EventQueue m_eventQueue;
-		bx::LwMutex m_lock;
+		bx::Mutex m_lock;
 
 		bx::HandleAllocT<ENTRY_CONFIG_MAX_WINDOWS> m_windowAlloc;
 		OpenGLWindow* m_window[ENTRY_CONFIG_MAX_WINDOWS];
@@ -331,7 +333,7 @@ namespace entry
 
     WindowHandle Context::findHandle(OpenGLWindow* _window)
     {
-        bx::LwMutexScope scope(m_lock);
+        bx::MutexScope scope(m_lock);
         for (uint32_t ii = 0, num = m_windowAlloc.getNumHandles(); ii < num; ++ii)
         {
             uint16_t idx = m_windowAlloc.getHandleAt(ii);
@@ -514,7 +516,7 @@ namespace entry
 
 	WindowHandle createWindow(int32_t _x, int32_t _y, uint32_t _width, uint32_t _height, uint32_t _flags, const char* _title)
 	{
-		bx::LwMutexScope scope(s_ctx.m_lock);
+		bx::MutexScope scope(s_ctx.m_lock);
 		WindowHandle handle = { s_ctx.m_windowAlloc.alloc() };
 
 		if (UINT16_MAX != handle.idx)
@@ -539,7 +541,7 @@ namespace entry
 		{
             emit s_ctx.signalWindowDestroy(_handle);
 
-			bx::LwMutexScope scope(s_ctx.m_lock);
+			bx::MutexScope scope(s_ctx.m_lock);
 			s_ctx.m_windowAlloc.free(_handle.idx);
 		}
 	}

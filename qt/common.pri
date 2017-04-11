@@ -21,8 +21,7 @@ INCLUDEPATH += \
     $$PWD/../3rdparty/bx/include \
     $$PWD/../3rdparty/khronos \
     $$PWD/../3rdparty \
-    $$PWD/../include \
-    $$PWD/../examples/common
+    $$PWD/../include
 
 macx {
     INCLUDEPATH += $$PWD/../3rdparty/bx/include/compat/osx
