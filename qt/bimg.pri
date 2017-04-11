@@ -4,11 +4,11 @@ INCLUDEPATH += \
     $$PWD/../3rdparty/bimg/3rdparty/iqa/include \
     $$PWD/../3rdparty/bimg/3rdparty/nvtt
 
-SOURCES += \
+exists(../3rdparty/bimg/src/bimg-amalgamated.cpp):SOURCES += ../3rdparty/bimg/src/bimg-amalgamated.cpp
+else:SOURCES += \
     $$PWD/../3rdparty/bimg/src/image_decode.cpp \
     $$PWD/../3rdparty/bimg/src/image_encode.cpp \
     $$PWD/../3rdparty/bimg/src/image.cpp \
-    $$PWD/../3rdparty/bimg/3rdparty/edtaa3/edtaa3func.cpp \
     $$PWD/../3rdparty/bimg/3rdparty/etc1/etc1.cpp \
     $$PWD/../3rdparty/bimg/3rdparty/etc2/ProcessRGB.cpp \
     $$PWD/../3rdparty/bimg/3rdparty/etc2/Tables.cpp \
@@ -48,5 +48,4 @@ SOURCES += \
     $$PWD/../3rdparty/bimg/3rdparty/pvrtc/MortonTable.cpp \
     $$PWD/../3rdparty/bimg/3rdparty/pvrtc/PvrTcDecoder.cpp \
     $$PWD/../3rdparty/bimg/3rdparty/pvrtc/PvrTcEncoder.cpp \
-    $$PWD/../3rdparty/bimg/3rdparty/pvrtc/PvrTcPacket.cpp \
-    $$PWD/../3rdparty/bimg/3rdparty/lodepng/lodepng.cpp
+    $$PWD/../3rdparty/bimg/3rdparty/pvrtc/PvrTcPacket.cpp
