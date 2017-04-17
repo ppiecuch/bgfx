@@ -606,7 +606,6 @@
     <file alias="shaders/glsl/fs_rsm_lbuffer.bin">../examples/runtime/shaders/glsl/fs_rsm_lbuffer.bin</file>
     <file alias="shaders/glsl/fs_rsm_shadow.bin">../examples/runtime/shaders/glsl/fs_rsm_shadow.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_black.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_black.bin</file>
-    <file alias="shaders/glsl/fs_shadowmaps_color_lighting.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_esm.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_esm.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_esm_csm.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_esm_csm.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_esm_linear.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_esm_linear.bin</file>
@@ -619,14 +618,12 @@
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_hard_linear_csm.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_hard_linear_csm.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_hard_linear_omni.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_hard_linear_omni.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_hard_omni.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_hard_omni.bin</file>
-    <file alias="shaders/glsl/fs_shadowmaps_color_lighting_omni.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_omni.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_pcf.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_pcf.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_pcf_csm.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_pcf_csm.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_pcf_linear.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_pcf_linear.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_pcf_linear_csm.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_pcf_linear_csm.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_pcf_linear_omni.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_pcf_linear_omni.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_pcf_omni.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_pcf_omni.bin</file>
-    <file alias="shaders/glsl/fs_shadowmaps_color_lighting_pfc.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_pfc.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_vsm.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_vsm.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_vsm_csm.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_vsm_csm.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_vsm_linear.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_vsm_linear.bin</file>
@@ -634,7 +631,6 @@
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_vsm_linear_omni.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_vsm_linear_omni.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_lighting_vsm_omni.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_lighting_vsm_omni.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_color_texture.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_color_texture.bin</file>
-    <file alias="shaders/glsl/fs_shadowmaps_depth.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_depth.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_hblur.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_hblur.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_hblur_vsm.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_hblur_vsm.bin</file>
     <file alias="shaders/glsl/fs_shadowmaps_packdepth.bin">../examples/runtime/shaders/glsl/fs_shadowmaps_packdepth.bin</file>

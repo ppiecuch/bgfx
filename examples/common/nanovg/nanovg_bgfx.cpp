@@ -386,10 +386,11 @@ namespace
 		struct GLNVGcontext* gl = (struct GLNVGcontext*)_userPtr;
 		struct GLNVGtexture* tex = glnvg__findTexture(gl, image);
 
-		if (0 == tex)
-			fprintf(stderr, "Texture %d not found. Expect crashes.\n", image);
+		if (NULL == tex)
+			fprintf(stderr, "Texture %d not found. Application will likely to crash.\n", image);
 
-		if (!bgfx::isValid(tex->id))
+		if (NULL == tex
+		|| !bgfx::isValid(tex->id) )
 		{
 			return 0;
 		}

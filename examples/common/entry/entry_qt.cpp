@@ -25,13 +25,10 @@
 #include <QKeyEvent>
 #include <QFileInfo>
 #include <QDirIterator>
-#include <QPaintDeviceWindow>
+#include <QWindow>
 #include <QThread>
 #include <QApplication>
 #include <QGuiApplication>
-
-#include <QtGui/private/qpaintdevicewindow_p.h>
-
 
 namespace entry
 {
@@ -184,18 +181,13 @@ namespace entry
 		return MouseButton::Middle;
 	}
 
-    class OpenGLWindowPrivate : public QPaintDeviceWindowPrivate
-    {
-    };
-	
-    class OpenGLWindow : public QPaintDeviceWindow
+    class OpenGLWindow : public QWindow
 	{
 	  Q_OBJECT
-	  Q_DECLARE_PRIVATE(OpenGLWindow)
 
 	public:
 	  explicit OpenGLWindow(QWindow *parent = 0) 
-      : QPaintDeviceWindow(*(new OpenGLWindowPrivate), parent)
+      : QWindow(parent)
       , m_shouldClose(false)
 	  { 
             setSurfaceType(QSurface::OpenGLSurface);

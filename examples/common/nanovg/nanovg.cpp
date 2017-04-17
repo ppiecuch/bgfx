@@ -23,10 +23,6 @@
 
 #include "nanovg.h"
 
-#ifndef NANOVG_HAS_STB_IMAGE
-#	define NANOVG_HAS_STB_IMAGE 0
-#endif // NANOVG_HAS_STB_IMAGE
-
 #include <bx/macros.h>
 
 BX_PRAGMA_DIAGNOSTIC_IGNORED_MSVC(4701) // error C4701: potentially uninitialized local variable 'cint' used
@@ -40,28 +36,6 @@ BX_PRAGMA_DIAGNOSTIC_IGNORED_GCC("-Wunused-result");
 #define FONTSTASH_IMPLEMENTATION
 #include "fontstash.h"
 BX_PRAGMA_DIAGNOSTIC_POP();
-
-#if NANOVG_HAS_STB_IMAGE
-#define LODEPNG_NO_COMPILE_ENCODER
-#define LODEPNG_NO_COMPILE_DISK
-#define LODEPNG_NO_COMPILE_ANCILLARY_CHUNKS
-#define LODEPNG_NO_COMPILE_ERROR_TEXT
-#define LODEPNG_NO_COMPILE_ALLOCATORS
-#define LODEPNG_NO_COMPILE_CPP
-#include <lodepng/lodepng.h>
-
-BX_PRAGMA_DIAGNOSTIC_PUSH();
-BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wmissing-field-initializers");
-BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wshadow");
-BX_PRAGMA_DIAGNOSTIC_IGNORED_CLANG_GCC("-Wint-to-pointer-cast")
-#if BX_COMPILER_GCC >= 60000
-BX_PRAGMA_DIAGNOSTIC_IGNORED_GCC("-Wmisleading-indentation");
-BX_PRAGMA_DIAGNOSTIC_IGNORED_GCC("-Wshift-negative-value");
-#endif // BX_COMPILER_GCC >= 60000_
-
-#include <stb/stb_image.c>
-BX_PRAGMA_DIAGNOSTIC_POP();
-#endif // NANOVG_HAS_STB_IMAGE
 
 #ifdef _MSC_VER
 #pragma warning(disable: 4100)  // unreferenced formal parameter
