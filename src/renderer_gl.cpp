@@ -269,7 +269,7 @@ namespace bgfx { namespace gl
 		{ GL_RGBA4,                                    GL_ZERO,                                       GL_RGBA,                                     GL_UNSIGNED_SHORT_4_4_4_4_REV,   false }, // RGBA4
 		{ GL_RGB5_A1,                                  GL_ZERO,                                       GL_RGBA,                                     GL_UNSIGNED_SHORT_1_5_5_5_REV,   false }, // RGB5A1
 		{ GL_RGB10_A2,                                 GL_ZERO,                                       GL_RGBA,                                     GL_UNSIGNED_INT_2_10_10_10_REV,  false }, // RGB10A2
-		{ GL_R11F_G11F_B10F,                           GL_ZERO,                                       GL_RGB,                                      GL_UNSIGNED_INT_10F_11F_11F_REV, false }, // R11G11B10F
+		{ GL_R11F_G11F_B10F,                           GL_ZERO,                                       GL_RGB,                                      GL_UNSIGNED_INT_10F_11F_11F_REV, false }, // RG11B10F
 		{ GL_ZERO,                                     GL_ZERO,                                       GL_ZERO,                                     GL_ZERO,                         false }, // UnknownDepth
 		{ GL_DEPTH_COMPONENT16,                        GL_ZERO,                                       GL_DEPTH_COMPONENT,                          GL_UNSIGNED_SHORT,               false }, // D16
 		{ GL_DEPTH_COMPONENT24,                        GL_ZERO,                                       GL_DEPTH_COMPONENT,                          GL_UNSIGNED_INT,                 false }, // D24
@@ -352,7 +352,7 @@ namespace bgfx { namespace gl
 		GL_RGBA4,              // RGBA4
 		GL_RGB5_A1,            // RGB5A1
 		GL_RGB10_A2,           // RGB10A2
-		GL_R11F_G11F_B10F,     // R11G11B10F
+		GL_R11F_G11F_B10F,     // RG11B10F
 		GL_ZERO,               // UnknownDepth
 		GL_DEPTH_COMPONENT16,  // D16
 		GL_DEPTH_COMPONENT24,  // D24
@@ -433,7 +433,7 @@ namespace bgfx { namespace gl
 		GL_RGBA4,          // RGBA4
 		GL_RGB5_A1,        // RGB5A1
 		GL_RGB10_A2,       // RGB10A2
-		GL_R11F_G11F_B10F, // R11G11B10F
+		GL_R11F_G11F_B10F, // RG11B10F
 		GL_ZERO,           // UnknownDepth
 		GL_ZERO,           // D16
 		GL_ZERO,           // D24
@@ -940,6 +940,13 @@ namespace bgfx { namespace gl
 		NULL
 	};
 
+	static const char* s_EXT_gpu_shader4[] =
+	{
+		"gl_VertexID",
+		"gl_InstanceID",
+		NULL
+	};
+
 	static const char* s_ARB_gpu_shader5[] =
 	{
 		"bitfieldReverse",
@@ -1061,7 +1068,7 @@ namespace bgfx { namespace gl
 			while (pos < end)
 			{
 				uint32_t len;
-				const char* space = bx::strnchr(pos, ' ');
+				const char* space = bx::strFind(pos, ' ');
 				if (NULL != space)
 				{
 					len = bx::uint32_min(sizeof(name), (uint32_t)(space - pos) );
@@ -1355,12 +1362,12 @@ namespace bgfx { namespace gl
 			&&  extension.m_initialize)
 			{
 				const char* ext = _name;
-				if (0 == bx::strncmp(ext, "GL_", 3) ) // skip GL_
+				if (0 == bx::strCmp(ext, "GL_", 3) ) // skip GL_
 				{
 					ext += 3;
 				}
 
-				if (0 == bx::strncmp(ext, extension.m_name) )
+				if (0 == bx::strCmp(ext, extension.m_name) )
 				{
 					extension.m_supported = true;
 					supported = true;
@@ -1485,7 +1492,7 @@ namespace bgfx { namespace gl
 			for (uint32_t ii = 0; ii < BX_COUNTOF(s_vendorIds); ++ii)
 			{
 				const VendorId& vendorId = s_vendorIds[ii];
-				if (0 == bx::strncmp(vendorId.name, m_vendor, bx::strLen(vendorId.name) ) )
+				if (0 == bx::strCmp(vendorId.name, m_vendor, bx::strLen(vendorId.name) ) )
 				{
 					g_caps.vendorId = vendorId.id;
 					break;
@@ -1561,8 +1568,8 @@ namespace bgfx { namespace gl
 				;
 
 			if (BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES >= 31)
-			&&  0    == bx::strncmp(m_vendor,  "Imagination Technologies")
-			&&  NULL != bx::strnstr(m_version, "(SDK 3.5@3510720)") )
+			&&  0    == bx::strCmp(m_vendor,  "Imagination Technologies")
+			&&  NULL != bx::strFind(m_version, "(SDK 3.5@3510720)") )
 			{
 				// Skip initializing extensions that are broken in emulator.
 				s_extension[Extension::ARB_program_interface_query     ].m_initialize =
@@ -1582,7 +1589,7 @@ namespace bgfx { namespace gl
 					while (pos < end)
 					{
 						uint32_t len;
-						const char* space = bx::strnchr(pos, ' ');
+						const char* space = bx::strFind(pos, ' ');
 						if (NULL != space)
 						{
 							len = bx::uint32_min(sizeof(name), (uint32_t)(space - pos) );
@@ -4192,13 +4199,13 @@ namespace bgfx { namespace gl
 			num = bx::uint32_max(num, 1);
 
 			int offset = 0;
-			char* array = const_cast<char*>(bx::strnchr(name, '[') );
+			char* array = const_cast<char*>(bx::strFind(name, '[') );
 			if (NULL != array)
 			{
 				BX_TRACE("--- %s", name);
 				*array = '\0';
 				array++;
-				char* end = const_cast<char*>(bx::strnchr(array, ']') );
+				char* end = const_cast<char*>(bx::strFind(array, ']') );
 				if (NULL != end)
 				{ // Some devices (Amazon Fire) might not return terminating brace.
 					*end = '\0';
@@ -4876,9 +4883,9 @@ namespace bgfx { namespace gl
 			{
 				switch (target)
 				{
-				case GL_TEXTURE_CUBE_MAP:       target = GL_TEXTURE_CUBE_MAP_ARRAY;
-				case GL_TEXTURE_2D_MULTISAMPLE: target = GL_TEXTURE_2D_MULTISAMPLE_ARRAY;
-				default:                        target = GL_TEXTURE_2D_ARRAY;
+				case GL_TEXTURE_CUBE_MAP:       target = GL_TEXTURE_CUBE_MAP_ARRAY;       break;
+				case GL_TEXTURE_2D_MULTISAMPLE: target = GL_TEXTURE_2D_MULTISAMPLE_ARRAY; break;
+				default:                        target = GL_TEXTURE_2D_ARRAY;             break;
 				}
 			}
 
@@ -5572,10 +5579,10 @@ namespace bgfx { namespace gl
 
 					if (insertFragDepth)
 					{
-						const char* entry = bx::strnstr(temp, "void main ()");
+						const char* entry = bx::strFind(temp, "void main ()");
 						if (NULL != entry)
 						{
-							char* brace = const_cast<char*>(bx::strnstr(entry, "{") );
+							char* brace = const_cast<char*>(bx::strFind(entry, "{") );
 							if (NULL != brace)
 							{
 								const char* end = bx::strmb(brace, '{', '}');
@@ -5602,6 +5609,7 @@ namespace bgfx { namespace gl
 						&& s_extension[Extension::ARB_shader_texture_lod].m_supported
 						&& bx::findIdentifierMatch(code, s_ARB_shader_texture_lod)
 						;
+					const bool usesGpuShader4   = !!bx::findIdentifierMatch(code, s_EXT_gpu_shader4);
 					const bool usesGpuShader5   = !!bx::findIdentifierMatch(code, s_ARB_gpu_shader5);
 					const bool usesIUsamplers   = !!bx::findIdentifierMatch(code, s_uisamplers);
 					const bool usesTexelFetch   = !!bx::findIdentifierMatch(code, s_texelFetch);
@@ -5610,7 +5618,7 @@ namespace bgfx { namespace gl
 					const bool usesPacking      = !!bx::findIdentifierMatch(code, s_ARB_shading_language_packing);
 
 					uint32_t version =
-						  usesIUsamplers || usesTexelFetch || usesGpuShader5 ? 130
+						  usesIUsamplers|| usesTexelFetch || usesGpuShader5 ? 130
 						: usesTextureLod ? 120
 						: 120
 						;
@@ -5631,6 +5639,11 @@ namespace bgfx { namespace gl
 								  "#define textureCubeGrad textureCubeGradARB\n"
 								);
 						}
+					}
+
+					if (usesGpuShader4)
+					{
+						writeString(&writer, "#extension GL_EXT_gpu_shader4 : enable\n");
 					}
 
 					if (usesGpuShader5)
@@ -5673,7 +5686,7 @@ namespace bgfx { namespace gl
 							{
 								char tmpFragData[16];
 								bx::snprintf(tmpFragData, BX_COUNTOF(tmpFragData), "gl_FragData[%d]", ii);
-								fragData = bx::uint32_max(fragData, NULL == bx::strnstr(code, tmpFragData) ? 0 : ii+1);
+								fragData = bx::uint32_max(fragData, NULL == bx::strFind(code, tmpFragData) ? 0 : ii+1);
 							}
 
 							BGFX_FATAL(0 != fragData, Fatal::InvalidShader, "Unable to find and patch gl_FragData!");
@@ -5766,7 +5779,7 @@ namespace bgfx { namespace gl
 							{
 								char tmpFragData[16];
 								bx::snprintf(tmpFragData, BX_COUNTOF(tmpFragData), "gl_FragData[%d]", ii);
-								fragData = bx::uint32_max(fragData, NULL == bx::strnstr(code, tmpFragData) ? 0 : ii+1);
+								fragData = bx::uint32_max(fragData, NULL == bx::strFind(code, tmpFragData) ? 0 : ii+1);
 							}
 
 							BGFX_FATAL(0 != fragData, Fatal::InvalidShader, "Unable to find and patch gl_FragData!");
