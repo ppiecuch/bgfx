@@ -590,7 +590,7 @@ namespace
 					| BGFX_STENCIL_OP_FAIL_Z_KEEP
 					| BGFX_STENCIL_OP_PASS_Z_DECR
 					);
-				bgfx::setVertexBuffer(&gl->tvb);
+				bgfx::setVertexBuffer(0, &gl->tvb);
 				bgfx::setTexture(0, gl->s_tex, gl->th);
 				fan(paths[i].fillOffset, paths[i].fillCount);
 				bgfx::submit(gl->m_viewId, gl->prog);
@@ -615,7 +615,7 @@ namespace
 					| BGFX_STENCIL_OP_FAIL_Z_KEEP
 					| BGFX_STENCIL_OP_PASS_Z_KEEP
 					);
-				bgfx::setVertexBuffer(&gl->tvb, paths[i].strokeOffset, paths[i].strokeCount);
+				bgfx::setVertexBuffer(0, &gl->tvb, paths[i].strokeOffset, paths[i].strokeCount);
 				bgfx::setTexture(0, gl->s_tex, gl->th);
 				bgfx::submit(gl->m_viewId, gl->prog);
 			}
@@ -623,7 +623,7 @@ namespace
 
 		// Draw fill
 		bgfx::setState(gl->state);
-		bgfx::setVertexBuffer(&gl->tvb, call->vertexOffset, call->vertexCount);
+		bgfx::setVertexBuffer(0, &gl->tvb, call->vertexOffset, call->vertexCount);
 		bgfx::setTexture(0, gl->s_tex, gl->th);
 		bgfx::setStencil(0
 				| BGFX_STENCIL_TEST_NOTEQUAL
@@ -646,7 +646,7 @@ namespace
 		{
 			if (paths[i].fillCount == 0) continue;
 			bgfx::setState(gl->state);
-			bgfx::setVertexBuffer(&gl->tvb);
+			bgfx::setVertexBuffer(0, &gl->tvb);
 			bgfx::setTexture(0, gl->s_tex, gl->th);
 			fan(paths[i].fillOffset, paths[i].fillCount);
 			bgfx::submit(gl->m_viewId, gl->prog);
@@ -660,7 +660,7 @@ namespace
 				bgfx::setState(gl->state
 					| BGFX_STATE_PT_TRISTRIP
 					);
-				bgfx::setVertexBuffer(&gl->tvb, paths[i].strokeOffset, paths[i].strokeCount);
+				bgfx::setVertexBuffer(0, &gl->tvb, paths[i].strokeOffset, paths[i].strokeCount);
 				bgfx::setTexture(0, gl->s_tex, gl->th);
 				bgfx::submit(gl->m_viewId, gl->prog);
 			}
@@ -680,7 +680,7 @@ namespace
 			bgfx::setState(gl->state
 				| BGFX_STATE_PT_TRISTRIP
 				);
-			bgfx::setVertexBuffer(&gl->tvb, paths[i].strokeOffset, paths[i].strokeCount);
+			bgfx::setVertexBuffer(0, &gl->tvb, paths[i].strokeOffset, paths[i].strokeCount);
 			bgfx::setTexture(0, gl->s_tex, gl->th);
 			bgfx::submit(gl->m_viewId, gl->prog);
 		}
@@ -693,7 +693,7 @@ namespace
 			nvgRenderSetUniforms(gl, call->uniformOffset, call->image);
 
 			bgfx::setState(gl->state);
-			bgfx::setVertexBuffer(&gl->tvb, call->vertexOffset, call->vertexCount);
+			bgfx::setVertexBuffer(0, &gl->tvb, call->vertexOffset, call->vertexCount);
 			bgfx::setTexture(0, gl->s_tex, gl->th);
 			bgfx::submit(gl->m_viewId, gl->prog);
 		}

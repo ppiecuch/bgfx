@@ -201,7 +201,7 @@ class ExampleCubes : public entry::AppI
 					bgfx::setTransform(mtx);
 
 					// Set vertex and index buffer.
-					bgfx::setVertexBuffer(m_vbh);
+					bgfx::setVertexBuffer(0, m_vbh);
 					bgfx::setIndexBuffer(m_ibh);
 
 					// Set render states.

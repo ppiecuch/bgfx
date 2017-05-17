@@ -192,6 +192,9 @@ public:
     bool handleOutputGeometry(const TSourceLoc&, const TLayoutGeometry& geometry);
     bool handleInputGeometry(const TSourceLoc&, const TLayoutGeometry& geometry);
 
+    // Determine loop control from attributes
+    TLoopControl handleLoopControl(const TAttributeMap& attributes) const;
+
     // Potentially rename shader entry point function
     void renameShaderFunction(const TString*& name) const;
 
@@ -272,6 +275,9 @@ protected:
 
     // Test method names
     bool isStructBufferMethod(const TString& name) const;
+
+    // Return standard sample position array
+    TIntermConstantUnion* getSamplePosArray(int count);
 
     TType* getStructBufferContentType(const TType& type) const;
     bool isStructBufferType(const TType& type) const { return getStructBufferContentType(type) != nullptr; }

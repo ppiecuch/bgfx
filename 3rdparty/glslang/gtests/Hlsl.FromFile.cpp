@@ -98,6 +98,7 @@ INSTANTIATE_TEST_CASE_P(
         {"hlsl.clip.frag", "main"},
         {"hlsl.comparison.vec.frag", "main"},
         {"hlsl.conditional.frag", "PixelShaderFunction"},
+        {"hlsl.constantbuffer.frag", "main"},
         {"hlsl.constructexpr.frag", "main"},
         {"hlsl.depthGreater.frag", "PixelShaderFunction"},
         {"hlsl.depthLess.frag", "PixelShaderFunction"},
@@ -105,6 +106,7 @@ INSTANTIATE_TEST_CASE_P(
         {"hlsl.doLoop.frag", "PixelShaderFunction"},
         {"hlsl.emptystructreturn.frag", "main"},
         {"hlsl.emptystructreturn.vert", "main"},
+        {"hlsl.emptystruct.init.vert", "main"},
         {"hlsl.entry-in.frag", "PixelShaderFunction"},
         {"hlsl.entry-out.frag", "PixelShaderFunction"},
         {"hlsl.float1.frag", "PixelShaderFunction"},
@@ -173,6 +175,7 @@ INSTANTIATE_TEST_CASE_P(
         {"hlsl.logical.binary.vec.frag", "main"},
         {"hlsl.logicalConvert.frag", "main"},
         {"hlsl.logical.unary.frag", "main"},
+        {"hlsl.loopattr.frag", "main"},
         {"hlsl.namespace.frag", "main"},
         {"hlsl.nonint-index.frag", "main"},
         {"hlsl.matNx1.frag", "main"},
@@ -283,7 +286,7 @@ INSTANTIATE_TEST_CASE_P(
         {"hlsl.typeGraphCopy.vert", "main"},
         {"hlsl.typedef.frag", "PixelShaderFunction"},
         {"hlsl.whileLoop.frag", "PixelShaderFunction"},
-        {"hlsl.void.frag", "PixelShaderFunction"},
+        {"hlsl.void.frag", "PixelShaderFunction"}
     }),
     FileNameAsCustomTestSuffix
 );

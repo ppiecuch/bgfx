@@ -726,7 +726,7 @@ bool ProcessDeferred(
     intermediate.setSpv(spvVersion);
     if (spvVersion.vulkan >= 100)
         intermediate.setOriginUpperLeft();
-    if (messages & EShMsgHlslOffsets) // source-language independent
+    if ((messages & EShMsgHlslOffsets) || (messages & EShMsgReadHlsl))
         intermediate.setHlslOffsets();
     SetupBuiltinSymbolTable(version, profile, spvVersion, source);
 
@@ -1575,6 +1575,7 @@ void TShader::setAutoMapBindings(bool map)              { intermediate->setAutoM
 void TShader::setHlslIoMapping(bool hlslIoMap)          { intermediate->setHlslIoMapping(hlslIoMap); }
 void TShader::setFlattenUniformArrays(bool flatten)     { intermediate->setFlattenUniformArrays(flatten); }
 void TShader::setNoStorageFormat(bool useUnknownFormat) { intermediate->setNoStorageFormat(useUnknownFormat); }
+void TShader::setResourceSetBinding(const std::vector<std::string>& base)   { intermediate->setResourceSetBinding(base); }
 
 //
 // Turn the shader strings into a parse tree in the TIntermediate.
