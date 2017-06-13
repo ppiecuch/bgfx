@@ -9,6 +9,8 @@
 #include <bx/os.h>
 #include <bx/string.h>
 #include <bx/uint32_t.h>
+#include <bx/fpumath.h>
+#include <bx/easing.h>
 #include <entry/entry.h>
 #include <entry/input.h>
 #include <entry/cmd.h>
@@ -34,6 +36,9 @@ namespace stl = tinystl;
 #include "vs_texture_cube.bin.h"
 #include "fs_texture_cube.bin.h"
 #include "fs_texture_sdf.bin.h"
+
+#define BACKGROUND_VIEW_ID 0
+#define IMAGE_VIEW_ID      1
 
 #define BGFX_TEXTUREV_VERSION_MAJOR 1
 #define BGFX_TEXTUREV_VERSION_MINOR 0
@@ -80,6 +85,7 @@ struct Binding
 static const InputBinding s_bindingApp[] =
 {
 	{ entry::Key::Esc,  entry::Modifier::None,  1, NULL, "exit"                },
+	{ entry::Key::KeyQ, entry::Modifier::None,  1, NULL, "exit"                },
 	{ entry::Key::KeyF, entry::Modifier::None,  1, NULL, "graphics fullscreen" },
 
 	INPUT_BINDING_END
@@ -94,9 +100,17 @@ static const InputBinding s_bindingView[] =
 
 	{ entry::Key::Slash,     entry::Modifier::None,       1, NULL, "view filter"             },
 
-	{ entry::Key::Key0,      entry::Modifier::None,       1, NULL, "view zoom 1.0\nview pan" },
+	{ entry::Key::Key1,      entry::Modifier::None,       1, NULL, "view zoom 1.0\n"
+	                                                               "view fit\n"              },
+
+	{ entry::Key::Key0,      entry::Modifier::None,       1, NULL, "view zoom 1.0\n"
+	                                                               "view rotate 0\n"
+	                                                               "view pan\n"              },
 	{ entry::Key::Plus,      entry::Modifier::None,       1, NULL, "view zoom +0.1"          },
 	{ entry::Key::Minus,     entry::Modifier::None,       1, NULL, "view zoom -0.1"          },
+
+	{ entry::Key::KeyZ,      entry::Modifier::None,       1, NULL, "view rotate -90"         },
+	{ entry::Key::KeyZ,      entry::Modifier::LeftShift,  1, NULL, "view rotate +90"         },
 
 	{ entry::Key::Up,        entry::Modifier::None,       1, NULL, "view file-up"            },
 	{ entry::Key::Down,      entry::Modifier::None,       1, NULL, "view file-down"          },
@@ -143,7 +157,9 @@ struct View
 		, m_posx(0.0f)
 		, m_posy(0.0f)
 		, m_zoom(1.0f)
+		, m_angle(0.0f)
 		, m_filter(true)
+		, m_fit(true)
 		, m_alpha(false)
 		, m_help(false)
 		, m_sdf(false)
@@ -273,6 +289,29 @@ struct View
 					m_zoom = 1.0f;
 				}
 			}
+			else if (0 == bx::strCmp(_argv[1], "rotate") )
+			{
+				if (_argc >= 3)
+				{
+					float angle = (float)atof(_argv[2]);
+
+					if (_argv[2][0] == '+'
+					||  _argv[2][0] == '-')
+					{
+						m_angle += bx::toRad(angle);
+					}
+					else
+					{
+						m_angle = bx::toRad(angle);
+					}
+
+					m_angle = bx::fwrap(m_angle, bx::kPi*2.0f);
+				}
+				else
+				{
+					m_angle = 0.0f;
+				}
+			}
 			else if (0 == bx::strCmp(_argv[1], "filter") )
 			{
 				if (_argc >= 3)
@@ -282,6 +321,17 @@ struct View
 				else
 				{
 					m_filter ^= true;
+				}
+			}
+			else if (0 == bx::strCmp(_argv[1], "fit") )
+			{
+				if (_argc >= 3)
+				{
+					m_fit = bx::toBool(_argv[2]);
+				}
+				else
+				{
+					m_fit ^= true;
 				}
 			}
 			else if (0 == bx::strCmp(_argv[1], "file-up") )
@@ -399,7 +449,9 @@ struct View
 	float    m_posx;
 	float    m_posy;
 	float    m_zoom;
+	float    m_angle;
 	bool     m_filter;
+	bool     m_fit;
 	bool     m_alpha;
 	bool     m_help;
 	bool     m_sdf;
@@ -434,7 +486,7 @@ struct PosUvColorVertex
 
 bgfx::VertexDecl PosUvColorVertex::ms_decl;
 
-bool screenQuad(int32_t _x, int32_t _y, int32_t _width, uint32_t _height, uint32_t _abgr, bool _originBottomLeft = false)
+bool screenQuad(int32_t _x, int32_t _y, int32_t _width, uint32_t _height, uint32_t _abgr, float _maxu = 1.0f, float _maxv = 1.0f)
 {
 	if (6 == bgfx::getAvailTransientVertexBuffer(6, PosUvColorVertex::ms_decl) )
 	{
@@ -450,14 +502,10 @@ bool screenQuad(int32_t _x, int32_t _y, int32_t _width, uint32_t _height, uint32
 		const float maxx = minx+widthf;
 		const float maxy = miny+heightf;
 
-		float m_halfTexel = 0.0f;
-
-		const float texelHalfW = m_halfTexel/widthf;
-		const float texelHalfH = m_halfTexel/heightf;
-		const float minu = texelHalfW;
-		const float maxu = 1.0f - texelHalfW;
-		const float minv = _originBottomLeft ? texelHalfH+1.0f : texelHalfH     ;
-		const float maxv = _originBottomLeft ? texelHalfH      : texelHalfH+1.0f;
+		const float minu = 0.0f;
+		const float maxu = _maxu;
+		const float minv = 0.0f;
+		const float maxv = _maxv;
 
 		vertex[0].m_x = minx;
 		vertex[0].m_y = miny;
@@ -504,14 +552,15 @@ bool screenQuad(int32_t _x, int32_t _y, int32_t _width, uint32_t _height, uint32
 	return false;
 }
 
-struct Interpolator
+template<bx::LerpFn lerpT, bx::EaseFn easeT>
+struct InterpolatorT
 {
 	float from;
 	float to;
 	float duration;
 	int64_t offset;
 
-	Interpolator(float _value)
+	InterpolatorT(float _value)
 	{
 		reset(_value);
 	}
@@ -544,12 +593,22 @@ struct Interpolator
 			int64_t now = bx::getHPCounter();
 			float time = (float)(double(now - offset) / freq);
 			float lerp = bx::fclamp(time, 0.0, duration) / duration;
-			return bx::flerp(from, to, lerp);
+			return lerpT(from, to, easeT(lerp) );
 		}
 
 		return to;
 	}
 };
+
+typedef InterpolatorT<bx::flerp,     bx::easeInOutQuad>  Interpolator;
+typedef InterpolatorT<bx::angleLerp, bx::easeInOutCubic> InterpolatorAngle;
+
+void keyBindingHelp(const char* _bindings, const char* _description)
+{
+	ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), _bindings);
+	ImGui::SameLine(100);
+	ImGui::Text(_description);
+}
 
 void associate()
 {
@@ -587,7 +646,7 @@ void associate()
 	GetTempPathA(MAX_PATH, temp);
 	bx::strCat(temp, MAX_PATH, "\\texturev.reg");
 
-	bx::CrtFileWriter writer;
+	bx::FileWriter writer;
 	bx::Error err;
 	if (bx::open(&writer, temp, false, &err) )
 	{
@@ -618,7 +677,7 @@ void associate()
 
 	str += "\n";
 
-	bx::CrtFileWriter writer;
+	bx::FileWriter writer;
 	bx::Error err;
 	if (bx::open(&writer, "/tmp/texturev.sh", false, &err) )
 	{
@@ -716,9 +775,9 @@ int _main_(int _argc, char** _argv)
 	bgfx::reset(width, height, reset);
 
 	// Set view 0 clear state.
-	bgfx::setViewClear(0
+	bgfx::setViewClear(BACKGROUND_VIEW_ID
 		, BGFX_CLEAR_COLOR|BGFX_CLEAR_DEPTH
-		, 0x101010ff
+		, 0x000000ff
 		, 1.0f
 		, 0
 		);
@@ -727,7 +786,8 @@ int _main_(int _argc, char** _argv)
 
 	PosUvColorVertex::init();
 
-	bgfx::RendererType::Enum type = bgfx::getRendererType();
+	const bgfx::Caps* caps = bgfx::getCaps();
+	bgfx::RendererType::Enum type = caps->rendererType;
 
 	bgfx::ShaderHandle vsTexture      = bgfx::createEmbeddedShader(s_embeddedShaders, type, "vs_texture");
 	bgfx::ShaderHandle fsTexture      = bgfx::createEmbeddedShader(s_embeddedShaders, type, "fs_texture");
@@ -738,7 +798,6 @@ int _main_(int _argc, char** _argv)
 			, fsTexture
 			, true
 			);
-
 	bgfx::ProgramHandle textureArrayProgram = bgfx::createProgram(
 			  vsTexture
 			, bgfx::isValid(fsTextureArray)
@@ -753,7 +812,7 @@ int _main_(int _argc, char** _argv)
 			, true
 			);
 
-	bgfx::ProgramHandle textureSDFProgram = bgfx::createProgram(
+	bgfx::ProgramHandle textureSdfProgram = bgfx::createProgram(
 			  vsTexture
 			, bgfx::createEmbeddedShader(s_embeddedShaders, type, "fs_texture_sdf")
 			, true);
@@ -762,12 +821,28 @@ int _main_(int _argc, char** _argv)
 	bgfx::UniformHandle u_mtx      = bgfx::createUniform("u_mtx",      bgfx::UniformType::Mat4);
 	bgfx::UniformHandle u_params   = bgfx::createUniform("u_params",   bgfx::UniformType::Vec4);
 
+	const uint32_t checkerBoardSize = 64;
+	bgfx::TextureHandle checkerBoard;
+	{
+		const bgfx::Memory* mem = bgfx::alloc(checkerBoardSize*checkerBoardSize*4);
+		bimg::imageCheckerboard(mem->data, checkerBoardSize, checkerBoardSize, 8, 0xff8e8e8e, 0xff5d5d5d);
+		checkerBoard = bgfx::createTexture2D(checkerBoardSize, checkerBoardSize, false, 1
+			, bgfx::TextureFormat::BGRA8
+			, 0
+			| BGFX_TEXTURE_MIN_POINT
+			| BGFX_TEXTURE_MIP_POINT
+			| BGFX_TEXTURE_MAG_POINT
+			, mem
+			);
+	}
+
 	float speed = 0.37f;
 	float time  = 0.0f;
 
 	Interpolator mip(0.0f);
 	Interpolator layer(0.0f);
 	Interpolator zoom(1.0f);
+	InterpolatorAngle angle(0.0f);
 	Interpolator scale(1.0f);
 	Interpolator posx(0.0f);
 	Interpolator posy(0.0f);
@@ -883,37 +958,39 @@ int _main_(int _argc, char** _argv)
 				ImGui::Text("Key bindings:\n\n");
 
 				ImGui::PushFont(ImGui::Font::Mono);
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "ESC");   ImGui::SameLine(64); ImGui::Text("Exit.");
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "h");     ImGui::SameLine(64); ImGui::Text("Toggle help screen.");
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "f");     ImGui::SameLine(64); ImGui::Text("Toggle full-screen.");
+				keyBindingHelp("ESC", "Exit.");
+				keyBindingHelp("h", "Toggle help screen.");
+				keyBindingHelp("f", "Toggle full-screen.");
 				ImGui::NextLine();
 
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "-");     ImGui::SameLine(64); ImGui::Text("Zoom out.");
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "=");     ImGui::SameLine(64); ImGui::Text("Zoom in.");
+				keyBindingHelp("LMB+drag",  "Pan.");
+				keyBindingHelp("=/- or MW", "Zoom in/out.");
+				keyBindingHelp("z/Z",       "Rotate.");
+				keyBindingHelp("0",         "Reset.");
+				keyBindingHelp("1",         "Fit to window.");
 				ImGui::NextLine();
 
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), ",");     ImGui::SameLine(64); ImGui::Text("MIP level up.");
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), ".");     ImGui::SameLine(64); ImGui::Text("MIP level down.");
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "/");     ImGui::SameLine(64); ImGui::Text("Toggle linear/point texture sampling.");
+				keyBindingHelp("<",   "Reset MIP level.");
+				keyBindingHelp(",/,", "MIP level up/down.");
+				keyBindingHelp("/",   "Toggle linear/point texture sampling.");
 				ImGui::NextLine();
 
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "left");  ImGui::SameLine(64); ImGui::Text("Previous layer in texture array.");
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "right"); ImGui::SameLine(64); ImGui::Text("Next layer in texture array.");
+				keyBindingHelp("left",  "Previous layer in texture array.");
+				keyBindingHelp("right", "Next layer in texture array.");
 				ImGui::NextLine();
 
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "up");    ImGui::SameLine(64); ImGui::Text("Previous texture.");
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "down");  ImGui::SameLine(64); ImGui::Text("Next texture.");
+				keyBindingHelp("up",   "Previous texture.");
+				keyBindingHelp("down", "Next texture.");
 				ImGui::NextLine();
 
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "r/g/b"); ImGui::SameLine(64); ImGui::Text("Toggle R, G, or B color channel.");
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "a");     ImGui::SameLine(64); ImGui::Text("Toggle alpha blending.");
+				keyBindingHelp("r/g/b", "Toggle R, G, or B color channel.");
+				keyBindingHelp("a",     "Toggle alpha blending.");
 				ImGui::NextLine();
 
-				ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "s");     ImGui::SameLine(64); ImGui::Text("Toggle Multi-channel SDF rendering");
+				keyBindingHelp("s", "Toggle Multi-channel SDF rendering");
+				ImGui::NextLine();
 
 				ImGui::PopFont();
-
-				ImGui::NextLine();
 
 				ImGui::Dummy(ImVec2(0.0f, 0.0f) );
 				ImGui::SameLine(ImGui::GetWindowWidth() - 136.0f);
@@ -987,34 +1064,72 @@ int _main_(int _argc, char** _argv)
 			posy.set(view.m_posy, transitionTime);
 
 			float ortho[16];
+
+			bx::mtxOrtho(ortho, 0.0f, float(width), float(height), 0.0f, 0.0f, 1000.0f, 0.0f, caps->homogeneousDepth);
+			bgfx::setViewTransform(BACKGROUND_VIEW_ID, NULL, ortho);
+			bgfx::setViewRect(BACKGROUND_VIEW_ID, 0, 0, uint16_t(width), uint16_t(height) );
+
+			screenQuad(
+				  0
+				, 0
+				, width
+				, height
+				, view.m_alpha ? UINT32_MAX : 0
+				, float(width )/float(checkerBoardSize)
+				, float(height)/float(checkerBoardSize)
+				);
+			bgfx::setTexture(0
+				, s_texColor
+				, checkerBoard
+				);
+			bgfx::setState(0
+				| BGFX_STATE_RGB_WRITE
+				| BGFX_STATE_ALPHA_WRITE
+				);
+			bgfx::submit(BACKGROUND_VIEW_ID
+					, textureProgram
+					);
+
 			float px = posx.getValue();
 			float py = posy.getValue();
-			bx::mtxOrtho(ortho, px, px+width, py+height, py, 0.0f, 1000.0f);
-			bgfx::setViewTransform(0, NULL, ortho);
-			bgfx::setViewRect(0, 0, 0, uint16_t(width), uint16_t(height) );
-			bgfx::touch(0);
+			bx::mtxOrtho(ortho, px-width/2, px+width/2, py+height/2, py-height/2, 0.0f, 1000.0f, 0.0f, caps->homogeneousDepth);
+			bgfx::setViewTransform(IMAGE_VIEW_ID, NULL, ortho);
+			bgfx::setViewRect(IMAGE_VIEW_ID, 0, 0, uint16_t(width), uint16_t(height) );
 
 			bgfx::dbgTextClear();
 
-			scale.set(
-				  bx::fmin( float(width)  / float(view.m_info.width)
-				,           float(height) / float(view.m_info.height)
-				)
-				, 0.1f
-				);
+			if (view.m_fit)
+			{
+				scale.set(
+					bx::fmin( float(width)  / float(view.m_info.width)
+					,           float(height) / float(view.m_info.height)
+					)
+					, 0.1f
+					);
+			}
+			else
+			{
+				scale.set(1.0f, 0.1f);
+			}
+
 			zoom.set(view.m_zoom, transitionTime);
+			angle.set(view.m_angle, transitionTime);
 
 			float ss = scale.getValue()
 				* zoom.getValue()
 				;
 
 			screenQuad(
-				  int(width  - view.m_info.width  * ss)/2
-				, int(height - view.m_info.height * ss)/2
-				, int(         view.m_info.width  * ss)
-				, int(         view.m_info.height * ss)
+				  -int(view.m_info.width  * ss)/2
+				, -int(view.m_info.height * ss)/2
+				,  int(view.m_info.width  * ss)
+				,  int(view.m_info.height * ss)
 				, view.m_abgr
 				);
+
+			float rotz[16];
+			bx::mtxRotateZ(rotz, angle.getValue() );
+			bgfx::setTransform(rotz);
 
 			float mtx[16];
 			bx::mtxRotateXY(mtx, 0.0f, time);
@@ -1047,10 +1162,10 @@ int _main_(int _argc, char** _argv)
 				| BGFX_STATE_ALPHA_WRITE
 				| (view.m_alpha ? BGFX_STATE_BLEND_ALPHA : BGFX_STATE_NONE)
 				);
-			bgfx::submit(0
+			bgfx::submit(IMAGE_VIEW_ID
 					,     view.m_info.cubeMap   ? textureCubeProgram
 					: 1 < view.m_info.numLayers ? textureArrayProgram
-					:     view.m_sdf            ? textureSDFProgram
+					:     view.m_sdf            ? textureSdfProgram
 					:                             textureProgram
 					);
 
@@ -1062,12 +1177,14 @@ int _main_(int _argc, char** _argv)
 	{
 		bgfx::destroyTexture(texture);
 	}
+	bgfx::destroyTexture(checkerBoard);
 	bgfx::destroyUniform(s_texColor);
 	bgfx::destroyUniform(u_mtx);
 	bgfx::destroyUniform(u_params);
 	bgfx::destroyProgram(textureProgram);
 	bgfx::destroyProgram(textureArrayProgram);
 	bgfx::destroyProgram(textureCubeProgram);
+	bgfx::destroyProgram(textureSdfProgram);
 
 	imguiDestroy();
 

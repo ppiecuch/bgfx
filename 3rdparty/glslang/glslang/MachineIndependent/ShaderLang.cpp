@@ -566,41 +566,6 @@ bool DeduceVersionProfile(TInfoSink& infoSink, EShLanguage stage, bool versionNo
         }
     }
 
-    // A meta check on the condition of the compiler itself...
-    switch (version) {
-
-    // ES versions
-    case 100:
-    case 300:
-        // versions are complete
-        break;
-
-    // Desktop versions
-    case 110:
-    case 120:
-    case 130:
-    case 140:
-    case 150:
-    case 330:
-        // versions are complete
-        break;
-
-    case 310:
-    case 400:
-    case 410:
-    case 420:
-    case 430:
-    case 440:
-    case 450:
-        infoSink.info << "Warning, version " << version << " is not yet complete; most version-specific features are present, but some are missing.\n";
-        break;
-
-    default:
-        infoSink.info << "Warning, version " << version << " is unknown.\n";
-        break;
-
-    }
-
     return correct;
 }
 
@@ -728,6 +693,11 @@ bool ProcessDeferred(
         intermediate.setOriginUpperLeft();
     if ((messages & EShMsgHlslOffsets) || (messages & EShMsgReadHlsl))
         intermediate.setHlslOffsets();
+    if (messages & EShMsgDebugInfo) {
+        intermediate.setSourceFile(names[numPre]);
+        for (int s = 0; s < numStrings; ++s)
+            intermediate.addSourceText(strings[numPre]);
+    }
     SetupBuiltinSymbolTable(version, profile, spvVersion, source);
 
     TSymbolTable* cachedTable = SharedSymbolTables[MapVersionToIndex(version)]
@@ -1578,6 +1548,7 @@ void TShader::setHlslIoMapping(bool hlslIoMap)          { intermediate->setHlslI
 void TShader::setFlattenUniformArrays(bool flatten)     { intermediate->setFlattenUniformArrays(flatten); }
 void TShader::setNoStorageFormat(bool useUnknownFormat) { intermediate->setNoStorageFormat(useUnknownFormat); }
 void TShader::setResourceSetBinding(const std::vector<std::string>& base)   { intermediate->setResourceSetBinding(base); }
+void TShader::setTextureSamplerTransformMode(EShTextureSamplerTransformMode mode) { intermediate->setTextureSamplerTransformMode(mode); }
 
 //
 // Turn the shader strings into a parse tree in the TIntermediate.
@@ -1599,11 +1570,6 @@ bool TShader::parse(const TBuiltInResource* builtInResources, int defaultVersion
                            preamble, EShOptNone, builtInResources, defaultVersion,
                            defaultProfile, forceDefaultVersionAndProfile,
                            forwardCompatible, messages, *intermediate, includer, sourceEntryPointName);
-}
-
-bool TShader::parse(const TBuiltInResource* builtInResources, int defaultVersion, bool forwardCompatible, EShMessages messages)
-{
-    return parse(builtInResources, defaultVersion, ENoProfile, false, forwardCompatible, messages);
 }
 
 // Fill in a string with the result of preprocessing ShaderStrings

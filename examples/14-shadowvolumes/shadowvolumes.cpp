@@ -778,8 +778,8 @@ struct Group
 
 	void reset()
 	{
-		m_vbh.idx = bgfx::invalidHandle;
-		m_ibh.idx = bgfx::invalidHandle;
+		m_vbh.idx = bgfx::kInvalidHandle;
+		m_ibh.idx = bgfx::kInvalidHandle;
 		m_numVertices = 0;
 		m_vertices = NULL;
 		m_numIndices = 0;
@@ -921,7 +921,7 @@ struct Group
 	void unload()
 	{
 		bgfx::destroyVertexBuffer(m_vbh);
-		if (bgfx::invalidHandle != m_ibh.idx)
+		if (bgfx::kInvalidHandle != m_ibh.idx)
 		{
 			bgfx::destroyIndexBuffer(m_ibh);
 		}
@@ -1108,8 +1108,8 @@ struct Model
 {
 	Model()
 	{
-		m_program.idx = bgfx::invalidHandle;
-		m_texture.idx = bgfx::invalidHandle;
+		m_program.idx = bgfx::kInvalidHandle;
+		m_texture.idx = bgfx::kInvalidHandle;
 	}
 
 	void load(const void* _vertices, uint16_t _numVertices, const bgfx::VertexDecl _decl, const uint16_t* _indices, uint32_t _numIndices)
@@ -1144,7 +1144,7 @@ struct Model
 			bgfx::setVertexBuffer(0, group.m_vbh);
 
 			// Set textures
-			if (bgfx::invalidHandle != m_texture.idx)
+			if (bgfx::kInvalidHandle != m_texture.idx)
 			{
 				bgfx::setTexture(0, s_texColor, m_texture);
 			}
@@ -1154,7 +1154,7 @@ struct Model
 			::setRenderState(_renderState);
 
 			// Submit
-			BX_CHECK(bgfx::invalidHandle != m_program, "Error, program is not set.");
+			BX_CHECK(bgfx::kInvalidHandle != m_program, "Error, program is not set.");
 			::submit(_viewId, m_program);
 		}
 	}
@@ -2231,9 +2231,9 @@ int _main_(int _argc, char** _argv)
 		{
 			for (uint8_t ii = 0; ii < settings_numLights; ++ii)
 			{
-				lightPosRadius[ii][0] = bx::fcos(2.0f*bx::pi/settings_numLights * float(ii) + lightTimeAccumulator * 1.1f + 3.0f) * 20.0f;
+				lightPosRadius[ii][0] = bx::fcos(2.0f*bx::kPi/settings_numLights * float(ii) + lightTimeAccumulator * 1.1f + 3.0f) * 20.0f;
 				lightPosRadius[ii][1] = 20.0f;
-				lightPosRadius[ii][2] = bx::fsin(2.0f*bx::pi/settings_numLights * float(ii) + lightTimeAccumulator * 1.1f + 3.0f) * 20.0f;
+				lightPosRadius[ii][2] = bx::fsin(2.0f*bx::kPi/settings_numLights * float(ii) + lightTimeAccumulator * 1.1f + 3.0f) * 20.0f;
 				lightPosRadius[ii][3] = 20.0f;
 			}
 		}
@@ -2241,9 +2241,9 @@ int _main_(int _argc, char** _argv)
 		{
 			for (uint8_t ii = 0; ii < settings_numLights; ++ii)
 			{
-				lightPosRadius[ii][0] = bx::fcos(float(ii) * 2.0f/settings_numLights + lightTimeAccumulator * 1.3f + bx::pi) * 40.0f;
+				lightPosRadius[ii][0] = bx::fcos(float(ii) * 2.0f/settings_numLights + lightTimeAccumulator * 1.3f + bx::kPi) * 40.0f;
 				lightPosRadius[ii][1] = 20.0f;
-				lightPosRadius[ii][2] = bx::fsin(float(ii) * 2.0f/settings_numLights + lightTimeAccumulator * 1.3f + bx::pi) * 40.0f;
+				lightPosRadius[ii][2] = bx::fsin(float(ii) * 2.0f/settings_numLights + lightTimeAccumulator * 1.3f + bx::kPi) * 40.0f;
 				lightPosRadius[ii][3] = 20.0f;
 			}
 		}
@@ -2374,7 +2374,7 @@ int _main_(int _argc, char** _argv)
 			inst.m_scale[0]    = 21.0f;
 			inst.m_scale[1]    = 21.0f;
 			inst.m_scale[2]    = 21.0f;
-			inst.m_rotation[0] = bx::pi;
+			inst.m_rotation[0] = bx::kPi;
 			inst.m_rotation[1] = 0.0f;
 			inst.m_rotation[2] = 0.0f;
 			inst.m_pos[0]      = 0.0f;
@@ -2441,7 +2441,7 @@ int _main_(int _argc, char** _argv)
 				inst.m_scale[1]    = 5.0f;
 				inst.m_scale[2]    = 5.0f;
 				inst.m_rotation[0] = 0.0f;
-				inst.m_rotation[1] = bx::pi;
+				inst.m_rotation[1] = bx::kPi;
 				inst.m_rotation[2] = 0.0f;
 				inst.m_pos[0]      = currX;
 				inst.m_pos[1]      = 0.0f;

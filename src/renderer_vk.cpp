@@ -725,7 +725,7 @@ VK_IMPORT_DEVICE
 
 			ErrorState::Enum errorState = ErrorState::Default;
 
-			m_fbh.idx = invalidHandle;
+			m_fbh.idx = kInvalidHandle;
 			bx::memSet(m_uniforms, 0, sizeof(m_uniforms) );
 			bx::memSet(&m_resolution, 0, sizeof(m_resolution) );
 
@@ -961,6 +961,8 @@ VK_IMPORT_INSTANCE
 				g_caps.vendorId = uint16_t(m_deviceProperties.vendorID);
 				g_caps.deviceId = uint16_t(m_deviceProperties.deviceID);
 
+				g_caps.limits.maxTextureSize   = m_deviceProperties.limits.maxImageDimension2D;
+				g_caps.limits.maxFBAttachments = uint8_t(bx::uint32_min(m_deviceProperties.limits.maxFragmentOutputAttachments, BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS) );
 
 				{
 //					VkFormatProperties fp;
@@ -1171,7 +1173,7 @@ VK_IMPORT_DEVICE
 
 			m_backBufferDepthStencilFormat =
 				VK_FORMAT_D32_SFLOAT_S8_UINT
-			//	VK_FORMAT_D24_UNORM_S8_UINT
+//				VK_FORMAT_D24_UNORM_S8_UINT
 				;
 
 			{
@@ -3506,11 +3508,11 @@ VK_DESTROY
 		const void* code = reader.getDataPtr();
 		bx::skip(&reader, shaderSize+1);
 
-		m_code = alloc( ( (shaderSize+3)/4)*4);
+		m_code = alloc( ( ( (shaderSize+3)/4)*4) );
 		bx::memSet(m_code->data, 0, m_code->size);
 		bx::memCopy(m_code->data
 			, code
-			, shaderSize+1
+			, shaderSize
 			);
 #else
 #include "../examples/runtime/shaders/spv/vert.spv.h"
@@ -3535,7 +3537,12 @@ VK_DESTROY
 		smci.flags = 0;
 		smci.codeSize = m_code->size;
 		smci.pCode    = (const uint32_t*)m_code->data;
-		VK_CHECK(vkCreateShaderModule(s_renderVK->m_device, &smci, s_renderVK->m_allocatorCb, &m_module) );
+		VK_CHECK(vkCreateShaderModule(
+			  s_renderVK->m_device
+			, &smci
+			, s_renderVK->m_allocatorCb
+			, &m_module
+			) );
 
 		bx::memSet(m_attrMask, 0, sizeof(m_attrMask) );
 		m_attrMask[Attrib::Position] = UINT16_MAX;
@@ -3660,8 +3667,8 @@ VK_DESTROY
 // 		bool wireframe = !!(_render->m_debug&BGFX_DEBUG_WIREFRAME);
 // 		setDebugWireframe(wireframe);
 
-		uint16_t currentSamplerStateIdx = invalidHandle;
-		uint16_t currentProgramIdx      = invalidHandle;
+		uint16_t currentSamplerStateIdx = kInvalidHandle;
+		uint16_t currentProgramIdx      = kInvalidHandle;
 		uint32_t currentBindHash        = 0;
 		bool     hasPredefined          = false;
 		bool     commandListChanged     = false;
@@ -3780,9 +3787,9 @@ finishAll();
 
 					view = key.m_view;
 					currentPipeline = VK_NULL_HANDLE;
-					currentSamplerStateIdx = invalidHandle;
+					currentSamplerStateIdx = kInvalidHandle;
 BX_UNUSED(currentSamplerStateIdx);
-					currentProgramIdx      = invalidHandle;
+					currentProgramIdx      = kInvalidHandle;
 					hasPredefined          = false;
 
 					fbh = _render->m_fb[view];
@@ -3871,7 +3878,7 @@ BX_UNUSED(currentSamplerStateIdx);
 //							for (uint32_t ii = 0; ii < BGFX_MAX_COMPUTE_BINDINGS; ++ii)
 //							{
 //								const Binding& bind = renderBind.m_bind[ii];
-//								if (invalidHandle != bind.m_idx)
+//								if (kInvalidHandle != bind.m_idx)
 //								{
 //									switch (bind.m_type)
 //									{
@@ -4048,8 +4055,8 @@ BX_UNUSED(currentSamplerStateIdx);
 
 					currentPipeline        = VK_NULL_HANDLE;
 					currentBindHash        = 0;
-					currentSamplerStateIdx = invalidHandle;
-					currentProgramIdx      = invalidHandle;
+					currentSamplerStateIdx = kInvalidHandle;
+					currentProgramIdx      = kInvalidHandle;
 					currentState.clear();
 					currentState.m_scissor = !draw.m_scissor;
 					changedFlags = BGFX_STATE_MASK;
@@ -4110,7 +4117,7 @@ BX_UNUSED(currentSamplerStateIdx);
 //								for (uint32_t stage = 0; stage < BGFX_CONFIG_MAX_TEXTURE_SAMPLERS; ++stage)
 //								{
 //									const Binding& bind = renderBind.m_bind[stage];
-//									if (invalidHandle != bind.m_idx)
+//									if (kInvalidHandle != bind.m_idx)
 //									{
 //										TextureD3D12& texture = m_textures[bind.m_idx];
 //										texture.setState(m_commandList, D3D12_RESOURCE_STATE_GENERIC_READ);

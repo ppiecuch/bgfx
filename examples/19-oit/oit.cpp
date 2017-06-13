@@ -208,9 +208,9 @@ class ExampleOIT : public entry::AppI
 		m_wbPass         = loadProgram("vs_oit",      "fs_oit_wb"               );
 		m_wbBlit         = loadProgram("vs_oit_blit", "fs_oit_wb_blit"          );
 
-		m_fbtextures[0].idx = bgfx::invalidHandle;
-		m_fbtextures[1].idx = bgfx::invalidHandle;
-		m_fbh.idx = bgfx::invalidHandle;
+		m_fbtextures[0].idx = bgfx::kInvalidHandle;
+		m_fbtextures[1].idx = bgfx::kInvalidHandle;
+		m_fbh.idx = bgfx::kInvalidHandle;
 
 		m_mode = 1;
 		m_scrollArea = 0;
@@ -368,7 +368,9 @@ class ExampleOIT : public entry::AppI
 
 			// Set view and projection matrix for view 1.
 			bx::mtxIdentity(view);
-			bx::mtxOrtho(proj, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 100.0f);
+
+			const bgfx::Caps* caps = bgfx::getCaps();
+			bx::mtxOrtho(proj, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 100.0f, 0.0f, caps->homogeneousDepth);
 			bgfx::setViewTransform(1, view, proj);
 
 			for (uint32_t depth = 0; depth < 3; ++depth)

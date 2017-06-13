@@ -413,17 +413,17 @@ struct Imgui
 		m_invTextureWidth  = 1.0f/m_textureWidth;
 		m_invTextureHeight = 1.0f/m_textureHeight;
 
-		u_imageLodEnabled.idx = bgfx::invalidHandle;
-		u_imageSwizzle.idx    = bgfx::invalidHandle;
-		s_texColor.idx        = bgfx::invalidHandle;
-		m_missingTexture.idx  = bgfx::invalidHandle;
+		u_imageLodEnabled.idx = bgfx::kInvalidHandle;
+		u_imageSwizzle.idx    = bgfx::kInvalidHandle;
+		s_texColor.idx        = bgfx::kInvalidHandle;
+		m_missingTexture.idx  = bgfx::kInvalidHandle;
 
-		m_colorProgram.idx      = bgfx::invalidHandle;
-		m_textureProgram.idx    = bgfx::invalidHandle;
-		m_cubeMapProgram.idx    = bgfx::invalidHandle;
-		m_latlongProgram.idx    = bgfx::invalidHandle;
-		m_imageProgram.idx      = bgfx::invalidHandle;
-		m_imageSwizzProgram.idx = bgfx::invalidHandle;
+		m_colorProgram.idx      = bgfx::kInvalidHandle;
+		m_textureProgram.idx    = bgfx::kInvalidHandle;
+		m_cubeMapProgram.idx    = bgfx::kInvalidHandle;
+		m_latlongProgram.idx    = bgfx::kInvalidHandle;
+		m_imageProgram.idx      = bgfx::kInvalidHandle;
+		m_imageSwizzProgram.idx = bgfx::kInvalidHandle;
 	}
 
 	ImguiFontHandle createFont(const void* _data, float _fontSize)
@@ -443,7 +443,7 @@ struct Imgui
 			);
 		m_fonts[handle.idx].m_size = _fontSize;
 #else
-		const ImguiFontHandle handle = { bgfx::invalidHandle };
+		const ImguiFontHandle handle = { bgfx::kInvalidHandle };
 #endif // !USE_NANOVG_FONT
 		return handle;
 	}
@@ -493,13 +493,11 @@ struct Imgui
 	{
 		m_allocator = _allocator;
 
-#if BX_CONFIG_ALLOCATOR_CRT
 		if (NULL == _allocator)
 		{
-			static bx::CrtAllocator allocator;
+			static bx::DefaultAllocator allocator;
 			m_allocator = &allocator;
 		}
-#endif // BX_CONFIG_ALLOCATOR_CRT
 
 		IMGUI_create(_fontSize, m_allocator);
 
@@ -510,7 +508,7 @@ struct Imgui
 
 		for (int32_t ii = 0; ii < NUM_CIRCLE_VERTS; ++ii)
 		{
-			float a = (float)ii / (float)NUM_CIRCLE_VERTS * (float)(bx::pi * 2.0);
+			float a = (float)ii / (float)NUM_CIRCLE_VERTS * (float)(bx::kPi * 2.0);
 			m_circleVerts[ii * 2 + 0] = cosf(a);
 			m_circleVerts[ii * 2 + 1] = sinf(a);
 		}
@@ -569,7 +567,7 @@ struct Imgui
 		const ImguiFontHandle handle = createFont(s_robotoRegularTtf, _fontSize);
 		m_currentFontIdx = handle.idx;
 #else
-		const ImguiFontHandle handle = { bgfx::invalidHandle };
+		const ImguiFontHandle handle = { bgfx::kInvalidHandle };
 #endif // !USE_NANOVG_FONT
 		return handle;
 	}
@@ -807,7 +805,8 @@ struct Imgui
 		bgfx::setViewName(_view, "IMGUI");
 		bgfx::setViewSeq(_view, true);
 
-		const bgfx::HMD* hmd = bgfx::getHMD();
+		const bgfx::HMD*  hmd  = bgfx::getHMD();
+		const bgfx::Caps* caps = bgfx::getCaps();
 		if (NULL != hmd && 0 != (hmd->flags & BGFX_HMD_RENDERING) )
 		{
 			m_viewWidth = _width / 2;
@@ -826,15 +825,15 @@ struct Imgui
 			float ortho[2][16];
 			const float viewOffset = _surfaceWidth/4.0f;
 			const float viewWidth  = _surfaceWidth/2.0f;
-			bx::mtxOrtho(ortho[0], viewOffset, viewOffset + viewWidth, (float)m_surfaceHeight, 0.0f, 0.0f, 1000.0f, offset0);
-			bx::mtxOrtho(ortho[1], viewOffset, viewOffset + viewWidth, (float)m_surfaceHeight, 0.0f, 0.0f, 1000.0f, offset1);
+			bx::mtxOrtho(ortho[0], viewOffset, viewOffset + viewWidth, (float)m_surfaceHeight, 0.0f, 0.0f, 1000.0f, offset0, caps->homogeneousDepth);
+			bx::mtxOrtho(ortho[1], viewOffset, viewOffset + viewWidth, (float)m_surfaceHeight, 0.0f, 0.0f, 1000.0f, offset1, caps->homogeneousDepth);
 			bgfx::setViewTransform(_view, NULL, ortho[0], BGFX_VIEW_STEREO, ortho[1]);
 			bgfx::setViewRect(_view, 0, 0, hmd->width, hmd->height);
 		}
 		else
 		{
 			float ortho[16];
-			bx::mtxOrtho(ortho, 0.0f, (float)m_surfaceWidth, (float)m_surfaceHeight, 0.0f, 0.0f, 1000.0f);
+			bx::mtxOrtho(ortho, 0.0f, (float)m_surfaceWidth, (float)m_surfaceHeight, 0.0f, 0.0f, 1000.0f, 0.0f, caps->homogeneousDepth);
 			bgfx::setViewTransform(_view, NULL, ortho);
 			bgfx::setViewRect(_view, 0, 0, _width, _height);
 		}

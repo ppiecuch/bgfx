@@ -117,19 +117,17 @@ namespace bgfx
 		{
 			BX_UNUSED(_filePath, _width, _height, _pitch, _data, _size, _yflip);
 
-#if BX_CONFIG_CRT_FILE_READER_WRITER
 			const int32_t len = bx::strLen(_filePath)+5;
 			char* filePath = (char*)alloca(len);
 			bx::strCopy(filePath, len, _filePath);
 			bx::strCat(filePath, len, ".tga");
 
-			bx::CrtFileWriter writer;
+			bx::FileWriter writer;
 			if (bx::open(&writer, filePath) )
 			{
 				bimg::imageWriteTga(&writer, _width, _height, _pitch, _data, false, _yflip);
 				bx::close(&writer);
 			}
-#endif // BX_CONFIG_CRT_FILE_READER_WRITER
 		}
 
 		virtual void captureBegin(uint32_t /*_width*/, uint32_t /*_height*/, uint32_t /*_pitch*/, TextureFormat::Enum /*_format*/, bool /*_yflip*/) BX_OVERRIDE
@@ -781,7 +779,7 @@ namespace bgfx
 				if (isValid(m_program[ii]) )
 				{
 					destroyProgram(m_program[ii]);
-					m_program[ii].idx = invalidHandle;
+					m_program[ii].idx = kInvalidHandle;
 				}
 			}
 
@@ -870,7 +868,7 @@ namespace bgfx
 
 		m_uniformEnd = m_uniformBuffer->getPos();
 
-		m_key.m_program = invalidHandle == _program.idx
+		m_key.m_program = kInvalidHandle == _program.idx
 			? 0
 			: _program.idx
 			;
@@ -1958,7 +1956,6 @@ namespace bgfx
 					 ||  BX_PLATFORM_ANDROID
 					 ||  BX_PLATFORM_EMSCRIPTEN
 					 ||  BX_PLATFORM_IOS
-					 ||  BX_PLATFORM_NACL
 					 ||  BX_PLATFORM_RPI
 					 ||  BX_PLATFORM_QNX
 					 ) )
@@ -2598,7 +2595,7 @@ namespace bgfx
 		}
 		else
 		{
-			bx::CrtAllocator allocator;
+			bx::DefaultAllocator allocator;
 			g_allocator =
 				s_allocatorStub = BX_NEW(&allocator, AllocatorStub);
 		}
@@ -2614,7 +2611,7 @@ namespace bgfx
 		}
 
 		if (true
-		&&  !BX_ENABLED(BX_PLATFORM_EMSCRIPTEN || BX_PLATFORM_NACL || BX_PLATFORM_PS4)
+		&&  !BX_ENABLED(BX_PLATFORM_EMSCRIPTEN || BX_PLATFORM_PS4)
 		&&  RendererType::Noop != _type
 		&&  NULL == g_platformData.ndt
 		&&  NULL == g_platformData.nwh
@@ -2678,7 +2675,7 @@ error:
 
 			if (NULL != s_allocatorStub)
 			{
-				bx::CrtAllocator allocator;
+				bx::DefaultAllocator allocator;
 				BX_DELETE(&allocator, s_allocatorStub);
 				s_allocatorStub = NULL;
 			}
@@ -2718,7 +2715,7 @@ error:
 
 		if (NULL != s_allocatorStub)
 		{
-			bx::CrtAllocator allocator;
+			bx::DefaultAllocator allocator;
 			BX_DELETE(&allocator, s_allocatorStub);
 			s_allocatorStub = NULL;
 		}
@@ -3455,6 +3452,7 @@ error:
 	FrameBufferHandle createFrameBuffer(void* _nwh, uint16_t _width, uint16_t _height, TextureFormat::Enum _depthFormat)
 	{
 		BGFX_CHECK_MAIN_THREAD();
+		BGFX_CHECK_CAPS(BGFX_CAPS_SWAP_CHAIN, "Swap chain is not supported!");
 		BX_WARN(_width > 0 && _height > 0
 			, "Invalid frame buffer dimensions (width %d, height %d)."
 			, _width
@@ -3822,7 +3820,7 @@ error:
 	uint32_t submit(uint8_t _id, ProgramHandle _program, IndirectBufferHandle _indirectHandle, uint16_t _start, uint16_t _num, int32_t _depth, bool _preserveState)
 	{
 		BGFX_CHECK_MAIN_THREAD();
-		BGFX_CHECK_CAPS(BGFX_CAPS_DRAW_INDIRECT, "Draw indirect is not supported! Use bgfx::getCaps to check BGFX_CAPS_DRAW_INDIRECT backend renderer capabilities.");
+		BGFX_CHECK_CAPS(BGFX_CAPS_DRAW_INDIRECT, "Draw indirect is not supported!");
 		return s_ctx->submit(_id, _program, _indirectHandle, _start, _num, _depth, _preserveState);
 	}
 
@@ -3871,15 +3869,15 @@ error:
 	uint32_t dispatch(uint8_t _id, ProgramHandle _handle, uint16_t _numX, uint16_t _numY, uint16_t _numZ, uint8_t _flags)
 	{
 		BGFX_CHECK_MAIN_THREAD();
-		BGFX_CHECK_CAPS(BGFX_CAPS_COMPUTE, "Compute is not supported! Use bgfx::getCaps to check BGFX_CAPS_COMPUTE backend renderer capabilities.");
+		BGFX_CHECK_CAPS(BGFX_CAPS_COMPUTE, "Compute is not supported!");
 		return s_ctx->dispatch(_id, _handle, _numX, _numY, _numZ, _flags);
 	}
 
 	uint32_t dispatch(uint8_t _id, ProgramHandle _handle, IndirectBufferHandle _indirectHandle, uint16_t _start, uint16_t _num, uint8_t _flags)
 	{
 		BGFX_CHECK_MAIN_THREAD();
-		BGFX_CHECK_CAPS(BGFX_CAPS_DRAW_INDIRECT, "Dispatch indirect is not supported! Use bgfx::getCaps to check BGFX_CAPS_DRAW_INDIRECT backend renderer capabilities.");
-		BGFX_CHECK_CAPS(BGFX_CAPS_COMPUTE, "Compute is not supported! Use bgfx::getCaps to check BGFX_CAPS_COMPUTE backend renderer capabilities.");
+		BGFX_CHECK_CAPS(BGFX_CAPS_DRAW_INDIRECT, "Dispatch indirect is not supported!");
+		BGFX_CHECK_CAPS(BGFX_CAPS_COMPUTE, "Compute is not supported!");
 		return s_ctx->dispatch(_id, _handle, _indirectHandle, _start, _num, _flags);
 	}
 

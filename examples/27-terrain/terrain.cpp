@@ -93,11 +93,11 @@ class ExampleTerrain : public entry::AppI
 
 		m_timeOffset = bx::getHPCounter();
 
-		m_vbh.idx = bgfx::invalidHandle;
-		m_ibh.idx = bgfx::invalidHandle;
-		m_dvbh.idx = bgfx::invalidHandle;
-		m_dibh.idx = bgfx::invalidHandle;
-		m_heightTexture.idx = bgfx::invalidHandle;
+		m_vbh.idx = bgfx::kInvalidHandle;
+		m_ibh.idx = bgfx::kInvalidHandle;
+		m_dvbh.idx = bgfx::kInvalidHandle;
+		m_dibh.idx = bgfx::kInvalidHandle;
+		m_heightTexture.idx = bgfx::kInvalidHandle;
 		s_heightTexture = bgfx::createUniform("s_heightTexture", bgfx::UniformType::Int1);
 
 		m_oldWidth  = 0;
@@ -125,7 +125,7 @@ class ExampleTerrain : public entry::AppI
 
 		const float initialPos[3] = { s_terrainSize/2.0f, 100.0f, 0.0f };
 		cameraSetPosition(initialPos);
-		cameraSetVerticalAngle(-bx::pi/4.0f);
+		cameraSetVerticalAngle(-bx::kPi/4.0f);
 	}
 
 	virtual int shutdown() BX_OVERRIDE

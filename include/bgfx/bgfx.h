@@ -15,9 +15,9 @@
 ///
 #define BGFX_HANDLE(_name) \
 			struct _name { uint16_t idx; }; \
-			inline bool isValid(_name _handle) { return bgfx::invalidHandle != _handle.idx; }
+			inline bool isValid(_name _handle) { return bgfx::kInvalidHandle != _handle.idx; }
 
-#define BGFX_INVALID_HANDLE { bgfx::invalidHandle }
+#define BGFX_INVALID_HANDLE { bgfx::kInvalidHandle }
 
 namespace bx { struct AllocatorI; }
 
@@ -97,6 +97,8 @@ namespace bgfx
 			Bitangent, //!< a_bitangent
 			Color0,    //!< a_color0
 			Color1,    //!< a_color1
+			Color2,    //!< a_color2
+			Color3,    //!< a_color3
 			Indices,   //!< a_indices
 			Weight,    //!< a_weight
 			TexCoord0, //!< a_texcoord0
@@ -340,7 +342,7 @@ namespace bgfx
 		};
 	};
 
-	static const uint16_t invalidHandle = UINT16_MAX;
+	static const uint16_t kInvalidHandle = UINT16_MAX;
 
 	BGFX_HANDLE(DynamicIndexBufferHandle);
 	BGFX_HANDLE(DynamicVertexBufferHandle);
@@ -813,7 +815,14 @@ namespace bgfx
 		uint16_t m_attributes[Attrib::Count];
 	};
 
-	/// Pack vec4 into vertex stream format.
+	/// Pack vertex attribute into vertex stream format.
+	///
+	/// @param[in] _input Value to be packed into vertex stream.
+	/// @param[in] _inputNormalized True if input value is already normalized.
+	/// @param[in] _attr Attribute to pack.
+	/// @param[in] _decl Vertex stream declaration.
+	/// @param[in] _data Destination vertex stream where data will be packed.
+	/// @param[in] _index Vertex index that will be modified.
 	///
 	/// @attention C99 equivalent is `bgfx_vertex_pack`.
 	///
@@ -826,7 +835,13 @@ namespace bgfx
 		, uint32_t _index = 0
 		);
 
-	/// Unpack vec4 from vertex stream format.
+	/// Unpack vertex attribute from vertex stream format.
+	///
+	/// @param[out] _output Result of unpacking.
+	/// @param[in]  _attr Attribute to unpack.
+	/// @param[in]  _decl Vertex stream declaration.
+	/// @param[in]  _data Source vertex stream from where data will be unpacked.
+	/// @param[in]  _index Vertex index that will be unpacked.
 	///
 	/// @attention C99 equivalent is `bgfx_vertex_unpack`.
 	///
