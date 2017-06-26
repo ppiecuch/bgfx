@@ -135,10 +135,11 @@ namespace bgfx
 #include <bimg/bimg.h>
 #include "shader.h"
 
-#define BGFX_CHUNK_MAGIC_CSH BX_MAKEFOURCC('C', 'S', 'H', 0x2)
-#define BGFX_CHUNK_MAGIC_FSH BX_MAKEFOURCC('F', 'S', 'H', 0x4)
 #define BGFX_CHUNK_MAGIC_TEX BX_MAKEFOURCC('T', 'E', 'X', 0x0)
-#define BGFX_CHUNK_MAGIC_VSH BX_MAKEFOURCC('V', 'S', 'H', 0x4)
+
+#define BGFX_CHUNK_MAGIC_CSH BX_MAKEFOURCC('C', 'S', 'H', 0x3)
+#define BGFX_CHUNK_MAGIC_FSH BX_MAKEFOURCC('F', 'S', 'H', 0x5)
+#define BGFX_CHUNK_MAGIC_VSH BX_MAKEFOURCC('V', 'S', 'H', 0x5)
 
 #define BGFX_CLEAR_COLOR_USE_PALETTE UINT16_C(0x8000)
 #define BGFX_CLEAR_MASK (0 \
@@ -724,75 +725,143 @@ namespace bgfx
 
 #define SORT_KEY_NUM_BITS_TRANS        2
 
-#define SORT_KEY_DRAW_BIT              (UINT64_C(1)<<0x36)
-
-#define SORT_KEY_VIEW_SHIFT            0x37
+#define SORT_KEY_VIEW_SHIFT            56
 #define SORT_KEY_VIEW_MASK             ( (uint64_t(BGFX_CONFIG_MAX_VIEWS-1) )<<SORT_KEY_VIEW_SHIFT)
 
-#define SORT_KEY_DRAW_DEPTH_SHIFT      0
-#define SORT_KEY_DRAW_DEPTH_MASK       ( ( (UINT64_C(1)<<BGFX_CONFIG_SORT_KEY_NUM_BITS_DEPTH)-1)<<SORT_KEY_DRAW_DEPTH_SHIFT)
+#define SORT_KEY_DRAW_BIT_SHIFT        (SORT_KEY_VIEW_SHIFT - 1)
+#define SORT_KEY_DRAW_BIT              (UINT64_C(1)<<SORT_KEY_DRAW_BIT_SHIFT)
 
-#define SORT_KEY_DRAW_PROGRAM_SHIFT    (SORT_KEY_DRAW_DEPTH_SHIFT+BGFX_CONFIG_SORT_KEY_NUM_BITS_DEPTH)
-#define SORT_KEY_DRAW_PROGRAM_MASK     ( (uint64_t(BGFX_CONFIG_MAX_PROGRAMS-1) )<<SORT_KEY_DRAW_PROGRAM_SHIFT)
+//
+#define SORT_KEY_DRAW_TYPE_BIT_SHIFT   (SORT_KEY_DRAW_BIT_SHIFT - 1)
+#define SORT_KEY_DRAW_TYPE_BIT         (UINT64_C(1)<<SORT_KEY_DRAW_TYPE_BIT_SHIFT)
 
-#define SORT_KEY_COMPUTE_PROGRAM_SHIFT (SORT_KEY_DRAW_DEPTH_SHIFT+BGFX_CONFIG_SORT_KEY_NUM_BITS_DEPTH+SORT_KEY_NUM_BITS_TRANS)
+//
+#define SORT_KEY_DRAW_0_SEQ_SHIFT      (SORT_KEY_DRAW_TYPE_BIT_SHIFT - BGFX_CONFIG_SORT_KEY_NUM_BITS_SEQ)
+#define SORT_KEY_DRAW_0_SEQ_MASK       ( ( (UINT64_C(1)<<BGFX_CONFIG_SORT_KEY_NUM_BITS_SEQ)-1)<<SORT_KEY_DRAW_0_SEQ_SHIFT)
+
+#define SORT_KEY_DRAW_0_TRANS_SHIFT    (SORT_KEY_DRAW_0_SEQ_SHIFT - SORT_KEY_NUM_BITS_TRANS)
+#define SORT_KEY_DRAW_0_TRANS_MASK     (UINT64_C(0x3)<<SORT_KEY_DRAW_0_TRANS_SHIFT)
+
+#define SORT_KEY_DRAW_0_PROGRAM_SHIFT  (SORT_KEY_DRAW_0_TRANS_SHIFT - BGFX_CONFIG_SORT_KEY_NUM_BITS_PROGRAM)
+#define SORT_KEY_DRAW_0_PROGRAM_MASK   ( (uint64_t(BGFX_CONFIG_MAX_PROGRAMS-1) )<<SORT_KEY_DRAW_0_PROGRAM_SHIFT)
+
+#define SORT_KEY_DRAW_0_DEPTH_SHIFT    (SORT_KEY_DRAW_0_PROGRAM_SHIFT - BGFX_CONFIG_SORT_KEY_NUM_BITS_DEPTH)
+#define SORT_KEY_DRAW_0_DEPTH_MASK     ( ( (UINT64_C(1)<<BGFX_CONFIG_SORT_KEY_NUM_BITS_DEPTH)-1)<<SORT_KEY_DRAW_0_DEPTH_SHIFT)
+
+//
+#define SORT_KEY_DRAW_1_DEPTH_SHIFT    (SORT_KEY_DRAW_TYPE_BIT_SHIFT - BGFX_CONFIG_SORT_KEY_NUM_BITS_DEPTH)
+#define SORT_KEY_DRAW_1_DEPTH_MASK     ( ( (UINT64_C(1)<<BGFX_CONFIG_SORT_KEY_NUM_BITS_DEPTH)-1)<<SORT_KEY_DRAW_1_DEPTH_SHIFT)
+
+#define SORT_KEY_DRAW_1_TRANS_SHIFT    (SORT_KEY_DRAW_1_DEPTH_SHIFT - SORT_KEY_NUM_BITS_TRANS)
+#define SORT_KEY_DRAW_1_TRANS_MASK     (UINT64_C(0x3)<<SORT_KEY_DRAW_1_TRANS_SHIFT)
+
+#define SORT_KEY_DRAW_1_PROGRAM_SHIFT  (SORT_KEY_DRAW_1_TRANS_SHIFT - BGFX_CONFIG_SORT_KEY_NUM_BITS_PROGRAM)
+#define SORT_KEY_DRAW_1_PROGRAM_MASK   ( (uint64_t(BGFX_CONFIG_MAX_PROGRAMS-1) )<<SORT_KEY_DRAW_1_PROGRAM_SHIFT)
+
+//
+#define SORT_KEY_COMPUTE_SEQ_SHIFT     (SORT_KEY_DRAW_BIT_SHIFT - BGFX_CONFIG_SORT_KEY_NUM_BITS_SEQ)
+#define SORT_KEY_COMPUTE_SEQ_MASK      ( ( (UINT64_C(1)<<BGFX_CONFIG_SORT_KEY_NUM_BITS_SEQ)-1)<<SORT_KEY_COMPUTE_SEQ_SHIFT)
+
+#define SORT_KEY_COMPUTE_PROGRAM_SHIFT (SORT_KEY_COMPUTE_SEQ_SHIFT - BGFX_CONFIG_SORT_KEY_NUM_BITS_PROGRAM)
 #define SORT_KEY_COMPUTE_PROGRAM_MASK  ( (uint64_t(BGFX_CONFIG_MAX_PROGRAMS-1) )<<SORT_KEY_COMPUTE_PROGRAM_SHIFT)
-
-#define SORT_KEY_DRAW_TRANS_SHIFT      (SORT_KEY_DRAW_PROGRAM_SHIFT+BGFX_CONFIG_SORT_KEY_NUM_BITS_PROGRAM)
-#define SORT_KEY_DRAW_TRANS_MASK       (UINT64_C(0x3)<<SORT_KEY_DRAW_TRANS_SHIFT)
-
-#define SORT_KEY_SEQ_SHIFT             (SORT_KEY_DRAW_TRANS_SHIFT+SORT_KEY_NUM_BITS_TRANS)
-#define SORT_KEY_SEQ_MASK              ( ( (UINT64_C(1)<<BGFX_CONFIG_SORT_KEY_NUM_BITS_SEQ)-1)<<SORT_KEY_SEQ_SHIFT)
 
 	BX_STATIC_ASSERT(BGFX_CONFIG_MAX_VIEWS <= 256);
 	BX_STATIC_ASSERT( (BGFX_CONFIG_MAX_PROGRAMS & (BGFX_CONFIG_MAX_PROGRAMS-1) ) == 0); // Must be power of 2.
 	BX_STATIC_ASSERT( (0 // Render key mask shouldn't overlap.
-		| SORT_KEY_DRAW_BIT
-		| SORT_KEY_SEQ_MASK
 		| SORT_KEY_VIEW_MASK
-		| SORT_KEY_DRAW_TRANS_MASK
-		| SORT_KEY_DRAW_PROGRAM_MASK
-		| SORT_KEY_DRAW_DEPTH_MASK
+		| SORT_KEY_DRAW_BIT
+		| SORT_KEY_DRAW_TYPE_BIT
+		| SORT_KEY_DRAW_0_SEQ_MASK
+		| SORT_KEY_DRAW_0_TRANS_MASK
+		| SORT_KEY_DRAW_0_PROGRAM_MASK
+		| SORT_KEY_DRAW_0_DEPTH_MASK
 		) == (0
-		^ SORT_KEY_DRAW_BIT
-		^ SORT_KEY_SEQ_MASK
 		^ SORT_KEY_VIEW_MASK
-		^ SORT_KEY_DRAW_TRANS_MASK
-		^ SORT_KEY_DRAW_PROGRAM_MASK
-		^ SORT_KEY_DRAW_DEPTH_MASK
+		^ SORT_KEY_DRAW_BIT
+		^ SORT_KEY_DRAW_TYPE_BIT
+		^ SORT_KEY_DRAW_0_SEQ_MASK
+		^ SORT_KEY_DRAW_0_TRANS_MASK
+		^ SORT_KEY_DRAW_0_PROGRAM_MASK
+		^ SORT_KEY_DRAW_0_DEPTH_MASK
+		) );
+	BX_STATIC_ASSERT( (0 // Render key mask shouldn't overlap.
+		| SORT_KEY_VIEW_MASK
+		| SORT_KEY_DRAW_BIT
+		| SORT_KEY_DRAW_TYPE_BIT
+		| SORT_KEY_DRAW_1_DEPTH_MASK
+		| SORT_KEY_DRAW_1_TRANS_MASK
+		| SORT_KEY_DRAW_1_PROGRAM_MASK
+		) == (0
+		^ SORT_KEY_VIEW_MASK
+		^ SORT_KEY_DRAW_BIT
+		^ SORT_KEY_DRAW_TYPE_BIT
+		^ SORT_KEY_DRAW_1_DEPTH_MASK
+		^ SORT_KEY_DRAW_1_TRANS_MASK
+		^ SORT_KEY_DRAW_1_PROGRAM_MASK
 		) );
 	BX_STATIC_ASSERT( (0 // Compute key mask shouldn't overlap.
-		| SORT_KEY_DRAW_BIT
-		| SORT_KEY_SEQ_MASK
 		| SORT_KEY_VIEW_MASK
+		| SORT_KEY_DRAW_BIT
+		| SORT_KEY_COMPUTE_SEQ_SHIFT
 		| SORT_KEY_COMPUTE_PROGRAM_MASK
 		) == (0
-		^ SORT_KEY_DRAW_BIT
-		^ SORT_KEY_SEQ_MASK
 		^ SORT_KEY_VIEW_MASK
+		^ SORT_KEY_DRAW_BIT
+		^ SORT_KEY_COMPUTE_SEQ_SHIFT
 		^ SORT_KEY_COMPUTE_PROGRAM_MASK
 		) );
 
+	// |               3               2               1               0|
+	// |fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210| Common
+	// |vvvvvvvvd                                                       |
+	// |       ^^                                                       |
+	// |       ||                                                       |
+	// |  view-+|                                                       |
+	// |        +-draw                                                  |
+	// |----------------------------------------------------------------| Draw Key 0
+	// |        |ksssssssssssttpppppppppdddddddddddddddddddddddddddddddd|
+	// |        |           ^ ^        ^                               ^|
+	// |        |           | |        |                               ||
+	// |        |       seq-+ +-trans  +-program                 depth-+|
+	// |        |                                                       |
+	// |----------------------------------------------------------------| Draw Key 1
+	// |        |kddddddddddddddddddddddddddddddddttppppppppp           |
+	// |        |                               ^^ ^        ^           |
+	// |        |                               || +-trans  |           |
+	// |        |                         depth-+   program-+           |
+	// |        |                                                       |
+	// |----------------------------------------------------------------| Compute Key
+	// |        |sssssssssssppppppppp                                   |
+	// |        |          ^        ^                                   |
+	// |        |          |        |                                   |
+	// |        |      seq-+        +-program                           |
+	// |        |                                                       |
+	// |--------+-------------------------------------------------------|
+	//
 	struct SortKey
 	{
-		uint64_t encodeDraw()
+		uint64_t encodeDraw(bool _key1)
 		{
-			// |               3               2               1               0|
-			// |fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210|
-			// | vvvvvvvvdsssssssssssttpppppppppdddddddddddddddddddddddddddddddd|
-			// |        ^^          ^ ^        ^                               ^|
-			// |        ||          | |        |                               ||
-			// |   view-+|      seq-+ +-trans  +-program                 depth-+|
-			// |         +-draw                                                 |
+			if (_key1)
+			{
+				const uint64_t depth   = (uint64_t(m_depth  ) << SORT_KEY_DRAW_1_DEPTH_SHIFT  ) & SORT_KEY_DRAW_1_DEPTH_MASK;
+				const uint64_t program = (uint64_t(m_program) << SORT_KEY_DRAW_1_PROGRAM_SHIFT) & SORT_KEY_DRAW_1_PROGRAM_MASK;
+				const uint64_t trans   = (uint64_t(m_trans  ) << SORT_KEY_DRAW_1_TRANS_SHIFT  ) & SORT_KEY_DRAW_1_TRANS_MASK;
+				const uint64_t view    = (uint64_t(m_view   ) << SORT_KEY_VIEW_SHIFT          ) & SORT_KEY_VIEW_MASK;
+				const uint64_t key     = view|SORT_KEY_DRAW_BIT|SORT_KEY_DRAW_TYPE_BIT|depth|trans|program;
 
-			const uint64_t depth   = (uint64_t(m_depth  ) << SORT_KEY_DRAW_DEPTH_SHIFT  ) & SORT_KEY_DRAW_DEPTH_MASK;
-			const uint64_t program = (uint64_t(m_program) << SORT_KEY_DRAW_PROGRAM_SHIFT) & SORT_KEY_DRAW_PROGRAM_MASK;
-			const uint64_t trans   = (uint64_t(m_trans  ) << SORT_KEY_DRAW_TRANS_SHIFT  ) & SORT_KEY_DRAW_TRANS_MASK;
-			const uint64_t seq     = (uint64_t(m_seq    ) << SORT_KEY_SEQ_SHIFT         ) & SORT_KEY_SEQ_MASK;
-			const uint64_t view    = (uint64_t(m_view   ) << SORT_KEY_VIEW_SHIFT        ) & SORT_KEY_VIEW_MASK;
-			const uint64_t key     = depth|program|trans|SORT_KEY_DRAW_BIT|seq|view;
+				return key;
+			}
 
-			BX_CHECK(seq == (uint64_t(m_seq) << SORT_KEY_SEQ_SHIFT), "SortKey error, sequence is truncated (m_seq: %d)."
+			const uint64_t depth   = (uint64_t(m_depth  ) << SORT_KEY_DRAW_0_DEPTH_SHIFT  ) & SORT_KEY_DRAW_0_DEPTH_MASK;
+			const uint64_t program = (uint64_t(m_program) << SORT_KEY_DRAW_0_PROGRAM_SHIFT) & SORT_KEY_DRAW_0_PROGRAM_MASK;
+			const uint64_t trans   = (uint64_t(m_trans  ) << SORT_KEY_DRAW_0_TRANS_SHIFT  ) & SORT_KEY_DRAW_0_TRANS_MASK;
+			const uint64_t seq     = (uint64_t(m_seq    ) << SORT_KEY_DRAW_0_SEQ_SHIFT    ) & SORT_KEY_DRAW_0_SEQ_MASK;
+			const uint64_t view    = (uint64_t(m_view   ) << SORT_KEY_VIEW_SHIFT          ) & SORT_KEY_VIEW_MASK;
+			const uint64_t key     = view|SORT_KEY_DRAW_BIT|seq|trans|program|depth;
+
+			BX_CHECK(seq == (uint64_t(m_seq) << SORT_KEY_DRAW_0_SEQ_SHIFT)
+				, "SortKey error, sequence is truncated (m_seq: %d)."
 				, m_seq
 				);
 
@@ -801,20 +870,13 @@ namespace bgfx
 
 		uint64_t encodeCompute()
 		{
-			// |               3               2               1               0|
-			// |fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210|
-			// | vvvvvvvvdsssssssssssppppppppp                                  |
-			// |        ^^          ^        ^                                  |
-			// |        ||          |        |                                  |
-			// |   view-+|      seq-+        +-program                          |
-			// |         +-draw                                                 |
-
 			const uint64_t program = (uint64_t(m_program) << SORT_KEY_COMPUTE_PROGRAM_SHIFT) & SORT_KEY_COMPUTE_PROGRAM_MASK;
-			const uint64_t seq     = (uint64_t(m_seq    ) << SORT_KEY_SEQ_SHIFT            ) & SORT_KEY_SEQ_MASK;
+			const uint64_t seq     = (uint64_t(m_seq    ) << SORT_KEY_COMPUTE_SEQ_SHIFT    ) & SORT_KEY_COMPUTE_SEQ_MASK;
 			const uint64_t view    = (uint64_t(m_view   ) << SORT_KEY_VIEW_SHIFT           ) & SORT_KEY_VIEW_MASK;
 			const uint64_t key     = program|seq|view;
 
-			BX_CHECK(seq == (uint64_t(m_seq) << SORT_KEY_SEQ_SHIFT), "SortKey error, sequence is truncated (m_seq: %d)."
+			BX_CHECK(seq == (uint64_t(m_seq) << SORT_KEY_COMPUTE_SEQ_SHIFT)
+				, "SortKey error, sequence is truncated (m_seq: %d)."
 				, m_seq
 				);
 
@@ -824,13 +886,16 @@ namespace bgfx
 		/// Returns true if item is compute command.
 		bool decode(uint64_t _key, uint8_t _viewRemap[BGFX_CONFIG_MAX_VIEWS])
 		{
-			m_seq  = uint32_t( (_key & SORT_KEY_SEQ_MASK ) >> SORT_KEY_SEQ_SHIFT);
 			m_view = _viewRemap[(_key & SORT_KEY_VIEW_MASK) >> SORT_KEY_VIEW_SHIFT];
 			if (_key & SORT_KEY_DRAW_BIT)
 			{
-				m_depth   = uint32_t( (_key & SORT_KEY_DRAW_DEPTH_MASK  ) >> SORT_KEY_DRAW_DEPTH_SHIFT);
-				m_program = uint16_t( (_key & SORT_KEY_DRAW_PROGRAM_MASK) >> SORT_KEY_DRAW_PROGRAM_SHIFT);
-				m_trans   =  uint8_t( (_key & SORT_KEY_DRAW_TRANS_MASK  ) >> SORT_KEY_DRAW_TRANS_SHIFT);
+				if (_key & SORT_KEY_DRAW_TYPE_BIT)
+				{
+					m_program = uint16_t( (_key & SORT_KEY_DRAW_1_PROGRAM_MASK) >> SORT_KEY_DRAW_1_PROGRAM_SHIFT);
+					return false;
+				}
+
+				m_program = uint16_t( (_key & SORT_KEY_DRAW_0_PROGRAM_MASK) >> SORT_KEY_DRAW_0_PROGRAM_SHIFT);
 				return false; // draw
 			}
 
@@ -845,9 +910,9 @@ namespace bgfx
 
 		static uint64_t remapView(uint64_t _key, uint8_t _viewRemap[BGFX_CONFIG_MAX_VIEWS])
 		{
-			const uint8_t  oldView  = uint8_t( (_key & SORT_KEY_VIEW_MASK) >> SORT_KEY_VIEW_SHIFT);
-			const uint64_t view     = uint64_t(_viewRemap[oldView])        << SORT_KEY_VIEW_SHIFT;
-			const uint64_t key      = (_key & ~SORT_KEY_VIEW_MASK) | view;
+			const uint8_t  oldView = uint8_t( (_key & SORT_KEY_VIEW_MASK) >> SORT_KEY_VIEW_SHIFT);
+			const uint64_t view    = uint64_t(_viewRemap[oldView])        << SORT_KEY_VIEW_SHIFT;
+			const uint64_t key     = (_key & ~SORT_KEY_VIEW_MASK) | view;
 			return key;
 		}
 
@@ -1422,7 +1487,7 @@ namespace bgfx
 			SortKey term;
 			term.reset();
 			term.m_program = kInvalidHandle;
-			m_sortKeys[BGFX_CONFIG_MAX_DRAW_CALLS]   = term.encodeDraw();
+			m_sortKeys[BGFX_CONFIG_MAX_DRAW_CALLS]   = term.encodeDraw(false);
 			m_sortValues[BGFX_CONFIG_MAX_DRAW_CALLS] = BGFX_CONFIG_MAX_DRAW_CALLS;
 			bx::memSet(m_occlusion, 0xff, sizeof(m_occlusion) );
 		}
@@ -2261,7 +2326,7 @@ namespace bgfx
 			BGFX_PROFILER_SET_CURRENT_THREAD_NAME("bgfx - Render Thread");
 			while (RenderFrame::Exiting != bgfx::renderFrame() ) {};
 			BX_TRACE("render thread exit");
-			return EXIT_SUCCESS;
+			return bx::kExitSuccess;
 		}
 
 		// game thread
@@ -3810,9 +3875,9 @@ namespace bgfx
 			clear.m_stencil  = _stencil;
 		}
 
-		BGFX_API_FUNC(void setViewSeq(uint8_t _id, bool _enabled) )
+		BGFX_API_FUNC(void setViewMode(uint8_t _id, ViewMode::Enum _mode) )
 		{
-			m_seqMask[_id] = _enabled ? 0xffff : 0x0;
+			m_viewMode[_id] = uint8_t(_mode);
 		}
 
 		BGFX_API_FUNC(void setViewFrameBuffer(uint8_t _id, FrameBufferHandle _handle) )
@@ -3858,7 +3923,7 @@ namespace bgfx
 			setViewRect(_id, 0, 0, 1, 1);
 			setViewScissor(_id, 0, 0, 0, 0);
 			setViewClear(_id, BGFX_CLEAR_NONE, 0, 0.0f, 0);
-			setViewSeq(_id, false);
+			setViewMode(_id, ViewMode::Default);
 			FrameBufferHandle invalid = BGFX_INVALID_HANDLE;
 			setViewFrameBuffer(_id, invalid);
 			setViewTransform(_id, NULL, NULL, BGFX_VIEW_NONE, NULL);
@@ -4328,7 +4393,7 @@ namespace bgfx
 		Matrix4 m_proj[2][BGFX_CONFIG_MAX_VIEWS];
 		uint8_t m_viewFlags[BGFX_CONFIG_MAX_VIEWS];
 		uint16_t m_seq[BGFX_CONFIG_MAX_VIEWS];
-		uint16_t m_seqMask[BGFX_CONFIG_MAX_VIEWS];
+		uint8_t m_viewMode[BGFX_CONFIG_MAX_VIEWS];
 
 		uint8_t m_colorPaletteDirty;
 

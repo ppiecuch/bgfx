@@ -48,15 +48,6 @@ namespace stl = tinystl;
 		} while(0)
 #endif // 0
 
-#define EXPECT(_condition) \
-	do { \
-		if (!(_condition) ) \
-		{ \
-			printf("Error parsing at:\n" BX_FILE_LINE_LITERAL "\nExpected: " #_condition "\n"); \
-			exit(EXIT_FAILURE); \
-		} \
-	} while(0)
-
 #include <bx/bx.h>
 #include <bx/debug.h>
 #include <bx/commandline.h>
@@ -432,27 +423,27 @@ int main(int _argc, const char* _argv[])
 			, BGFX_GEOMETRYC_VERSION_MINOR
 			, BGFX_API_VERSION
 			);
-		return EXIT_SUCCESS;
+		return bx::kExitSuccess;
 	}
 
 	if (cmdLine.hasArg('h', "help") )
 	{
 		help();
-		return EXIT_FAILURE;
+		return bx::kExitFailure;
 	}
 
 	const char* filePath = cmdLine.findOption('f');
 	if (NULL == filePath)
 	{
 		help("Input file name must be specified.");
-		return EXIT_FAILURE;
+		return bx::kExitFailure;
 	}
 
 	const char* outFilePath = cmdLine.findOption('o');
 	if (NULL == outFilePath)
 	{
 		help("Output file name must be specified.");
-		return EXIT_FAILURE;
+		return bx::kExitFailure;
 	}
 
 	float scale = 1.0f;
@@ -482,7 +473,7 @@ int main(int _argc, const char* _argv[])
 	if (NULL == file)
 	{
 		printf("Unable to open input file '%s'.", filePath);
-		exit(EXIT_FAILURE);
+		exit(bx::kExitFailure);
 	}
 
 	int64_t parseElapsed = -bx::getHPCounter();
@@ -626,7 +617,6 @@ int main(int _argc, const char* _argv[])
 			}
 			else if (0 == bx::strCmp(argv[0], "g") )
 			{
-				EXPECT(1 < argc);
 				group.m_name = argv[1];
 			}
 			else if (*argv[0] == 'v')
@@ -855,7 +845,7 @@ int main(int _argc, const char* _argv[])
 	if (!bx::open(&writer, outFilePath) )
 	{
 		printf("Unable to open output file '%s'.", outFilePath);
-		exit(EXIT_FAILURE);
+		exit(bx::kExitFailure);
 	}
 
 	Primitive prim;
@@ -1072,5 +1062,5 @@ int main(int _argc, const char* _argv[])
 		, numIndices
 		);
 
-	return EXIT_SUCCESS;
+	return bx::kExitSuccess;
 }

@@ -1267,5 +1267,5 @@ void nvgluSetViewFramebuffer(uint8_t viewId, NVGLUframebuffer* framebuffer)
 {
 	framebuffer->viewId = viewId;
 	bgfx::setViewFrameBuffer(viewId, framebuffer->handle);
-	bgfx::setViewSeq(viewId, true);
+	bgfx::setViewMode(viewId, bgfx::ViewMode::Sequential);
 }

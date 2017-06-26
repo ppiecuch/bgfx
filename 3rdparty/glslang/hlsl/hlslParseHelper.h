@@ -77,7 +77,7 @@ public:
     TIntermTyped* handleUnaryMath(const TSourceLoc&, const char* str, TOperator op, TIntermTyped* childNode);
     TIntermTyped* handleDotDereference(const TSourceLoc&, TIntermTyped* base, const TString& field);
     bool isBuiltInMethod(const TSourceLoc&, TIntermTyped* base, const TString& field);
-    void assignLocations(TVariable& variable);
+    void assignToInterface(TVariable& variable);
     void handleFunctionDeclarator(const TSourceLoc&, TFunction& function, bool prototype);
     TIntermAggregate* handleFunctionDefinition(const TSourceLoc&, TFunction&, const TAttributeMap&, TIntermNode*& entryPointTree);
     TIntermNode* transformEntryPoint(const TSourceLoc&, TFunction&, const TAttributeMap&);
@@ -90,6 +90,7 @@ public:
     TIntermTyped* handleAssign(const TSourceLoc&, TOperator, TIntermTyped* left, TIntermTyped* right);
     TIntermTyped* handleAssignToMatrixSwizzle(const TSourceLoc&, TOperator, TIntermTyped* left, TIntermTyped* right);
     TIntermTyped* handleFunctionCall(const TSourceLoc&, TFunction*, TIntermTyped*);
+    TIntermAggregate* assignClipCullDistance(const TSourceLoc&, TOperator, TIntermTyped* left, TIntermTyped* right);
     void decomposeIntrinsic(const TSourceLoc&, TIntermTyped*& node, TIntermNode* arguments);
     void decomposeSampleMethods(const TSourceLoc&, TIntermTyped*& node, TIntermNode* arguments);
     void decomposeStructBufferMethods(const TSourceLoc&, TIntermTyped*& node, TIntermNode* arguments);
@@ -146,6 +147,7 @@ public:
     void lengthenList(const TSourceLoc&, TIntermSequence& list, int size, TIntermTyped* scalarInit);
     TIntermTyped* handleConstructor(const TSourceLoc&, TIntermTyped*, const TType&);
     TIntermTyped* addConstructor(const TSourceLoc&, TIntermTyped*, const TType&);
+    TIntermTyped* convertArray(TIntermTyped*, const TType&);
     TIntermTyped* constructAggregate(TIntermNode*, const TType&, int, const TSourceLoc&);
     TIntermTyped* constructBuiltIn(const TType&, TOperator, TIntermTyped*, const TSourceLoc&, bool subset);
     void declareBlock(const TSourceLoc&, TType&, const TString* instanceName = 0, TArraySizes* arraySizes = 0);
