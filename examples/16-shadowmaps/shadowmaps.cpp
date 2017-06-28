@@ -1298,7 +1298,9 @@ public:
 		m_debug = BGFX_DEBUG_NONE;
 		m_reset = BGFX_RESET_VSYNC;
 
-		m_viewState = ViewState(1280, 720);
+		m_width = 1280;
+		m_height = 720;
+		m_viewState = ViewState(uint16_t(m_width), uint16_t(m_height));
 		m_clearValues = ClearValues(0x00000000, 1.0f, 0);
 
 		bgfx::init(args.m_type, args.m_pciId);
@@ -1982,12 +1984,15 @@ public:
 
 			bool restart = showExampleDialog(this);
 
-			ImGui::SetNextWindowPos(ImVec2(float(m_viewState.m_width) - 300.0f - 10.0f, 10.0f) );
+			ImGui::SetNextWindowPos(
+				  ImVec2(m_viewState.m_width - m_viewState.m_width / 5.0f - 10.0f, 10.0f)
+				, ImGuiSetCond_FirstUseEver
+				);
 			ImGui::Begin("Settings"
-						 , NULL
-						 , ImVec2(300.0f, 660.0f)
-						 , ImGuiWindowFlags_AlwaysAutoResize
-						 );
+				, NULL
+				, ImVec2(m_viewState.m_width / 5.0f, m_viewState.m_height - 20.0f)
+				, ImGuiWindowFlags_AlwaysAutoResize
+				);
 
 #define IMGUI_FLOAT_SLIDER(_name, _val) \
 	ImGui::SliderFloat(_name            \
@@ -2081,12 +2086,15 @@ public:
 			ImGui::End();
 #undef IMGUI_RADIO_BUTTON
 
-			ImGui::SetNextWindowPos(ImVec2(10,70) );
+			ImGui::SetNextWindowPos(
+				  ImVec2(10.0f, 260.0f)
+				, ImGuiSetCond_FirstUseEver
+				);
 			ImGui::Begin("Light"
-						 , NULL
-						 , ImVec2(330, 334)
-						 , ImGuiWindowFlags_AlwaysAutoResize
-						 );
+				, NULL
+				, ImVec2(m_viewState.m_width / 5.0f, 350.0f)
+				, ImGuiWindowFlags_AlwaysAutoResize
+				);
 			ImGui::PushItemWidth(185.0f);
 
 			bool bLtChanged = false;

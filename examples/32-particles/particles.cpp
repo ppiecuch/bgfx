@@ -367,9 +367,13 @@ public:
 
 			bool restart = showExampleDialog(this);
 
-			ImGui::Begin("Properties"
+			ImGui::SetNextWindowPos(
+				  ImVec2(m_width - m_width / 4.0f - 10.0f, 10.0f)
+				, ImGuiSetCond_FirstUseEver
+				);
+			ImGui::Begin("Settings"
 				, NULL
-				, ImVec2(400.0f, 600.0f)
+				, ImVec2(m_width / 4.0f, m_height - 20.0f)
 				, ImGuiWindowFlags_AlwaysAutoResize
 				);
 

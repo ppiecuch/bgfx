@@ -319,7 +319,7 @@ public:
 				float brushAttn = m_brush.m_size - bx::fsqrt(a2 + b2);
 
 				// Raise/Lower and scale by brush power.
-				height += (bx::fclamp(brushAttn * m_brush.m_power, 0.0, m_brush.m_power) * m_brush.m_raise)
+				height += 0.0f < bx::fclamp(brushAttn*m_brush.m_power, 0.0f, m_brush.m_power) && m_brush.m_raise
 					?  1.0f
 					: -1.0f
 					;
@@ -404,11 +404,13 @@ public:
 
 			bool restart = showExampleDialog(this);
 
-			ImGui::SetNextWindowPos(ImVec2((float)m_width - (float)m_width / 5.0f - 10.0f, 10.0f) );
-			ImGui::SetNextWindowSize(ImVec2((float)m_width / 5.0f, (float)m_height / 3.0f) );
+			ImGui::SetNextWindowPos(
+				  ImVec2(m_width - m_width / 5.0f - 10.0f, 10.0f)
+				, ImGuiSetCond_FirstUseEver
+				);
 			ImGui::Begin("Settings"
 				, NULL
-				, ImVec2((float)m_width / 5.0f, (float)m_height / 3.0f)
+				, ImVec2(m_width / 5.0f, m_height / 3.0f)
 				, ImGuiWindowFlags_AlwaysAutoResize
 				);
 
