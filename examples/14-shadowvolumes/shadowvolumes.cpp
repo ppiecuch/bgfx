@@ -524,7 +524,7 @@ static RenderState s_renderStates[RenderState::Count]  =
 
 struct ViewState
 {
-	ViewState(uint32_t _width = 1280, uint32_t _height = 720)
+	ViewState(uint32_t _width = 0, uint32_t _height = 0)
 		: m_width(_width)
 		, m_height(_height)
 	{
@@ -1875,11 +1875,11 @@ public:
 	{
 	}
 
-	void init(int _argc, char** _argv) BX_OVERRIDE
+	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) BX_OVERRIDE
 	{
 		Args args(_argc, _argv);
 
-		m_viewState = ViewState(1280, 720);
+		m_viewState   = ViewState(_width, _height);
 		m_clearValues = { 0x00000000, 1.0f, 0 };
 
 		m_debug = BGFX_DEBUG_NONE;
@@ -2162,7 +2162,7 @@ public:
 				, uint16_t(m_viewState.m_height)
 				);
 
-			bool restart = showExampleDialog(this);
+			showExampleDialog(this);
 
 			ImGui::SetNextWindowPos(ImVec2(m_viewState.m_width - 256.0f, 10.0f) );
 			ImGui::Begin("Settings"
@@ -2860,7 +2860,7 @@ public:
 				, m_clearValues.m_clearStencil
 				);
 
-			return !restart;
+			return true;
 		}
 
 		return false;

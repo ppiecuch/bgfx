@@ -5,11 +5,11 @@
 
 #include "imgui/imgui.h"
 #include "entry/entry.h"
+#include "entry/cmd.h"
+#include <bx/string.h>
 
-bool showExampleDialog(entry::AppI* _app)
+void showExampleDialog(entry::AppI* _app)
 {
-	bool restart = false;
-
 	char temp[1024];
 	bx::snprintf(temp, BX_COUNTOF(temp), "Example: %s", _app->getName() );
 
@@ -45,9 +45,22 @@ bool showExampleDialog(entry::AppI* _app)
 		if (1 < num
 		&&  ImGui::Combo("Example", &current, items, num) )
 		{
-			entry::setRestartArgs(items[current]);
-			restart = true;
+			char command[1024];
+			bx::snprintf(command, BX_COUNTOF(command), "app restart %s", items[current]);
+			cmdExec(command);
 		}
+
+		if (ImGui::Button("Restart") )
+		{
+			cmdExec("app restart");
+		}
+
+		ImGui::SameLine();
+		if (ImGui::Button("Next") )
+		{
+			cmdExec("app restart next");
+		}
+
 	}
 
 #if 0
@@ -87,6 +100,4 @@ bool showExampleDialog(entry::AppI* _app)
 		);
 
 	ImGui::End();
-
-	return restart;
 }

@@ -110,12 +110,12 @@ public:
 	{
 	}
 
-	void init(int _argc, char** _argv) BX_OVERRIDE
+	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) BX_OVERRIDE
 	{
 		Args args(_argc, _argv);
 
-		m_width  = 1280;
-		m_height = 720;
+		m_width  = _width;
+		m_height = _height;
 		m_debug  = BGFX_DEBUG_NONE;
 		m_reset  = BGFX_RESET_VSYNC;
 
@@ -177,7 +177,7 @@ public:
 				, uint16_t(m_height)
 				);
 
-			bool restart = showExampleDialog(this);
+			showExampleDialog(this);
 
 			imguiEndFrame();
 			// Set view 0 default viewport.
@@ -243,7 +243,7 @@ public:
 			// process submitted rendering primitives.
 			bgfx::frame();
 
-			return !restart;
+			return true;
 		}
 
 		return false;
