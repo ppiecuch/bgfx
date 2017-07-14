@@ -264,4 +264,4 @@ public:
 
 } // namespace
 
-ENTRY_IMPLEMENT_MAIN(ExampleRaymarch, "03-raymarch", "Description: Updating shader uniforms.");
+ENTRY_IMPLEMENT_MAIN(ExampleRaymarch, "03-raymarch", "Updating shader uniforms.");

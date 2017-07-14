@@ -50,17 +50,32 @@ void showExampleDialog(entry::AppI* _app)
 			cmdExec(command);
 		}
 
-		if (ImGui::Button("Restart") )
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(3.0f, 3.0f) );
+
+		if (ImGui::Button(ICON_FA_REPEAT " Restart" ) )
 		{
 			cmdExec("app restart");
 		}
 
 		ImGui::SameLine();
-		if (ImGui::Button("Next") )
+		if (ImGui::Button(ICON_KI_PREVIOUS " Prev") )
+		{
+			cmdExec("app restart prev");
+		}
+
+		ImGui::SameLine();
+		if (ImGui::Button(ICON_KI_NEXT " Next") )
 		{
 			cmdExec("app restart next");
 		}
 
+		ImGui::SameLine();
+		if (ImGui::Button(ICON_KI_EXIT " Exit") )
+		{
+			cmdExec("exit");
+		}
+
+		ImGui::PopStyleVar();
 	}
 
 #if 0
@@ -84,7 +99,7 @@ void showExampleDialog(entry::AppI* _app)
 
 		if (ImGui::Combo("Renderer", &current, items, num) )
 		{
-			restart = true;
+			cmdExec("app restart");
 		}
 	}
 #endif // 0

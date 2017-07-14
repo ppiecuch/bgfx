@@ -898,15 +898,6 @@ namespace bgfx { namespace gl
 		NULL
 	};
 
-	static const char* s_OES_texture_3D[] =
-	{
-		"texture3D",
-		"texture3DProj",
-		"texture3DLod",
-		"texture3DProjLod",
-		NULL
-	};
-
 	static const char* s_uisamplers[] =
 	{
 		"isampler2D",
@@ -922,6 +913,13 @@ namespace bgfx { namespace gl
 	{
 		"texelFetch",
 		"texelFetchOffset",
+		NULL
+	};
+
+	static const char* s_texture3D[] =
+	{
+		"sampler3D",
+		"sampler3DArray",
 		NULL
 	};
 
@@ -1154,7 +1152,252 @@ namespace bgfx { namespace gl
 		for (GLenum err = glGetError(); err != 0; err = glGetError() );
 	}
 
-	GLenum initTestTexture(TextureFormat::Enum _format, bool _srgb, bool _mipmaps)
+	static void texSubImage(
+		  GLenum _target
+		, GLint _level
+		, GLint _xoffset
+		, GLint _yoffset
+		, GLint _zoffset
+		, GLsizei _width
+		, GLsizei _height
+		, GLsizei _depth
+		, GLenum _format
+		, GLenum _type
+		, const GLvoid* _data
+	)
+	{
+		if (NULL == _data)
+		{
+			return;
+		}
+
+		if (_target == GL_TEXTURE_3D
+		||  _target == GL_TEXTURE_2D_ARRAY
+		||  _target == GL_TEXTURE_CUBE_MAP_ARRAY)
+		{
+			glTexSubImage3D(
+				  _target
+				, _level
+				, _xoffset
+				, _yoffset
+				, _zoffset
+				, _width
+				, _height
+				, _depth
+				, _format
+				, _type
+				, _data
+				);
+		}
+		else if (_target == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
+		{
+		}
+		else
+		{
+			BX_UNUSED(_zoffset, _depth);
+			glTexSubImage2D(
+				  _target
+				, _level
+				, _xoffset
+				, _yoffset
+				, _width
+				, _height
+				, _format
+				, _type
+				, _data
+				);
+		}
+	}
+
+	static void texImage(
+		  GLenum _target
+		, uint32_t _msaaQuality
+		, GLint _level
+		, GLint _internalFormat
+		, GLsizei _width
+		, GLsizei _height
+		, GLsizei _depth
+		, GLint _border
+		, GLenum _format
+		, GLenum _type
+		, const GLvoid* _data
+	)
+	{
+		if (_target == GL_TEXTURE_3D)
+		{
+			glTexImage3D(
+				  _target
+				, _level
+				, _internalFormat
+				, _width
+				, _height
+				, _depth
+				, _border
+				, _format
+				, _type
+				, _data
+				);
+		}
+		else if (_target == GL_TEXTURE_2D_ARRAY
+			 ||  _target == GL_TEXTURE_CUBE_MAP_ARRAY)
+		{
+			texSubImage(
+				  _target
+				, _level
+				, 0
+				, 0
+				, _depth
+				, _width
+				, _height
+				, 1
+				, _format
+				, _type
+				, _data
+				);
+		}
+		else if (_target == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
+		{
+		}
+		else if (_target == GL_TEXTURE_2D_MULTISAMPLE)
+		{
+			glTexImage2DMultisample(
+				  _target
+				, _msaaQuality
+				, _internalFormat
+				, _width
+				, _height
+				, false
+				);
+		}
+		else
+		{
+			glTexImage2D(
+				  _target
+				, _level
+				, _internalFormat
+				, _width
+				, _height
+				, _border
+				, _format
+				, _type
+				, _data
+				);
+		}
+
+		BX_UNUSED(_msaaQuality, _depth, _border, _data);
+	}
+
+	static void compressedTexSubImage(
+		  GLenum _target
+		, GLint _level
+		, GLint _xoffset
+		, GLint _yoffset
+		, GLint _zoffset
+		, GLsizei _width
+		, GLsizei _height
+		, GLsizei _depth
+		, GLenum _format
+		, GLsizei _imageSize
+		, const GLvoid* _data
+	)
+	{
+		if (_target == GL_TEXTURE_3D
+		||  _target == GL_TEXTURE_2D_ARRAY)
+		{
+			glCompressedTexSubImage3D(
+				  _target
+				, _level
+				, _xoffset
+				, _yoffset
+				, _zoffset
+				, _width
+				, _height
+				, _depth
+				, _format
+				, _imageSize
+				, _data
+				);
+		}
+		else
+		{
+			BX_UNUSED(_zoffset, _depth);
+			glCompressedTexSubImage2D(
+				  _target
+				, _level
+				, _xoffset
+				, _yoffset
+				, _width
+				, _height
+				, _format
+				, _imageSize
+				, _data
+				);
+		}
+	}
+
+	static void compressedTexImage(
+		  GLenum _target
+		, GLint _level
+		, GLenum _internalformat
+		, GLsizei _width
+		, GLsizei _height
+		, GLsizei _depth
+		, GLint _border
+		, GLsizei _imageSize
+		, const GLvoid* _data
+	)
+	{
+		if (_target == GL_TEXTURE_3D)
+		{
+			glCompressedTexImage3D(
+				  _target
+				, _level
+				, _internalformat
+				, _width
+				, _height
+				, _depth
+				, _border
+				, _imageSize
+				, _data
+				);
+		}
+		else if (_target == GL_TEXTURE_2D_ARRAY
+			 ||  _target == GL_TEXTURE_CUBE_MAP_ARRAY)
+		{
+			compressedTexSubImage(
+				  _target
+				, _level
+				, 0
+				, 0
+				, _depth
+				, _width
+				, _height
+				, 1
+				, _internalformat
+				, _imageSize
+				, _data
+				);
+		}
+		else if (_target == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
+		{
+		}
+		else
+		{
+			BX_UNUSED(_depth);
+			glCompressedTexImage2D(
+				  _target
+				, _level
+				, _internalformat
+				, _width
+				, _height
+				, _border
+				, _imageSize
+				, _data
+				);
+		}
+	}
+
+	GLenum initTestTexture(TextureFormat::Enum _format, bool _srgb, bool _mipmaps, bool _array, GLsizei _dim)
 	{
 		const TextureFormatInfo& tfi = s_textureFormat[_format];
 		GLenum internalFmt = _srgb
@@ -1162,13 +1405,15 @@ namespace bgfx { namespace gl
 			: tfi.m_internalFmt
 			;
 
-		GLsizei size = (16*16*bimg::getBitsPerPixel(bimg::TextureFormat::Enum(_format) ) )/8;
+		GLsizei bpp  = bimg::getBitsPerPixel(bimg::TextureFormat::Enum(_format) );
+		GLsizei size = (_dim*_dim*bpp)/8;
 		void* data = NULL;
 
 		if (bimg::isDepth(bimg::TextureFormat::Enum(_format) ) )
 		{
 			_srgb    = false;
 			_mipmaps = false;
+			_array   = false;
 		}
 		else
 		{
@@ -1178,35 +1423,29 @@ namespace bgfx { namespace gl
 		flushGlError();
 		GLenum err = 0;
 
+		const GLenum target = _array
+			? GL_TEXTURE_2D_ARRAY
+			: GL_TEXTURE_2D
+			;
+
 		if (bimg::isCompressed(bimg::TextureFormat::Enum(_format) ) )
 		{
-			glCompressedTexImage2D(GL_TEXTURE_2D, 0, internalFmt, 16, 16, 0, size, data);
-			err |= glGetError();
-			if (_mipmaps)
+			for (uint32_t ii = 0, dim = _dim; ii < (_mipmaps ? 5u : 1u) && 0 == err; ++ii, dim >>= 1)
 			{
-				glCompressedTexImage2D(GL_TEXTURE_2D, 1, internalFmt,  8,  8, 0, size, data);
-				err |= glGetError();
-				glCompressedTexImage2D(GL_TEXTURE_2D, 2, internalFmt,  4,  4, 0, size, data);
-				err |= glGetError();
-				glCompressedTexImage2D(GL_TEXTURE_2D, 3, internalFmt,  2,  2, 0, size, data);
-				err |= glGetError();
-				glCompressedTexImage2D(GL_TEXTURE_2D, 4, internalFmt,  1,  1, 0, size, data);
+				dim = bx::uint32_max(1, dim);
+				uint32_t block = bx::uint32_max(4, dim);
+				size = (block*block*bpp)/8;
+				compressedTexImage(target, ii, internalFmt, dim, dim, 0, 0, size, data);
 				err |= glGetError();
 			}
 		}
 		else
 		{
-			glTexImage2D(GL_TEXTURE_2D, 0, internalFmt, 16, 16, 0, tfi.m_fmt, tfi.m_type, data);
-			err |= glGetError();
-			if (_mipmaps)
+			for (uint32_t ii = 0, dim = _dim; ii < (_mipmaps ? 5u : 1u) && 0 == err; ++ii, dim >>= 1)
 			{
-				glTexImage2D(GL_TEXTURE_2D, 1, internalFmt,  8,  8, 0, tfi.m_fmt, tfi.m_type, data);
-				err |= glGetError();
-				glTexImage2D(GL_TEXTURE_2D, 2, internalFmt,  4,  4, 0, tfi.m_fmt, tfi.m_type, data);
-				err |= glGetError();
-				glTexImage2D(GL_TEXTURE_2D, 3, internalFmt,  2,  2, 0, tfi.m_fmt, tfi.m_type, data);
-				err |= glGetError();
-				glTexImage2D(GL_TEXTURE_2D, 4, internalFmt,  1,  1, 0, tfi.m_fmt, tfi.m_type, data);
+				dim = bx::uint32_max(1, dim);
+				size = (dim*dim*bpp)/8;
+				texImage(target, 0, ii, internalFmt, dim, dim, 0, 0, tfi.m_fmt, tfi.m_type, data);
 				err |= glGetError();
 			}
 		}
@@ -1214,7 +1453,7 @@ namespace bgfx { namespace gl
 		return err;
 	}
 
-	static bool isTextureFormatValid(TextureFormat::Enum _format, bool _srgb = false, bool _mipAutogen = false)
+	static bool isTextureFormatValid(TextureFormat::Enum _format, bool _srgb = false, bool _mipAutogen = false, bool _array = false, GLsizei _dim = 16)
 	{
 		const TextureFormatInfo& tfi = s_textureFormat[_format];
 		GLenum internalFmt = _srgb
@@ -1226,18 +1465,46 @@ namespace bgfx { namespace gl
 			return false;
 		}
 
+		const GLenum target = _array
+			? GL_TEXTURE_2D_ARRAY
+			: GL_TEXTURE_2D
+			;
+
 		GLuint id;
 		GL_CHECK(glGenTextures(1, &id) );
-		GL_CHECK(glBindTexture(GL_TEXTURE_2D, id) );
+		GL_CHECK(glBindTexture(target, id) );
 
-		GLenum err = initTestTexture(_format, _srgb, _mipAutogen);
-		BX_WARN(0 == err, "TextureFormat::%s is not supported (%x: %s).", getName(_format), err, glEnumName(err) );
-
-		if (0 == err
-		&&  _mipAutogen)
+		GLenum err = 0;
+		if (_array)
 		{
-			glGenerateMipmap(GL_TEXTURE_2D);
+			glTexStorage3D(target
+				, 1 + GLsizei(bx::flog2(float(_dim) ) )
+				, internalFmt
+				, _dim
+				, _dim
+				, _dim
+				);
 			err = glGetError();
+		}
+
+		if (0 == err)
+		{
+			err = initTestTexture(_format, _srgb, _mipAutogen, _array, _dim);
+			BX_WARN(0 == err, "TextureFormat::%s %s%s%sis not supported (%x: %s)."
+				, getName(_format)
+				, _srgb       ? "+sRGB "       : ""
+				, _mipAutogen ? "+mipAutoGen " : ""
+				, _array      ? "+array "      : ""
+				, err
+				, glEnumName(err)
+				);
+
+			if (0 == err
+			&&  _mipAutogen)
+			{
+				glGenerateMipmap(target);
+				err = glGetError();
+			}
 		}
 
 		GL_CHECK(glDeleteTextures(1, &id) );
@@ -1245,7 +1512,7 @@ namespace bgfx { namespace gl
 		return 0 == err;
 	}
 
-	static bool isImageFormatValid(TextureFormat::Enum _format)
+	static bool isImageFormatValid(TextureFormat::Enum _format, GLsizei _dim = 16)
 	{
 		if (GL_ZERO == s_imageFormat[_format])
 		{
@@ -1259,7 +1526,7 @@ namespace bgfx { namespace gl
 		flushGlError();
 		GLenum err = 0;
 
-		glTexStorage2D(GL_TEXTURE_2D, 1, s_imageFormat[_format], 16, 16);
+		glTexStorage2D(GL_TEXTURE_2D, 1, s_imageFormat[_format], _dim, _dim);
 		err |= glGetError();
 		if (0 == err)
 		{
@@ -1279,7 +1546,7 @@ namespace bgfx { namespace gl
 		return 0 == err;
 	}
 
-	static bool isFramebufferFormatValid(TextureFormat::Enum _format, bool _srgb = false)
+	static bool isFramebufferFormatValid(TextureFormat::Enum _format, bool _srgb = false, GLsizei _dim = 16)
 	{
 		const TextureFormatInfo& tfi = s_textureFormat[_format];
 		GLenum internalFmt = _srgb
@@ -1300,7 +1567,7 @@ namespace bgfx { namespace gl
 		GL_CHECK(glGenTextures(1, &id) );
 		GL_CHECK(glBindTexture(GL_TEXTURE_2D, id) );
 
-		GLenum err = initTestTexture(_format, _srgb, false);
+		GLenum err = initTestTexture(_format, _srgb, false, false, _dim);
 
 		GLenum attachment;
 		if (bimg::isDepth(bimg::TextureFormat::Enum(_format) ) )
@@ -4465,238 +4732,6 @@ namespace bgfx { namespace gl
 		m_vcref.invalidate(s_renderGL->m_vaoStateCache);
 	}
 
-	static void texSubImage(
-		  GLenum _target
-		, GLint _level
-		, GLint _xoffset
-		, GLint _yoffset
-		, GLint _zoffset
-		, GLsizei _width
-		, GLsizei _height
-		, GLsizei _depth
-		, GLenum _format
-		, GLenum _type
-		, const GLvoid* _data
-	)
-	{
-		if (NULL == _data)
-		{
-			return;
-		}
-
-		if (_target == GL_TEXTURE_3D
-		||  _target == GL_TEXTURE_2D_ARRAY
-		||  _target == GL_TEXTURE_CUBE_MAP_ARRAY)
-		{
-			GL_CHECK(glTexSubImage3D(
-				  _target
-				, _level
-				, _xoffset
-				, _yoffset
-				, _zoffset
-				, _width
-				, _height
-				, _depth
-				, _format
-				, _type
-				, _data
-				) );
-		}
-		else if (_target == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
-		{
-		}
-		else
-		{
-			BX_UNUSED(_zoffset, _depth);
-			GL_CHECK(glTexSubImage2D(
-				  _target
-				, _level
-				, _xoffset
-				, _yoffset
-				, _width
-				, _height
-				, _format
-				, _type
-				, _data
-				) );
-		}
-	}
-
-	static void texImage(
-		  GLenum _target
-		, uint32_t _msaaQuality
-		, GLint _level
-		, GLint _internalFormat
-		, GLsizei _width
-		, GLsizei _height
-		, GLsizei _depth
-		, GLint _border
-		, GLenum _format
-		, GLenum _type
-		, const GLvoid* _data
-	)
-	{
-		if (_target == GL_TEXTURE_3D)
-		{
-			GL_CHECK(glTexImage3D(
-				  _target
-				, _level
-				, _internalFormat
-				, _width
-				, _height
-				, _depth
-				, _border
-				, _format
-				, _type
-				, _data
-				) );
-		}
-		else if (_target == GL_TEXTURE_2D_ARRAY
-			 ||  _target == GL_TEXTURE_CUBE_MAP_ARRAY)
-		{
-			texSubImage(
-				  _target
-				, _level
-				, 0
-				, 0
-				, _depth
-				, _width
-				, _height
-				, 1
-				, _format
-				, _type
-				, _data
-				);
-		}
-		else if (_target == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
-		{
-		}
-		else if (_target == GL_TEXTURE_2D_MULTISAMPLE)
-		{
-			GL_CHECK(glTexImage2DMultisample(
-				  _target
-				, _msaaQuality
-				, _internalFormat
-				, _width
-				, _height
-				, false
-				) );
-		}
-		else
-		{
-			GL_CHECK(glTexImage2D(
-				  _target
-				, _level
-				, _internalFormat
-				, _width
-				, _height
-				, _border
-				, _format
-				, _type
-				, _data
-				) );
-		}
-
-		BX_UNUSED(_msaaQuality, _depth, _border, _data);
-	}
-
-	static void compressedTexSubImage(
-		  GLenum _target
-		, GLint _level
-		, GLint _xoffset
-		, GLint _yoffset
-		, GLint _zoffset
-		, GLsizei _width
-		, GLsizei _height
-		, GLsizei _depth
-		, GLenum _format
-		, GLsizei _imageSize
-		, const GLvoid* _data
-	)
-	{
-		if (_target == GL_TEXTURE_3D)
-		{
-			GL_CHECK(glCompressedTexSubImage3D(
-				  _target
-				, _level
-				, _xoffset
-				, _yoffset
-				, _zoffset
-				, _width
-				, _height
-				, _depth
-				, _format
-				, _imageSize
-				, _data
-				) );
-		}
-		else
-		{
-			BX_UNUSED(_zoffset, _depth);
-			GL_CHECK(glCompressedTexSubImage2D(
-				  _target
-				, _level
-				, _xoffset
-				, _yoffset
-				, _width
-				, _height
-				, _format
-				, _imageSize
-				, _data
-				) );
-		}
-	}
-
-	static void compressedTexImage(
-		  GLenum _target
-		, GLint _level
-		, GLenum _internalformat
-		, GLsizei _width
-		, GLsizei _height
-		, GLsizei _depth
-		, GLint _border
-		, GLsizei _imageSize
-		, const GLvoid* _data
-	)
-	{
-		if (_target == GL_TEXTURE_3D)
-		{
-			GL_CHECK(glCompressedTexImage3D(
-				  _target
-				, _level
-				, _internalformat
-				, _width
-				, _height
-				, _depth
-				, _border
-				, _imageSize
-				, _data
-				) );
-		}
-		else if (_target == GL_TEXTURE_2D_ARRAY
-			 ||  _target == GL_TEXTURE_CUBE_MAP_ARRAY)
-		{
-			compressedTexSubImage(_target, _level, 0, 0, _depth, _width, _height, 1, _internalformat, _imageSize, _data);
-		}
-		else if (_target == GL_TEXTURE_2D_MULTISAMPLE_ARRAY)
-		{
-		}
-		else
-		{
-			BX_UNUSED(_depth);
-			GL_CHECK(glCompressedTexImage2D(
-				  _target
-				, _level
-				, _internalformat
-				, _width
-				, _height
-				, _border
-				, _imageSize
-				, _data
-				) );
-		}
-	}
-
 	bool TextureGL::init(GLenum _target, uint32_t _width, uint32_t _height, uint32_t _depth, uint8_t _numMips, uint32_t _flags)
 	{
 		m_target  = _target;
@@ -4709,6 +4744,7 @@ namespace bgfx { namespace gl
 
 		const bool writeOnly    = 0 != (m_flags&BGFX_TEXTURE_RT_WRITE_ONLY);
 		const bool computeWrite = 0 != (m_flags&BGFX_TEXTURE_COMPUTE_WRITE );
+		const bool srgb         = 0 != (m_flags&BGFX_TEXTURE_SRGB);
 		const bool textureArray = false
 			|| _target == GL_TEXTURE_2D_ARRAY
 			|| _target == GL_TEXTURE_CUBE_MAP_ARRAY
@@ -4743,11 +4779,16 @@ namespace bgfx { namespace gl
 				m_type = tfiRgba8.m_type;
 			}
 
+			const GLenum internalFmt = srgb
+				? s_textureFormat[m_textureFormat].m_internalFmtSrgb
+				: s_textureFormat[m_textureFormat].m_internalFmt
+				;
+
 			if (textureArray)
 			{
 				GL_CHECK(glTexStorage3D(_target
 					, _numMips
-					, s_textureFormat[m_textureFormat].m_internalFmt
+					, internalFmt
 					, m_width
 					, m_height
 					, _depth
@@ -4760,7 +4801,7 @@ namespace bgfx { namespace gl
 				{
 					GL_CHECK(glTexStorage3D(_target
 							, _numMips
-							, s_textureFormat[m_textureFormat].m_internalFmt
+							, internalFmt
 							, m_width
 							, m_height
 							, _depth
@@ -4770,7 +4811,7 @@ namespace bgfx { namespace gl
 				{
 					GL_CHECK(glTexStorage2D(_target
 							, _numMips
-							, s_textureFormat[m_textureFormat].m_internalFmt
+							, internalFmt
 							, m_width
 							, m_height
 							) );
@@ -4923,10 +4964,11 @@ namespace bgfx { namespace gl
 				|| swizzle
 				;
 
-			BX_TRACE("Texture%-4s %3d: %s (requested: %s), layers %d, %dx%dx%d%s."
+			BX_TRACE("Texture%-4s %3d: %s %s(requested: %s), layers %d, %dx%dx%d%s."
 				, imageContainer.m_cubeMap ? "Cube" : (1 < imageContainer.m_depth ? "3D" : "2D")
 				, this - s_renderGL->m_textures
 				, getName( (TextureFormat::Enum)m_textureFormat)
+				, srgb ? "+sRGB " : ""
 				, getName( (TextureFormat::Enum)m_requestedFormat)
 				, numLayers
 				, textureWidth
@@ -4936,12 +4978,12 @@ namespace bgfx { namespace gl
 				);
 
 			BX_WARN(!convert, "Texture %s%s%s from %s to %s."
-					, swizzle ? "swizzle" : ""
-					, swizzle&&convert ? " and " : ""
-					, convert ? "convert" : ""
-					, getName( (TextureFormat::Enum)m_requestedFormat)
-					, getName( (TextureFormat::Enum)m_textureFormat)
-					);
+				, swizzle ? "swizzle" : ""
+				, swizzle&&convert ? " and " : ""
+				, convert ? "convert" : ""
+				, getName( (TextureFormat::Enum)m_requestedFormat)
+				, getName( (TextureFormat::Enum)m_textureFormat)
+				);
 
 			uint8_t* temp = NULL;
 			if (convert)
@@ -4976,7 +5018,7 @@ namespace bgfx { namespace gl
 						if (compressed
 						&& !convert)
 						{
-							compressedTexImage(imageTarget
+							GL_CHECK(compressedTexImage(imageTarget
 								, lod
 								, internalFmt
 								, width
@@ -4985,7 +5027,7 @@ namespace bgfx { namespace gl
 								, 0
 								, mip.m_size
 								, mip.m_data
-								);
+								) );
 						}
 						else
 						{
@@ -4994,16 +5036,16 @@ namespace bgfx { namespace gl
 							if (convert)
 							{
 								imageDecodeToRgba8(temp
-										, mip.m_data
-										, mip.m_width
-										, mip.m_height
-										, mip.m_width*4
-										, mip.m_format
-										);
+									, mip.m_data
+									, mip.m_width
+									, mip.m_height
+									, mip.m_width*4
+									, mip.m_format
+									);
 								data = temp;
 							}
 
-							texImage(imageTarget
+							GL_CHECK(texImage(imageTarget
 								, msaaQuality
 								, lod
 								, internalFmt
@@ -5014,7 +5056,7 @@ namespace bgfx { namespace gl
 								, m_fmt
 								, m_type
 								, data
-								);
+								) );
 						}
 					}
 					else if (!computeWrite)
@@ -5026,7 +5068,7 @@ namespace bgfx { namespace gl
 										  * 4*4* bimg::getBitsPerPixel(bimg::TextureFormat::Enum(m_textureFormat) )/8
 										  ;
 
-							compressedTexImage(imageTarget
+							GL_CHECK(compressedTexImage(imageTarget
 								, lod
 								, internalFmt
 								, width
@@ -5035,11 +5077,11 @@ namespace bgfx { namespace gl
 								, 0
 								, size
 								, NULL
-								);
+								) );
 						}
 						else
 						{
-							texImage(imageTarget
+							GL_CHECK(texImage(imageTarget
 								, msaaQuality
 								, lod
 								, internalFmt
@@ -5050,7 +5092,7 @@ namespace bgfx { namespace gl
 								, m_fmt
 								, m_type
 								, NULL
-								);
+								) );
 						}
 					}
 
@@ -5462,7 +5504,7 @@ namespace bgfx { namespace gl
 					bool usesShadowSamplers = !!bx::findIdentifierMatch(code, s_EXT_shadow_samplers);
 
 					bool usesTexture3D = s_extension[Extension::OES_texture_3D].m_supported
-						&& bx::findIdentifierMatch(code, s_OES_texture_3D)
+						&& bx::findIdentifierMatch(code, s_texture3D)
 						;
 
 					bool usesTextureLod = !!bx::findIdentifierMatch(code, s_EXT_shader_texture_lod);
@@ -5630,11 +5672,12 @@ namespace bgfx { namespace gl
 					const bool usesIUsamplers   = !!bx::findIdentifierMatch(code, s_uisamplers);
 					const bool usesTexelFetch   = !!bx::findIdentifierMatch(code, s_texelFetch);
 					const bool usesTextureArray = !!bx::findIdentifierMatch(code, s_textureArray);
+					const bool usesTexture3D    = !!bx::findIdentifierMatch(code, s_texture3D);
 					const bool usesTextureMS    = !!bx::findIdentifierMatch(code, s_ARB_texture_multisample);
 					const bool usesPacking      = !!bx::findIdentifierMatch(code, s_ARB_shading_language_packing);
 
 					uint32_t version =
-						  usesIUsamplers|| usesTexelFetch || usesGpuShader5 ? 130
+						  usesTextureArray || usesTexture3D || usesIUsamplers|| usesTexelFetch || usesGpuShader5 ? 130
 						: usesTextureLod ? 120
 						: 120
 						;
@@ -5685,7 +5728,7 @@ namespace bgfx { namespace gl
 							);
 					}
 
-//					if (usesTexture3D)
+					if (usesTexture3D)
 					{
 						writeString(&writer
 							, "#define texture3DEXT    texture3D\n"
