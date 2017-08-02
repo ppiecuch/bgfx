@@ -116,7 +116,7 @@ public:
 	{
 	}
 
-	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) BX_OVERRIDE
+	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) override
 	{
 		Args args(_argc, _argv);
 
@@ -180,21 +180,21 @@ public:
 		m_num_steps = 16;
 	}
 
-	virtual int shutdown() BX_OVERRIDE
+	virtual int shutdown() override
 	{
 		// Cleanup.
-		bgfx::destroyIndexBuffer(m_ibh);
-		bgfx::destroyVertexBuffer(m_vbh);
-		bgfx::destroyProgram(m_program);
-		bgfx::destroyTexture(m_textureColor);
-		bgfx::destroyTexture(m_textureNormal);
-		bgfx::destroyTexture(m_textureDepth);
-		bgfx::destroyUniform(s_texColor);
-		bgfx::destroyUniform(s_texNormal);
-		bgfx::destroyUniform(s_texDepth);
-		bgfx::destroyUniform(u_light_pos);
-		bgfx::destroyUniform(u_norm_mtx);
-		bgfx::destroyUniform(u_pomParam);
+		bgfx::destroy(m_ibh);
+		bgfx::destroy(m_vbh);
+		bgfx::destroy(m_program);
+		bgfx::destroy(m_textureColor);
+		bgfx::destroy(m_textureNormal);
+		bgfx::destroy(m_textureDepth);
+		bgfx::destroy(s_texColor);
+		bgfx::destroy(s_texNormal);
+		bgfx::destroy(s_texDepth);
+		bgfx::destroy(u_light_pos);
+		bgfx::destroy(u_norm_mtx);
+		bgfx::destroy(u_pomParam);
 
 		imguiDestroy();
 
@@ -204,7 +204,7 @@ public:
 		return 0;
 	}
 
-	bool update() BX_OVERRIDE
+	bool update() override
 	{
 		if (!entry::processEvents(m_width, m_height, m_debug, m_reset, &m_mouseState) )
 		{

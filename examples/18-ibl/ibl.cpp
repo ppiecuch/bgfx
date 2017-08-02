@@ -35,7 +35,7 @@ struct Uniforms
 
 	void destroy()
 	{
-		bgfx::destroyUniform(u_params);
+		bgfx::destroy(u_params);
 	}
 
 	union
@@ -170,8 +170,8 @@ struct LightProbe
 
 	void destroy()
 	{
-		bgfx::destroyTexture(m_tex);
-		bgfx::destroyTexture(m_texIrr);
+		bgfx::destroy(m_tex);
+		bgfx::destroy(m_texIrr);
 	}
 
 	bgfx::TextureHandle m_tex;
@@ -491,7 +491,7 @@ public:
 	{
 	}
 
-	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) BX_OVERRIDE
+	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) override
 	{
 		Args args(_argc, _argv);
 
@@ -544,22 +544,22 @@ public:
 		m_meshOrb = meshLoad("meshes/orb.bin");
 	}
 
-	virtual int shutdown() BX_OVERRIDE
+	virtual int shutdown() override
 	{
 		meshUnload(m_meshBunny);
 		meshUnload(m_meshOrb);
 
 		// Cleanup.
-		bgfx::destroyProgram(m_programMesh);
-		bgfx::destroyProgram(m_programSky);
+		bgfx::destroy(m_programMesh);
+		bgfx::destroy(m_programSky);
 
-		bgfx::destroyUniform(u_camPos);
-		bgfx::destroyUniform(u_flags);
-		bgfx::destroyUniform(u_params);
-		bgfx::destroyUniform(u_mtx);
+		bgfx::destroy(u_camPos);
+		bgfx::destroy(u_flags);
+		bgfx::destroy(u_params);
+		bgfx::destroy(u_mtx);
 
-		bgfx::destroyUniform(s_texCube);
-		bgfx::destroyUniform(s_texCubeIrr);
+		bgfx::destroy(s_texCube);
+		bgfx::destroy(s_texCubeIrr);
 
 		for (uint8_t ii = 0; ii < LightProbe::Count; ++ii)
 		{
@@ -576,7 +576,7 @@ public:
 		return 0;
 	}
 
-	bool update() BX_OVERRIDE
+	bool update() override
 	{
 		if (!entry::processEvents(m_width, m_height, m_debug, m_reset, &m_mouseState) )
 		{

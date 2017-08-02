@@ -74,7 +74,7 @@ public:
 	{
 	}
 
-	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) BX_OVERRIDE
+	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) override
 	{
 		Args args(_argc, _argv);
 
@@ -140,7 +140,7 @@ public:
 		imguiCreate();
 	}
 
-	virtual int shutdown() BX_OVERRIDE
+	virtual int shutdown() override
 	{
 		imguiDestroy();
 
@@ -148,16 +148,16 @@ public:
 		{
 			if (bgfx::isValid(m_fbh[ii]) )
 			{
-				bgfx::destroyFrameBuffer(m_fbh[ii]);
+				bgfx::destroy(m_fbh[ii]);
 			}
 		}
 
 		BX_FREE(entry::getAllocator(), m_bindings);
 
 		// Cleanup.
-		bgfx::destroyIndexBuffer(m_ibh);
-		bgfx::destroyVertexBuffer(m_vbh);
-		bgfx::destroyProgram(m_program);
+		bgfx::destroy(m_ibh);
+		bgfx::destroy(m_vbh);
+		bgfx::destroy(m_program);
 
 		// Shutdown bgfx.
 		bgfx::shutdown();
@@ -165,7 +165,7 @@ public:
 		return 0;
 	}
 
-	bool update() BX_OVERRIDE
+	bool update() override
 	{
 		entry::WindowState state;
 		if (!entry::processWindowEvents(state, m_debug, m_reset) )
@@ -206,7 +206,7 @@ public:
 						// frame buffer must be recreated.
 						if (bgfx::isValid(m_fbh[viewId]) )
 						{
-							bgfx::destroyFrameBuffer(m_fbh[viewId]);
+							bgfx::destroy(m_fbh[viewId]);
 							m_fbh[viewId].idx = bgfx::kInvalidHandle;
 						}
 
@@ -335,7 +335,7 @@ public:
 		{
 			if (bgfx::isValid(m_fbh[ii]) )
 			{
-				bgfx::destroyFrameBuffer(m_fbh[ii]);
+				bgfx::destroy(m_fbh[ii]);
 				m_fbh[ii].idx = bgfx::kInvalidHandle;
 
 				// Flush destruction of swap chain before destroying window!

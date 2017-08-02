@@ -265,7 +265,7 @@ struct Uniforms
 
 	void destroy()
 	{
-		bgfx::destroyUniform(u_params);
+		bgfx::destroy(u_params);
 	}
 
 	union
@@ -291,7 +291,7 @@ public:
 	{
 	}
 
-	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) BX_OVERRIDE
+	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) override
 	{
 		Args args(_argc, _argv);
 
@@ -337,7 +337,7 @@ public:
 		m_drawMode = DrawMode::WireframeShaded;
 	}
 
-	virtual int shutdown() BX_OVERRIDE
+	virtual int shutdown() override
 	{
 		// Cleanup.
 		imguiDestroy();
@@ -346,8 +346,8 @@ public:
 		m_meshes[1].destroy();
 		m_meshes[2].destroy();
 
-		bgfx::destroyProgram(m_wfProgram);
-		bgfx::destroyProgram(m_meshProgram);
+		bgfx::destroy(m_wfProgram);
+		bgfx::destroy(m_meshProgram);
 
 		m_uniforms.destroy();
 
@@ -357,7 +357,7 @@ public:
 		return 0;
 	}
 
-	bool update() BX_OVERRIDE
+	bool update() override
 	{
 		if (!entry::processEvents(m_width, m_height, m_debug, m_reset, &m_mouseState) )
 		{

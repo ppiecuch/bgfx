@@ -110,7 +110,7 @@ public:
 	{
 	}
 
-	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) BX_OVERRIDE
+	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) override
 	{
 		Args args(_argc, _argv);
 
@@ -147,15 +147,15 @@ public:
 		imguiCreate();
 	}
 
-	int shutdown() BX_OVERRIDE
+	int shutdown() override
 	{
 		imguiDestroy();
 
 		// Cleanup.
-		bgfx::destroyProgram(m_program);
+		bgfx::destroy(m_program);
 
-		bgfx::destroyUniform(u_mtx);
-		bgfx::destroyUniform(u_lightDirTime);
+		bgfx::destroy(u_mtx);
+		bgfx::destroy(u_lightDirTime);
 
 		// Shutdown bgfx.
 		bgfx::shutdown();
@@ -163,7 +163,7 @@ public:
 		return 0;
 	}
 
-	bool update() BX_OVERRIDE
+	bool update() override
 	{
 		if (!entry::processEvents(m_width, m_height, m_debug, m_reset, &m_mouseState) )
 		{

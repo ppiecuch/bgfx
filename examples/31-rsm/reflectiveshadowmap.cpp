@@ -199,7 +199,7 @@ public:
 	{
 	}
 
-	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) BX_OVERRIDE
+	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) override
 	{
 		Args args(_argc, _argv);
 
@@ -375,7 +375,7 @@ public:
 		imguiCreate();
 	}
 
-	int shutdown() BX_OVERRIDE
+	int shutdown() override
 	{
 		for (uint32_t ii = 0; ii < BX_COUNTOF(s_meshPaths); ++ii)
 		{
@@ -386,39 +386,39 @@ public:
 		meshUnload(m_lightSphere);
 
 		// Cleanup.
-		bgfx::destroyProgram(m_gbufferProgram);
-		bgfx::destroyProgram(m_lightProgram);
-		bgfx::destroyProgram(m_combineProgram);
-		bgfx::destroyProgram(m_shadowProgram);
+		bgfx::destroy(m_gbufferProgram);
+		bgfx::destroy(m_lightProgram);
+		bgfx::destroy(m_combineProgram);
+		bgfx::destroy(m_shadowProgram);
 
-		bgfx::destroyUniform(u_tint);
-		bgfx::destroyUniform(u_lightDir);
-		bgfx::destroyUniform(u_sphereInfo);
-		bgfx::destroyUniform(u_invMvp);
-		bgfx::destroyUniform(u_invMvpShadow);
-		bgfx::destroyUniform(u_lightMtx);
-		bgfx::destroyUniform(u_shadowDimsInv);
-		bgfx::destroyUniform(u_rsmAmount);
-		bgfx::destroyUniform(s_normal);
-		bgfx::destroyUniform(s_depth);
-		bgfx::destroyUniform(s_light);
-		bgfx::destroyUniform(s_color);
-		bgfx::destroyUniform(s_shadowMap);
-		bgfx::destroyUniform(s_rsm);
+		bgfx::destroy(u_tint);
+		bgfx::destroy(u_lightDir);
+		bgfx::destroy(u_sphereInfo);
+		bgfx::destroy(u_invMvp);
+		bgfx::destroy(u_invMvpShadow);
+		bgfx::destroy(u_lightMtx);
+		bgfx::destroy(u_shadowDimsInv);
+		bgfx::destroy(u_rsmAmount);
+		bgfx::destroy(s_normal);
+		bgfx::destroy(s_depth);
+		bgfx::destroy(s_light);
+		bgfx::destroy(s_color);
+		bgfx::destroy(s_shadowMap);
+		bgfx::destroy(s_rsm);
 
-		bgfx::destroyFrameBuffer(m_gbuffer);
-		bgfx::destroyFrameBuffer(m_lightBuffer);
-		bgfx::destroyFrameBuffer(m_shadowBuffer);
+		bgfx::destroy(m_gbuffer);
+		bgfx::destroy(m_lightBuffer);
+		bgfx::destroy(m_shadowBuffer);
 
 		for (uint32_t ii = 0; ii < BX_COUNTOF(m_gbufferTex); ++ii)
 		{
-			bgfx::destroyTexture(m_gbufferTex[ii]);
+			bgfx::destroy(m_gbufferTex[ii]);
 		}
 
-		bgfx::destroyTexture(m_lightBufferTex);
+		bgfx::destroy(m_lightBufferTex);
 		for (uint32_t ii = 0; ii < BX_COUNTOF(m_shadowBufferTex); ++ii)
 		{
-			bgfx::destroyTexture(m_shadowBufferTex[ii]);
+			bgfx::destroy(m_shadowBufferTex[ii]);
 		}
 
 		cameraDestroy();
@@ -431,7 +431,7 @@ public:
 		return 0;
 	}
 
-	bool update() BX_OVERRIDE
+	bool update() override
 	{
 		if (!entry::processEvents(m_width, m_height, m_debug, m_reset, &m_mouseState) )
 		{

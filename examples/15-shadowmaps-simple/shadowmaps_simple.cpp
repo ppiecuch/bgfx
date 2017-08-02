@@ -12,7 +12,7 @@
 #include <bgfx/bgfx.h>
 #include <bx/timer.h>
 #include <bx/readerwriter.h>
-#include <bx/fpumath.h>
+#include <bx/math.h>
 #include "entry/entry.h"
 #include "bgfx_utils.h"
 #include "imgui/imgui.h"
@@ -66,7 +66,7 @@ public:
 	{
 	}
 
-	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) BX_OVERRIDE
+	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) override
 	{
 		Args args(_argc, _argv);
 
@@ -221,7 +221,7 @@ public:
 		imguiCreate();
 	}
 
-	virtual int shutdown() BX_OVERRIDE
+	virtual int shutdown() override
 	{
 		imguiDestroy();
 
@@ -232,18 +232,18 @@ public:
 		meshStateDestroy(m_state[0]);
 		meshStateDestroy(m_state[1]);
 
-		bgfx::destroyVertexBuffer(m_vbh);
-		bgfx::destroyIndexBuffer(m_ibh);
+		bgfx::destroy(m_vbh);
+		bgfx::destroy(m_ibh);
 
-		bgfx::destroyProgram(m_progShadow);
-		bgfx::destroyProgram(m_progMesh);
+		bgfx::destroy(m_progShadow);
+		bgfx::destroy(m_progMesh);
 
-		bgfx::destroyFrameBuffer(m_shadowMapFB);
+		bgfx::destroy(m_shadowMapFB);
 
-		bgfx::destroyUniform(u_shadowMap);
-		bgfx::destroyUniform(u_lightPos);
-		bgfx::destroyUniform(u_lightMtx);
-		bgfx::destroyUniform(u_depthScaleOffset);
+		bgfx::destroy(u_shadowMap);
+		bgfx::destroy(u_lightPos);
+		bgfx::destroy(u_lightMtx);
+		bgfx::destroy(u_depthScaleOffset);
 
 		// Shutdown bgfx.
 		bgfx::shutdown();
@@ -251,7 +251,7 @@ public:
 		return 0;
 	}
 
-	bool update() BX_OVERRIDE
+	bool update() override
 	{
 		if (!entry::processEvents(m_width, m_height, m_debug, m_reset, &m_mouseState) )
 		{

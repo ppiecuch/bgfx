@@ -8,8 +8,8 @@
 
 #include "common.h"
 #include "bgfx_utils.h"
+#include <bx/file.h>
 
-#include <bx/crtimpl.h>
 #include "camera.h"
 #include "imgui/imgui.h"
 
@@ -317,13 +317,13 @@ struct Uniforms
 
 	void destroy()
 	{
-		bgfx::destroyUniform(u_params);
-		bgfx::destroyUniform(u_ambient);
-		bgfx::destroyUniform(u_diffuse);
-		bgfx::destroyUniform(u_specular_shininess);
-		bgfx::destroyUniform(u_color);
-		bgfx::destroyUniform(u_lightPosRadius);
-		bgfx::destroyUniform(u_lightRgbInnerR);
+		bgfx::destroy(u_params);
+		bgfx::destroy(u_ambient);
+		bgfx::destroy(u_diffuse);
+		bgfx::destroy(u_specular_shininess);
+		bgfx::destroy(u_color);
+		bgfx::destroy(u_lightPosRadius);
+		bgfx::destroy(u_lightRgbInnerR);
 	}
 
 	struct Params
@@ -736,11 +736,11 @@ struct Mesh
 		for (GroupArray::const_iterator it = m_groups.begin(), itEnd = m_groups.end(); it != itEnd; ++it)
 		{
 			const Group& group = *it;
-			bgfx::destroyVertexBuffer(group.m_vbh);
+			bgfx::destroy(group.m_vbh);
 
 			if (bgfx::isValid(group.m_ibh) )
 			{
-				bgfx::destroyIndexBuffer(group.m_ibh);
+				bgfx::destroy(group.m_ibh);
 			}
 		}
 		m_groups.clear();
@@ -795,7 +795,7 @@ public:
 	{
 	}
 
-	virtual void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) BX_OVERRIDE
+	virtual void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) override
 	{
 		Args args(_argc, _argv);
 
@@ -876,7 +876,7 @@ public:
 		m_updateScene     = true;
 	}
 
-	virtual int shutdown() BX_OVERRIDE
+	virtual int shutdown() override
 	{
 		// Cleanup.
 		m_bunnyMesh.unload();
@@ -885,17 +885,17 @@ public:
 		m_hplaneMesh.unload();
 		m_vplaneMesh.unload();
 
-		bgfx::destroyTexture(m_figureTex);
-		bgfx::destroyTexture(m_fieldstoneTex);
-		bgfx::destroyTexture(m_flareTex);
+		bgfx::destroy(m_figureTex);
+		bgfx::destroy(m_fieldstoneTex);
+		bgfx::destroy(m_flareTex);
 
-		bgfx::destroyProgram(m_programTextureLighting);
-		bgfx::destroyProgram(m_programColorLighting);
-		bgfx::destroyProgram(m_programColorTexture);
-		bgfx::destroyProgram(m_programColorBlack);
-		bgfx::destroyProgram(m_programTexture);
+		bgfx::destroy(m_programTextureLighting);
+		bgfx::destroy(m_programColorLighting);
+		bgfx::destroy(m_programColorTexture);
+		bgfx::destroy(m_programColorBlack);
+		bgfx::destroy(m_programTexture);
 
-		bgfx::destroyUniform(s_texColor);
+		bgfx::destroy(s_texColor);
 
 		s_uniforms.destroy();
 
@@ -908,7 +908,7 @@ public:
 		return 0;
 	}
 
-	virtual bool update() BX_OVERRIDE
+	virtual bool update() override
 	{
 		if (!entry::processEvents(m_viewState.m_width, m_viewState.m_height, m_debug, m_reset, &m_mouseState) )
 		{

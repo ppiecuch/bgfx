@@ -4,10 +4,9 @@
  */
 
 #include <bx/bx.h>
-#include <bgfx/bgfx.h>
-#include <bx/filepath.h>
-#include <bx/crtimpl.h>
+#include <bx/file.h>
 #include <bx/sort.h>
+#include <bgfx/bgfx.h>
 
 #include <time.h>
 
@@ -62,10 +61,10 @@ namespace entry
 		typedef bx::FileReader super;
 
 	public:
-		virtual bool open(const char* _filePath, bx::Error* _err) BX_OVERRIDE
+		virtual bool open(const bx::FilePath& _filePath, bx::Error* _err) override
 		{
 			String filePath(s_currentDir);
-			filePath.append(_filePath);
+			filePath.append(_filePath.get() );
 			return super::open(filePath.getPtr(), _err);
 		}
 	};
@@ -75,10 +74,10 @@ namespace entry
 		typedef bx::FileWriter super;
 
 	public:
-		virtual bool open(const char* _filePath, bool _append, bx::Error* _err) BX_OVERRIDE
+		virtual bool open(const bx::FilePath& _filePath, bool _append, bx::Error* _err) override
 		{
 			String filePath(s_currentDir);
-			filePath.append(_filePath);
+			filePath.append(_filePath.get() );
 			return super::open(filePath.getPtr(), _append, _err);
 		}
 	};

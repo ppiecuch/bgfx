@@ -198,7 +198,7 @@ public:
 	{
 	}
 
-	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) BX_OVERRIDE
+	void init(int32_t _argc, const char* const* _argv, uint32_t _width, uint32_t _height) override
 	{
 		Args args(_argc, _argv);
 
@@ -316,7 +316,7 @@ public:
 		cameraSetVerticalAngle(0.0f);
 	}
 
-	virtual int shutdown() BX_OVERRIDE
+	virtual int shutdown() override
 	{
 		// Cleanup.
 		cameraDestroy();
@@ -324,32 +324,32 @@ public:
 
 		if (bgfx::isValid(m_gbuffer) )
 		{
-			bgfx::destroyFrameBuffer(m_gbuffer);
-			bgfx::destroyFrameBuffer(m_lightBuffer);
+			bgfx::destroy(m_gbuffer);
+			bgfx::destroy(m_lightBuffer);
 		}
 
-		bgfx::destroyIndexBuffer(m_ibh);
-		bgfx::destroyVertexBuffer(m_vbh);
+		bgfx::destroy(m_ibh);
+		bgfx::destroy(m_vbh);
 
-		bgfx::destroyProgram(m_geomProgram);
-		bgfx::destroyProgram(m_lightProgram);
-		bgfx::destroyProgram(m_combineProgram);
-		bgfx::destroyProgram(m_debugProgram);
-		bgfx::destroyProgram(m_lineProgram);
+		bgfx::destroy(m_geomProgram);
+		bgfx::destroy(m_lightProgram);
+		bgfx::destroy(m_combineProgram);
+		bgfx::destroy(m_debugProgram);
+		bgfx::destroy(m_lineProgram);
 
-		bgfx::destroyTexture(m_textureColor);
-		bgfx::destroyTexture(m_textureNormal);
-		bgfx::destroyUniform(s_texColor);
-		bgfx::destroyUniform(s_texNormal);
+		bgfx::destroy(m_textureColor);
+		bgfx::destroy(m_textureNormal);
+		bgfx::destroy(s_texColor);
+		bgfx::destroy(s_texNormal);
 
-		bgfx::destroyUniform(s_albedo);
-		bgfx::destroyUniform(s_normal);
-		bgfx::destroyUniform(s_depth);
-		bgfx::destroyUniform(s_light);
+		bgfx::destroy(s_albedo);
+		bgfx::destroy(s_normal);
+		bgfx::destroy(s_depth);
+		bgfx::destroy(s_light);
 
-		bgfx::destroyUniform(u_lightPosRadius);
-		bgfx::destroyUniform(u_lightRgbInnerR);
-		bgfx::destroyUniform(u_mtx);
+		bgfx::destroy(u_lightPosRadius);
+		bgfx::destroy(u_lightRgbInnerR);
+		bgfx::destroy(u_mtx);
 
 		// Shutdown bgfx.
 		bgfx::shutdown();
@@ -357,7 +357,7 @@ public:
 		return 0;
 	}
 
-	bool update() BX_OVERRIDE
+	bool update() override
 	{
 		if (!entry::processEvents(m_width, m_height, m_debug, m_reset, &m_mouseState) )
 		{
@@ -410,7 +410,7 @@ public:
 
 					if (bgfx::isValid(m_gbuffer) )
 					{
-						bgfx::destroyFrameBuffer(m_gbuffer);
+						bgfx::destroy(m_gbuffer);
 					}
 
 					const uint32_t samplerFlags = 0
@@ -428,7 +428,7 @@ public:
 
 					if (bgfx::isValid(m_lightBuffer) )
 					{
-						bgfx::destroyFrameBuffer(m_lightBuffer);
+						bgfx::destroy(m_lightBuffer);
 					}
 
 					m_lightBuffer = bgfx::createFrameBuffer(uint16_t(m_width), uint16_t(m_height), bgfx::TextureFormat::BGRA8, samplerFlags);
