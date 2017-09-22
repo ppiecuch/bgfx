@@ -1,7 +1,0 @@
-#!/bin/bash
-export PATH=/bin:/sbin:/usr/bin
-
-PREMAKE4=../bin/premake4-osx
-
-$PREMAKE4 --gcc=ios-arm gmake && make -C ../.build/projects/gmake-ios-arm/ && open ../.build/ios-arm/bin/
-$PREMAKE4 --gcc=ios-simulator gmake && make -C ../.build/projects/gmake-ios-simulator/ && open ../.build/ios-simulator/bin/

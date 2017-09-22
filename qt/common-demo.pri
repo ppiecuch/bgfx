@@ -6,6 +6,7 @@ CONFIG += c++11 debug
 CONFIG -= app_bundle
 
 INCLUDEPATH += ../examples/common
+DEFINES += ENTRY_CONFIG_IMPLEMENT_MAIN=1
 
 # bgfx codes:
 macx|ios: SOURCES += ../src/amalgamated.mm
@@ -18,6 +19,7 @@ SOURCES += \
     ../examples/common/bounds.cpp \
     ../examples/common/camera.cpp \
     ../examples/common/cube_atlas.cpp \
+    ../examples/common/example-glue.cpp \
     ../examples/common/qt_io.cpp \
     ../examples/common/bgfx_utils.cpp \
     \
@@ -65,7 +67,6 @@ HEADERS += \
     ../examples/common/imgui/droidsans.ttf.h \
     ../examples/common/imgui/roboto_regular.ttf.h \
     ../examples/common/imgui/robotomono_regular.ttf.h \
-    ../examples/common/imgui/ocornut_imgui.h \
     ../examples/common/imgui/imgui.h \
     ../examples/common/imgui/scintilla.h \
     \
@@ -76,7 +77,37 @@ HEADERS += \
     ../3rdparty/ib-compress/readbitstream.h \
     ../3rdparty/ib-compress/writebitstream.h
 
-RESOURCES += assets.qrc runtime.qrc
+# build game resources:
+RES_EXT = .rcc
+RES_RCC = $$PWD/assets.rcc $$PWD/runtime.rcc
+RES_QRC = $$PWD/assets.qrc $$PWD/runtime.qrc
+makeResRcc.name = Build rcc resources
+makeResRcc.input = RES_QRC
+makeResRcc.output = $${PWD}/${QMAKE_FILE_IN_BASE}$${RES_EXT}
+makeResRcc.commands =  $$[QT_INSTALL_PREFIX]/bin/rcc -binary "${QMAKE_FILE_IN}" -o "${QMAKE_FILE_OUT}"
+makeResRcc.CONFIG += target_predeps
+makeResRcc.variable_out = OTHER_FILES
+QMAKE_EXTRA_COMPILERS += makeResRcc
+
+mac:CONFIG(app_bundle):equals(TEMPLATE, "app") {
+	QMAKE_MACOSX_DEPLOYMENT_TARGET = 10.8
+
+    copydata.commands = $(COPY_DIR) $$RES_RCC $$DESTDIR/$${TARGET}.app/Contents/MacOS
+    first.depends = $(first) copydata
+
+    export(first.depends)
+    export(copydata.commands)
+
+    QMAKE_EXTRA_TARGETS += first copydata
+} else {
+    copydata.commands = $(COPY_DIR) $$RES_RCC $$DESTDIR
+    first.depends = $(first) copydata
+
+    export(first.depends)
+    export(copydata.commands)
+
+    QMAKE_EXTRA_TARGETS += first copydata
+}
 
 win32 {
     run_file=$$DESTDIR/$${TARGET}.cmd
