@@ -360,6 +360,9 @@ INSTANTIATE_TEST_CASE_P(
 INSTANTIATE_TEST_CASE_P(
     Glsl, CompileOpenGLToSpirvTest,
     ::testing::ValuesIn(std::vector<std::string>({
+        "spv.460.frag",
+        "spv.460.vert",
+        "spv.460.comp",
         "spv.atomic.comp",
         "spv.glFragColor.frag",
         "spv.specConst.vert",
@@ -403,8 +406,10 @@ INSTANTIATE_TEST_CASE_P(
     Glsl, CompileVulkanToSpirvTestAMD,
     ::testing::ValuesIn(std::vector<std::string>({
         "spv.float16.frag",
+        "spv.imageLoadStoreLod.frag",
         "spv.int16.frag",
         "spv.shaderBallotAMD.comp",
+        "spv.shaderFragMaskAMD.frag",
         "spv.textureGatherBiasLod.frag"
     })),
     FileNameAsCustomTestSuffix

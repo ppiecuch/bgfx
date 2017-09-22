@@ -420,6 +420,15 @@ enum TOperator {
     EOpAtomicCounterIncrement,
     EOpAtomicCounterDecrement,
     EOpAtomicCounter,
+    EOpAtomicCounterAdd,
+    EOpAtomicCounterSubtract,
+    EOpAtomicCounterMin,
+    EOpAtomicCounterMax,
+    EOpAtomicCounterAnd,
+    EOpAtomicCounterOr,
+    EOpAtomicCounterXor,
+    EOpAtomicCounterExchange,
+    EOpAtomicCounterCompSwap,
 
     EOpAny,
     EOpAll,
@@ -584,6 +593,10 @@ enum TOperator {
     EOpImageQuerySamples,
     EOpImageLoad,
     EOpImageStore,
+#ifdef AMD_EXTENSIONS
+    EOpImageLoadLod,
+    EOpImageStoreLod,
+#endif
     EOpImageAtomicAdd,
     EOpImageAtomicMin,
     EOpImageAtomicMax,
@@ -596,6 +609,9 @@ enum TOperator {
     EOpSubpassLoad,
     EOpSubpassLoadMS,
     EOpSparseImageLoad,
+#ifdef AMD_EXTENSIONS
+    EOpSparseImageLoadLod,
+#endif
 
     EOpImageGuardEnd,
 
@@ -637,6 +653,8 @@ enum TOperator {
     EOpTextureGatherLod,
     EOpTextureGatherLodOffset,
     EOpTextureGatherLodOffsets,
+    EOpFragmentMaskFetch,
+    EOpFragmentFetch,
 #endif
 
     EOpSparseTextureGuardBegin,
@@ -1016,6 +1034,9 @@ struct TCrackedTextureOp {
     bool grad;
     bool subpass;
     bool lodClamp;
+#ifdef AMD_EXTENSIONS
+    bool fragMask;
+#endif
 };
 
 //
@@ -1063,6 +1084,9 @@ public:
         cracked.grad = false;
         cracked.subpass = false;
         cracked.lodClamp = false;
+#ifdef AMD_EXTENSIONS
+        cracked.fragMask = false;
+#endif
 
         switch (op) {
         case EOpImageQuerySize:
@@ -1188,6 +1212,19 @@ public:
             cracked.gather  = true;
             cracked.offsets = true;
             cracked.lod     = true;
+            break;
+        case EOpImageLoadLod:
+        case EOpImageStoreLod:
+        case EOpSparseImageLoadLod:
+            cracked.lod = true;
+            break;
+        case EOpFragmentMaskFetch:
+            cracked.subpass = sampler.dim == EsdSubpass;
+            cracked.fragMask = true;
+            break;
+        case EOpFragmentFetch:
+            cracked.subpass = sampler.dim == EsdSubpass;
+            cracked.fragMask = true;
             break;
 #endif
         case EOpSubpassLoad:

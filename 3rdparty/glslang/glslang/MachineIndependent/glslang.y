@@ -860,6 +860,11 @@ function_header
         // Add the function as a prototype after parsing it (we do not support recursion)
         TFunction *function;
         TType type($1);
+
+        // Potentially rename shader entry point function.  No-op most of the time.
+        parseContext.renameShaderFunction($2.string);
+
+        // Make the function
         function = new TFunction($2.string, type);
         $$ = function;
     }
@@ -2872,8 +2877,10 @@ translation_unit
         parseContext.intermediate.setTreeRoot($$);
     }
     | translation_unit external_declaration {
-        $$ = parseContext.intermediate.growAggregate($1, $2);
-        parseContext.intermediate.setTreeRoot($$);
+        if ($2 != nullptr) {
+            $$ = parseContext.intermediate.growAggregate($1, $2);
+            parseContext.intermediate.setTreeRoot($$);
+        }
     }
     ;
 
@@ -2883,6 +2890,11 @@ external_declaration
     }
     | declaration {
         $$ = $1;
+    }
+    | SEMICOLON {
+        parseContext.requireProfile($1.loc, ~EEsProfile, "extraneous semicolon");
+        parseContext.profileRequires($1.loc, ~EEsProfile, 460, nullptr, "extraneous semicolon");
+        $$ = nullptr;
     }
     ;
 
