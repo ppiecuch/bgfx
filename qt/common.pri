@@ -2,8 +2,10 @@ CONFIG(c++11): C11 = -c11
 CONFIG(debug, debug|release): DBG = dbg
 else: DBG = rel
 
+bgfx_demo_combined:DEMOCOMB = -demo
+
 DESTDIR = $$PWD/build-$$[QMAKE_SPEC]$$C11
-OBJECTS_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/bgfx-objects.$$DBG
+OBJECTS_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/bgfx-objects$${DEMOCOMB}.$$DBG
 MOC_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/bgfx-objects.$$DBG
 UI_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/bgfx-objects.$$DBG
 RCC_DIR = $$PWD/build-$$[QMAKE_SPEC]$$C11/bgfx-objects.$$DBG

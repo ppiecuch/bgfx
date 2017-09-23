@@ -6,7 +6,7 @@ CONFIG += c++11 debug
 CONFIG -= app_bundle
 
 INCLUDEPATH += ../examples/common
-DEFINES += ENTRY_CONFIG_IMPLEMENT_MAIN=1
+!bgfx_demo_combined:DEFINES += ENTRY_CONFIG_IMPLEMENT_MAIN=1
 
 # bgfx codes:
 macx|ios: SOURCES += ../src/amalgamated.mm

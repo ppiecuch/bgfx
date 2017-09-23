@@ -1,6 +1,6 @@
 # Generated Sat Dec  3 19:23:42 CET 2016
 
-SOURCES += ../examples/25-c99/helloworld.c
+SOURCES += ../examples/25-c99/helloworld-c.c
 HEADERS += 
 
 include("common.pri")

@@ -35,6 +35,7 @@ SUBDIRS = \
     bgfx-picking \
     bgfx-rsm \
     bgfx-particles \
+    bgfx-demo
 
 libbgfx.file = libbgfx.pro
 bgfx-helloworld.file = bgfx-helloworld.pro
@@ -71,3 +72,4 @@ bgfx-picking.file = bgfx-picking.pro
 bgfx-rsm.file = bgfx-rsm.pro
 bgfx-particles.file = bgfx-particles.pro
 bgfx-librocket.file = bgfx-librocket.pro
+bgfx-demo.file = bgfx-demo.pro
