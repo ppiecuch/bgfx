@@ -1105,29 +1105,39 @@ struct DebugDraw
 
 	void draw(const Aabb& _aabb)
 	{
-		moveTo(_aabb.m_min[0], _aabb.m_min[1], _aabb.m_min[2]);
-		lineTo(_aabb.m_max[0], _aabb.m_min[1], _aabb.m_min[2]);
-		lineTo(_aabb.m_max[0], _aabb.m_max[1], _aabb.m_min[2]);
-		lineTo(_aabb.m_min[0], _aabb.m_max[1], _aabb.m_min[2]);
-		close();
+		const Attrib& attrib = m_attrib[m_stack];
+		if (attrib.m_wireframe)
+		{
+			moveTo(_aabb.m_min[0], _aabb.m_min[1], _aabb.m_min[2]);
+			lineTo(_aabb.m_max[0], _aabb.m_min[1], _aabb.m_min[2]);
+			lineTo(_aabb.m_max[0], _aabb.m_max[1], _aabb.m_min[2]);
+			lineTo(_aabb.m_min[0], _aabb.m_max[1], _aabb.m_min[2]);
+			close();
 
-		moveTo(_aabb.m_min[0], _aabb.m_min[1], _aabb.m_max[2]);
-		lineTo(_aabb.m_max[0], _aabb.m_min[1], _aabb.m_max[2]);
-		lineTo(_aabb.m_max[0], _aabb.m_max[1], _aabb.m_max[2]);
-		lineTo(_aabb.m_min[0], _aabb.m_max[1], _aabb.m_max[2]);
-		close();
+			moveTo(_aabb.m_min[0], _aabb.m_min[1], _aabb.m_max[2]);
+			lineTo(_aabb.m_max[0], _aabb.m_min[1], _aabb.m_max[2]);
+			lineTo(_aabb.m_max[0], _aabb.m_max[1], _aabb.m_max[2]);
+			lineTo(_aabb.m_min[0], _aabb.m_max[1], _aabb.m_max[2]);
+			close();
 
-		moveTo(_aabb.m_min[0], _aabb.m_min[1], _aabb.m_min[2]);
-		lineTo(_aabb.m_min[0], _aabb.m_min[1], _aabb.m_max[2]);
+			moveTo(_aabb.m_min[0], _aabb.m_min[1], _aabb.m_min[2]);
+			lineTo(_aabb.m_min[0], _aabb.m_min[1], _aabb.m_max[2]);
 
-		moveTo(_aabb.m_max[0], _aabb.m_min[1], _aabb.m_min[2]);
-		lineTo(_aabb.m_max[0], _aabb.m_min[1], _aabb.m_max[2]);
+			moveTo(_aabb.m_max[0], _aabb.m_min[1], _aabb.m_min[2]);
+			lineTo(_aabb.m_max[0], _aabb.m_min[1], _aabb.m_max[2]);
 
-		moveTo(_aabb.m_min[0], _aabb.m_max[1], _aabb.m_min[2]);
-		lineTo(_aabb.m_min[0], _aabb.m_max[1], _aabb.m_max[2]);
+			moveTo(_aabb.m_min[0], _aabb.m_max[1], _aabb.m_min[2]);
+			lineTo(_aabb.m_min[0], _aabb.m_max[1], _aabb.m_max[2]);
 
-		moveTo(_aabb.m_max[0], _aabb.m_max[1], _aabb.m_min[2]);
-		lineTo(_aabb.m_max[0], _aabb.m_max[1], _aabb.m_max[2]);
+			moveTo(_aabb.m_max[0], _aabb.m_max[1], _aabb.m_min[2]);
+			lineTo(_aabb.m_max[0], _aabb.m_max[1], _aabb.m_max[2]);
+		}
+		else
+		{
+			Obb obb;
+			aabbToObb(obb, _aabb);
+			draw(Mesh::Cube, obb.m_mtx, 1, false);
+		}
 	}
 
 	void draw(const Cylinder& _cylinder, bool _capsule)
@@ -2159,9 +2169,14 @@ void ddDraw(const Aabb& _aabb)
 	s_dd.draw(_aabb);
 }
 
-void ddDraw(const Cylinder& _cylinder, bool _capsule)
+void ddDraw(const Cylinder& _cylinder)
 {
-	s_dd.draw(_cylinder, _capsule);
+	s_dd.draw(_cylinder, false);
+}
+
+void ddDraw(const Capsule& _capsule)
+{
+	s_dd.draw( *( (const Cylinder*)&_capsule), true);
 }
 
 void ddDraw(const Disk& _disk)
@@ -2177,6 +2192,11 @@ void ddDraw(const Obb& _obb)
 void ddDraw(const Sphere& _sphere)
 {
 	s_dd.draw(_sphere);
+}
+
+void ddDraw(const Cone& _cone)
+{
+	ddDrawCone(_cone.m_pos, _cone.m_end, _cone.m_radius);
 }
 
 void ddDrawFrustum(const void* _viewProj)

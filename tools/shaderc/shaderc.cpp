@@ -393,7 +393,10 @@ namespace bgfx
 		replace[len] = '\0';
 
 		BX_CHECK(len >= bx::strLen(_replace), "");
-		for (const char* ptr = bx::strFind(_str, _find); NULL != ptr; ptr = bx::strFind(ptr + len, _find) )
+		for (const char* ptr = bx::strFind(_str, _find)
+			; NULL != ptr
+			; ptr = bx::strFind(ptr + len, _find)
+			)
 		{
 			bx::memCopy(const_cast<char*>(ptr), replace, len);
 		}

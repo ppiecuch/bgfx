@@ -749,7 +749,7 @@ restart:
 		}
 
 		_debug = s_debug;
-		
+
 		s_width = _width;
 		s_height = _height;
 

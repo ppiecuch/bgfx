@@ -1043,7 +1043,7 @@ namespace bgfx { namespace gl
 		glGetError(); // ignore error if glGetString returns NULL.
 		if (NULL != str)
 		{
-			return bx::hashMurmur2A(str, (uint32_t)bx::strLen(str) );
+			return bx::hash<bx::HashMurmur2A>(str, (uint32_t)bx::strLen(str) );
 		}
 
 		return 0;
@@ -1861,7 +1861,7 @@ namespace bgfx { namespace gl
 				;
 
 			if (BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES >= 31)
-			&&  0    == bx::strCmp(m_vendor,  "Imagination Technologies")
+			&&  0    == bx::strCmp(m_vendor, "Imagination Technologies")
 			&&  NULL != bx::strFind(m_version, "(SDK 3.5@3510720)") )
 			{
 				// Skip initializing extensions that are broken in emulator.
@@ -1870,7 +1870,7 @@ namespace bgfx { namespace gl
 			}
 
 			if (BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES)
-			&&  0    == bx::strCmp(m_vendor,  "Imagination Technologies")
+			&&  0    == bx::strCmp(m_vendor, "Imagination Technologies")
 			&&  NULL != bx::strFind(m_version, "1.8@905891") )
 			{
 				m_workaround.m_detachShader = false;
@@ -5531,7 +5531,7 @@ namespace bgfx { namespace gl
 	void ShaderGL::create(Memory* _mem)
 	{
 		bx::MemoryReader reader(_mem->data, _mem->size);
-		m_hash = bx::hashMurmur2A(_mem->data, _mem->size);
+		m_hash = bx::hash<bx::HashMurmur2A>(_mem->data, _mem->size);
 
 		uint32_t magic;
 		bx::read(&reader, magic);
@@ -7611,7 +7611,7 @@ namespace bgfx { namespace gl
 			m_gpuTimer.end(frameQueryIdx);
 
 			const TimerQueryGL::Result& result = m_gpuTimer.m_result[BGFX_CONFIG_MAX_VIEWS];
-			double toGpuMs = 1000.0 / 1e6;
+			double toGpuMs = 1000.0 / 1e9;
 			elapsedGpuMs   = (result.m_end - result.m_begin) * toGpuMs;
 			maxGpuElapsed  = elapsedGpuMs > maxGpuElapsed ? elapsedGpuMs : maxGpuElapsed;
 
@@ -7631,6 +7631,8 @@ namespace bgfx { namespace gl
 		perfStats.numDraw       = statsKeyType[0];
 		perfStats.numCompute    = statsKeyType[1];
 		perfStats.maxGpuLatency = maxGpuLatency;
+		perfStats.gpuMemoryMax  = -INT64_MAX;
+		perfStats.gpuMemoryUsed = -INT64_MAX;
 
 		if (_render->m_debug & (BGFX_DEBUG_IFH|BGFX_DEBUG_STATS) )
 		{

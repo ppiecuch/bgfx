@@ -162,14 +162,28 @@ void showExampleDialog(entry::AppI* _app, const char* _errorText)
 #endif // 0
 
 	const bgfx::Stats* stats = bgfx::getStats();
-	ImGui::Text("CPU %0.3f"
-		, double(stats->cpuTimeEnd-stats->cpuTimeBegin)/stats->cpuTimerFreq*1000.0
+	const double toMsCpu = 1000.0/stats->cpuTimerFreq;
+	const double toMsGpu = 1000.0/stats->gpuTimerFreq;
+	ImGui::Text("Frame %0.3f"
+		, double(stats->cpuTimeFrame)*toMsCpu
 		);
 
-	ImGui::Text("GPU %0.3f (latency: %d)"
-		, double(stats->gpuTimeEnd-stats->gpuTimeBegin)/stats->gpuTimerFreq*1000.0
+	ImGui::Text("Submit CPU %0.3f, GPU %0.3f (L: %d)"
+		, double(stats->cpuTimeEnd - stats->cpuTimeBegin)*toMsCpu
+		, double(stats->gpuTimeEnd - stats->gpuTimeBegin)*toMsGpu
 		, stats->maxGpuLatency
 		);
+
+	if (-INT64_MAX != stats->gpuMemoryUsed)
+	{
+		char tmp0[64];
+		bx::prettify(tmp0, BX_COUNTOF(tmp0), stats->gpuMemoryUsed);
+
+		char tmp1[64];
+		bx::prettify(tmp1, BX_COUNTOF(tmp1), stats->gpuMemoryMax);
+
+		ImGui::Text("GPU mem: %s / %s", tmp0, tmp1);
+	}
 
 	if (0 != stats->numViews)
 	{
@@ -188,8 +202,8 @@ void showExampleDialog(entry::AppI* _app, const char* _errorText)
 				{
 					ImGuiListClipper clipper(stats->numViews, itemHeight);
 
-					const double toCpuMs = 1000.0/stats->cpuTimerFreq;
-					const double toGpuMs = 1000.0/stats->gpuTimerFreq;
+					const double toCpuMs = 1000.0/double(stats->cpuTimerFreq);
+					const double toGpuMs = 1000.0/double(stats->gpuTimerFreq);
 					const float  scale   = 3.0f;
 
 					while (clipper.Step() )
