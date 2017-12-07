@@ -197,8 +197,8 @@ public:
 				vert->m_x = (float)x;
 				vert->m_y = m_terrain.m_heightMap[(y * s_terrainSize) + x];
 				vert->m_z = (float)y;
-				vert->m_u = (float)x / (float)s_terrainSize;
-				vert->m_v = (float)y / (float)s_terrainSize;
+				vert->m_u = (x + 0.5f) / s_terrainSize;
+				vert->m_v = (y + 0.5f) / s_terrainSize;
 
 				m_terrain.m_vertexCount++;
 			}
@@ -298,14 +298,14 @@ public:
 			{
 				int32_t brush_x = _x + area_x;
 				if (brush_x < 0
-				||  brush_x > (int32_t)s_terrainSize)
+				||  brush_x >= (int32_t)s_terrainSize)
 				{
 					continue;
 				}
 
 				int32_t brush_y = _y + area_y;
 				if (brush_y < 0
-				||  brush_y > (int32_t)s_terrainSize)
+				||  brush_y >= (int32_t)s_terrainSize)
 				{
 					continue;
 				}
@@ -319,12 +319,12 @@ public:
 				float brushAttn = m_brush.m_size - bx::fsqrt(a2 + b2);
 
 				// Raise/Lower and scale by brush power.
-				height += 0.0f < bx::fclamp(brushAttn*m_brush.m_power, 0.0f, m_brush.m_power) && m_brush.m_raise
+				height += 0.0f < bx::clamp(brushAttn*m_brush.m_power, 0.0f, m_brush.m_power) && m_brush.m_raise
 					?  1.0f
 					: -1.0f
 					;
 
-				m_terrain.m_heightMap[heightMapPos] = (uint8_t)bx::fclamp(height, 0.0f, 255.0f);
+				m_terrain.m_heightMap[heightMapPos] = (uint8_t)bx::clamp(height, 0.0f, 255.0f);
 				m_terrain.m_dirty = true;
 			}
 		}
@@ -365,9 +365,9 @@ public:
 			bx::vec3Add(pos, pos, ray_dir);
 
 			if (pos[0] < 0
-			||  pos[0] > s_terrainSize
+			||  pos[0] >= s_terrainSize
 			||  pos[2] < 0
-			||  pos[2] > s_terrainSize)
+			||  pos[2] >= s_terrainSize)
 			{
 				continue;
 			}
@@ -406,12 +406,15 @@ public:
 
 			ImGui::SetNextWindowPos(
 				  ImVec2(m_width - m_width / 5.0f - 10.0f, 10.0f)
-				, ImGuiSetCond_FirstUseEver
+				, ImGuiCond_FirstUseEver
+				);
+			ImGui::SetNextWindowSize(
+				  ImVec2(m_width / 5.0f, m_height / 3.0f)
+				, ImGuiCond_FirstUseEver
 				);
 			ImGui::Begin("Settings"
 				, NULL
-				, ImVec2(m_width / 5.0f, m_height / 3.0f)
-				, ImGuiWindowFlags_AlwaysAutoResize
+				, 0
 				);
 
 			ImGui::Separator();

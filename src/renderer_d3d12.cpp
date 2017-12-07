@@ -360,6 +360,7 @@ namespace bgfx { namespace d3d12
 	static const GUID IID_ID3D12CommandQueue        = { 0x0ec870a6, 0x5d7e, 0x4c22, { 0x8c, 0xfc, 0x5b, 0xaa, 0xe0, 0x76, 0x16, 0xed } };
 	static const GUID IID_ID3D12CommandSignature    = { 0xc36a797c, 0xec80, 0x4f0a, { 0x89, 0x85, 0xa7, 0xb2, 0x47, 0x50, 0x82, 0xd1 } };
 	static const GUID IID_ID3D12Debug               = { 0x344488b7, 0x6846, 0x474b, { 0xb9, 0x89, 0xf0, 0x27, 0x44, 0x82, 0x45, 0xe0 } };
+	static const GUID IID_ID3D12Debug1              = { 0xaffaa4ca, 0x63fe, 0x4d8e, { 0xb8, 0xad, 0x15, 0x90, 0x00, 0xaf, 0x43, 0x04 } };
 	static const GUID IID_ID3D12DescriptorHeap      = { 0x8efb471d, 0x616c, 0x4f49, { 0x90, 0xf7, 0x12, 0x7b, 0xb7, 0x63, 0xfa, 0x51 } };
 	static const GUID IID_ID3D12Device              = { 0x189819f1, 0x1db6, 0x4b57, { 0xbe, 0x54, 0x18, 0x21, 0x33, 0x9b, 0x85, 0xf7 } };
 	static const GUID IID_ID3D12Fence               = { 0x0a753dcf, 0xc4d8, 0x4b91, { 0xad, 0xf6, 0xbe, 0x5a, 0x60, 0xd9, 0x5a, 0x76 } };
@@ -724,12 +725,20 @@ namespace bgfx { namespace d3d12
 
 			if (BX_ENABLED(BGFX_CONFIG_DEBUG) )
 			{
-				ID3D12Debug* debug;
-				hr = D3D12GetDebugInterface(IID_ID3D12Debug, (void**)&debug);
+				ID3D12Debug* debug0;
+				hr = D3D12GetDebugInterface(IID_ID3D12Debug, (void**)&debug0);
 
 				if (SUCCEEDED(hr) )
 				{
-					debug->EnableDebugLayer();
+					debug0->EnableDebugLayer();
+
+					ID3D12Debug1* debug1;
+					hr = debug0->QueryInterface(IID_ID3D12Debug1, (void**)&debug1);
+	
+					if (SUCCEEDED(hr) )
+					{
+//						debug1->SetEnableGPUBasedValidation(true);
+					}
 				}
 			}
 
@@ -1086,6 +1095,7 @@ namespace bgfx { namespace d3d12
 									| BGFX_CAPS_BLEND_INDEPENDENT
 									| BGFX_CAPS_COMPUTE
 									| (m_options.ROVsSupported ? BGFX_CAPS_FRAGMENT_ORDERING : 0)
+//									| (m_architecture.UMA ? BGFX_CAPS_TEXTURE_DIRECT_ACCESS : 0)
 //									| BGFX_CAPS_SWAP_CHAIN
 									| BGFX_CAPS_TEXTURE_BLIT
 									| BGFX_CAPS_TEXTURE_READ_BACK
@@ -1476,9 +1486,10 @@ namespace bgfx { namespace d3d12
 			m_program[_handle.idx].destroy();
 		}
 
-		void createTexture(TextureHandle _handle, Memory* _mem, uint32_t _flags, uint8_t _skip) override
+		void* createTexture(TextureHandle _handle, Memory* _mem, uint32_t _flags, uint8_t _skip) override
 		{
 			m_textures[_handle.idx].create(_mem, _flags, _skip);
+			return NULL;
 		}
 
 		void updateTextureBegin(TextureHandle /*_handle*/, uint8_t /*_side*/, uint8_t /*_mip*/) override
@@ -1715,7 +1726,7 @@ namespace bgfx { namespace d3d12
 			DX_RELEASE(readback, 0);
 		}
 
-		void updateViewName(uint8_t _id, const char* _name) override
+		void updateViewName(ViewId _id, const char* _name) override
 		{
 			if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
 			{
@@ -4964,8 +4975,8 @@ data.NumQualityLevels = 0;
  				box.bottom = blit.m_srcY + height;;
  				box.back   = blit.m_srcZ + bx::uint32_imax(1, depth);
 
-				D3D12_TEXTURE_COPY_LOCATION dstLocation = { dst.m_ptr, D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX, {{}} };
-				D3D12_TEXTURE_COPY_LOCATION srcLocation = { src.m_ptr, D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX, {{}} };
+				D3D12_TEXTURE_COPY_LOCATION dstLocation = { dst.m_ptr, D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX, {{0,{DXGI_FORMAT_UNKNOWN,0,0,0,0}}} };
+				D3D12_TEXTURE_COPY_LOCATION srcLocation = { src.m_ptr, D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX, {{0,{DXGI_FORMAT_UNKNOWN,0,0,0,0}}} };
 				m_commandList->CopyTextureRegion(&dstLocation
 					, blit.m_dstX
 					, blit.m_dstY
@@ -5125,7 +5136,7 @@ data.NumQualityLevels = 0;
 
 // 			uint8_t eye = 0;
 // 			uint8_t restartState = 0;
-			viewState.m_rect = _render->m_rect[0];
+			viewState.m_rect = _render->m_view[0].m_rect;
 
 			int32_t numItems = _render->m_numRenderItems;
 			for (int32_t item = 0, restartItem = numItems; item < numItems || restartItem < numItems;)
@@ -5155,7 +5166,7 @@ data.NumQualityLevels = 0;
 					currentProgramIdx      = kInvalidHandle;
 					hasPredefined          = false;
 
-					fbh = _render->m_fb[view];
+					fbh = _render->m_view[view].m_fbh;
 					setFrameBuffer(fbh);
 
 					if (item > 1)
@@ -5165,9 +5176,9 @@ data.NumQualityLevels = 0;
 
 					profiler.begin(view);
 
-					viewState.m_rect = _render->m_rect[view];
-					const Rect& rect        = _render->m_rect[view];
-					const Rect& scissorRect = _render->m_scissor[view];
+					viewState.m_rect = _render->m_view[view].m_rect;
+					const Rect& rect        = _render->m_view[view].m_rect;
+					const Rect& scissorRect = _render->m_view[view].m_scissor;
 					viewHasScissor  = !scissorRect.isZero();
 					viewScissorRect = viewHasScissor ? scissorRect : rect;
 
@@ -5188,7 +5199,7 @@ data.NumQualityLevels = 0;
 					m_commandList->RSSetScissorRects(1, &rc);
 					restoreScissor = false;
 
-					Clear& clr = _render->m_clear[view];
+					Clear& clr = _render->m_view[view].m_clear;
 					if (BGFX_CLEAR_NONE != clr.m_flags)
 					{
 						Rect clearRect = rect;
@@ -5318,7 +5329,7 @@ data.NumQualityLevels = 0;
 					if (compute.m_uniformBegin < compute.m_uniformEnd
 					||  currentProgramIdx != key.m_program)
 					{
-						rendererUpdateUniforms(this, _render->m_uniformBuffer, compute.m_uniformBegin, compute.m_uniformEnd);
+						rendererUpdateUniforms(this, _render->m_uniformBuffer[compute.m_uniformIdx], compute.m_uniformBegin, compute.m_uniformEnd);
 
 						currentProgramIdx = key.m_program;
 						ProgramD3D12& program = m_program[currentProgramIdx];
@@ -5432,7 +5443,7 @@ data.NumQualityLevels = 0;
 					primIndex = uint8_t(pt>>BGFX_STATE_PT_SHIFT);
 				}
 
-				rendererUpdateUniforms(this, _render->m_uniformBuffer, draw.m_uniformBegin, draw.m_uniformEnd);
+				rendererUpdateUniforms(this, _render->m_uniformBuffer[draw.m_uniformIdx], draw.m_uniformBegin, draw.m_uniformEnd);
 
 				if (isValid(draw.m_stream[0].m_handle) )
 				{
@@ -5898,7 +5909,7 @@ data.NumQualityLevels = 0;
 				}
 
 				tvm.printf(10, pos++, 0x8e, "      Indices: %7d ", statsNumIndices);
-				tvm.printf(10, pos++, 0x8e, " Uniform size: %7d, Max: %7d ", _render->m_uniformEnd, _render->m_uniformMax);
+//				tvm.printf(10, pos++, 0x8e, " Uniform size: %7d, Max: %7d ", _render->m_uniformEnd, _render->m_uniformMax);
 				tvm.printf(10, pos++, 0x8e, "     DVB size: %7d ", _render->m_vboffset);
 				tvm.printf(10, pos++, 0x8e, "     DIB size: %7d ", _render->m_iboffset);
 

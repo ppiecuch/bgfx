@@ -1303,7 +1303,7 @@ struct DebugDraw
 		const Attrib& attrib = m_attrib[m_stack];
 		const uint32_t num = getCircleLod(attrib.m_lod);
 		const float step = bx::kPi * 2.0f / num;
-		_weight = bx::fclamp(_weight, 0.0f, 2.0f);
+		_weight = bx::clamp(_weight, 0.0f, 2.0f);
 
 		float udir[3];
 		float vdir[3];
@@ -1350,7 +1350,7 @@ struct DebugDraw
 		const Attrib& attrib = m_attrib[m_stack];
 		const uint32_t num = getCircleLod(attrib.m_lod);
 		const float step = bx::kPi * 2.0f / num;
-		_weight = bx::fclamp(_weight, 0.0f, 2.0f);
+		_weight = bx::clamp(_weight, 0.0f, 2.0f);
 
 		float xy0[2];
 		float xy1[2];
@@ -2239,19 +2239,9 @@ void ddDrawCone(const void* _from, const void* _to, float _radius)
 	s_dd.drawCone(_from, _to, _radius);
 }
 
-void ddDrawCylinder(const void* _from, const void* _to, float _radius, bool _capsule)
+void ddDrawCylinder(const void* _from, const void* _to, float _radius)
 {
-	if (_capsule)
-	{
-		s_dd.push();
-		s_dd.setLod(0);
-		s_dd.drawCylinder(_from, _to, _radius, true);
-		s_dd.pop();
-	}
-	else
-	{
-		s_dd.drawCylinder(_from, _to, _radius, false);
-	}
+	s_dd.drawCylinder(_from, _to, _radius, false);
 }
 
 void ddDrawCapsule(const void* _from, const void* _to, float _radius)

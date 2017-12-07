@@ -274,7 +274,7 @@ struct Camera
 		latLongFromVec(ll[0], ll[1], toPosNorm);
 		ll[0] += consume[0];
 		ll[1] -= consume[1];
-		ll[1] = bx::fclamp(ll[1], 0.02f, 0.98f);
+		ll[1] = bx::clamp(ll[1], 0.02f, 0.98f);
 
 		float tmp[3];
 		vecFromLatLong(tmp, ll[0], ll[1]);
@@ -294,7 +294,7 @@ struct Camera
 
 	void update(float _dt)
 	{
-		const float amount = bx::fmin(_dt/0.12f, 1.0f);
+		const float amount = bx::min(_dt/0.12f, 1.0f);
 
 		consumeOrbit(amount);
 
@@ -594,12 +594,15 @@ public:
 
 			ImGui::SetNextWindowPos(
 				  ImVec2(m_width - m_width / 5.0f - 10.0f, 10.0f)
-				, ImGuiSetCond_FirstUseEver
+				, ImGuiCond_FirstUseEver
+				);
+			ImGui::SetNextWindowSize(
+				  ImVec2(m_width / 5.0f, m_height - 20.0f)
+				, ImGuiCond_FirstUseEver
 				);
 			ImGui::Begin("Settings"
 				, NULL
-				, ImVec2(m_width / 5.0f, m_height - 20.0f)
-				, ImGuiWindowFlags_AlwaysAutoResize
+				, 0
 				);
 			ImGui::PushItemWidth(180.0f);
 
@@ -709,12 +712,15 @@ public:
 
 			ImGui::SetNextWindowPos(
 				  ImVec2(10.0f, 260.0f)
-				, ImGuiSetCond_FirstUseEver
+				, ImGuiCond_FirstUseEver
+				);
+			ImGui::SetNextWindowSize(
+				  ImVec2(m_width / 5.0f, 450.0f)
+				, ImGuiCond_FirstUseEver
 				);
 			ImGui::Begin("Mesh"
 				, NULL
-				, ImVec2(m_width / 5.0f, 450.0f)
-				, ImGuiWindowFlags_AlwaysAutoResize
+				, 0
 				);
 
 			ImGui::Text("Mesh:");
@@ -825,7 +831,7 @@ public:
 			bgfx::setViewRect(1, 0, 0, uint16_t(m_width), uint16_t(m_height) );
 
 			// Env rotation.
-			const float amount = bx::fmin(deltaTimeSec/0.12f, 1.0f);
+			const float amount = bx::min(deltaTimeSec/0.12f, 1.0f);
 			m_settings.m_envRotCurr = bx::flerp(m_settings.m_envRotCurr, m_settings.m_envRotDest, amount);
 
 			// Env mtx.

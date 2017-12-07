@@ -1378,6 +1378,23 @@ bool HlslGrammar::acceptType(TType& type, TIntermNode*& nodeList)
         }
     }
 
+    bool isUnorm = false;
+    bool isSnorm = false;
+
+    // Accept snorm and unorm.  Presently, this is ignored, save for an error check below.
+    switch (peek()) {
+    case EHTokUnorm:
+        isUnorm = true;
+        advanceToken();  // eat the token
+        break;
+    case EHTokSNorm:
+        isSnorm = true;
+        advanceToken();  // eat the token
+        break;
+    default:
+        break;
+    }
+
     switch (peek()) {
     case EHTokVector:
         return acceptVectorTemplateType(type);
@@ -1451,6 +1468,10 @@ bool HlslGrammar::acceptType(TType& type, TIntermNode*& nodeList)
     case EHTokRWStructuredBuffer:
     case EHTokStructuredBuffer:
         return acceptStructBufferType(type);
+        break;
+
+    case EHTokTextureBuffer:
+        return acceptTextureBufferType(type);
         break;
 
     case EHTokConstantBuffer:
@@ -1968,6 +1989,11 @@ bool HlslGrammar::acceptType(TType& type, TIntermNode*& nodeList)
 
     advanceToken();
 
+    if ((isUnorm || isSnorm) && !type.isFloatingDomain()) {
+        parseContext.error(token.loc, "unorm and snorm only valid in floating point domain", "", "");
+        return false;
+    }
+
     return true;
 }
 
@@ -2003,10 +2029,18 @@ bool HlslGrammar::acceptStruct(TType& type, TIntermNode*& nodeList)
 
     // Now known to be one of CBUFFER, TBUFFER, CLASS, or STRUCT
 
-    // IDENTIFIER
+
+    // IDENTIFIER.  It might also be a keyword which can double as an identifier.
+    // For example:  'cbuffer ConstantBuffer' or 'struct ConstantBuffer' is legal.
+    // 'cbuffer int' is also legal, and 'struct int' appears rejected only because
+    // it attempts to redefine the 'int' type.
+    const char* idString = getTypeString(peek());
     TString structName = "";
-    if (peekTokenClass(EHTokIdentifier)) {
-        structName = *token.string;
+    if (peekTokenClass(EHTokIdentifier) || idString != nullptr) {
+        if (idString != nullptr)
+            structName = *idString;
+        else
+            structName = *token.string;
         advanceToken();
     }
 
@@ -2126,6 +2160,43 @@ bool HlslGrammar::acceptConstantBufferType(TType& type)
         return false;
     }
 }
+
+// texture_buffer
+//    : TEXTUREBUFFER LEFT_ANGLE type RIGHT_ANGLE
+bool HlslGrammar::acceptTextureBufferType(TType& type)
+{
+    if (! acceptTokenClass(EHTokTextureBuffer))
+        return false;
+
+    if (! acceptTokenClass(EHTokLeftAngle)) {
+        expected("left angle bracket");
+        return false;
+    }
+    
+    TType templateType;
+    if (! acceptType(templateType)) {
+        expected("type");
+        return false;
+    }
+
+    if (! acceptTokenClass(EHTokRightAngle)) {
+        expected("right angle bracket");
+        return false;
+    }
+
+    templateType.getQualifier().storage = EvqBuffer;
+    templateType.getQualifier().readonly = true;
+
+    TType blockType(templateType.getWritableStruct(), "", templateType.getQualifier());
+
+    blockType.getQualifier().storage = EvqBuffer;
+    blockType.getQualifier().readonly = true;
+
+    type.shallowCopy(blockType);
+
+    return true;
+}
+
 
 // struct_buffer
 //    : APPENDSTRUCTUREDBUFFER
@@ -2426,6 +2497,9 @@ bool HlslGrammar::acceptDefaultParameterDeclaration(const TType& type, TIntermTy
         node = parseContext.handleFunctionCall(token.loc, constructor, node);
     }
 
+    if (node == nullptr)
+        return false;
+
     // If this is simply a constant, we can use it directly.
     if (node->getAsConstantUnion())
         return true;
@@ -2552,6 +2626,8 @@ bool HlslGrammar::acceptFunctionBody(TFunctionDeclarator& declarator, TIntermNod
 //
 bool HlslGrammar::acceptParenExpression(TIntermTyped*& expression)
 {
+    expression = nullptr;
+
     // LEFT_PAREN
     if (! acceptTokenClass(EHTokLeftParen))
         expected("(");
@@ -2862,7 +2938,7 @@ bool HlslGrammar::acceptUnaryExpression(TIntermTyped*& node)
                 parseContext.handleFunctionArgument(constructorFunction, arguments, node);
                 node = parseContext.handleFunctionCall(loc, constructorFunction, arguments);
 
-                return true;
+                return node != nullptr;
             } else {
                 // This could be a parenthesized constructor, ala (int(3)), and we just accepted
                 // the '(int' part.  We must back up twice.
@@ -3072,7 +3148,7 @@ bool HlslGrammar::acceptConstructor(TIntermTyped*& node)
         // hook it up
         node = parseContext.handleFunctionCall(arguments->getLoc(), constructorFunction, arguments);
 
-        return true;
+        return node != nullptr;
     }
 
     return false;
@@ -3120,7 +3196,7 @@ bool HlslGrammar::acceptFunctionCall(const TSourceLoc& loc, TString& name, TInte
     // call
     node = parseContext.handleFunctionCall(loc, function, arguments);
 
-    return true;
+    return node != nullptr;
 }
 
 // arguments
@@ -3600,7 +3676,6 @@ bool HlslGrammar::acceptIterationStatement(TIntermNode*& statement, const TAttri
         }
 
         // LEFT_PAREN condition RIGHT_PAREN
-        TIntermTyped* condition;
         if (! acceptParenExpression(condition))
             return false;
         condition = parseContext.convertConditionalExpression(loc, condition);
@@ -3990,6 +4065,7 @@ const char* HlslGrammar::getTypeString(EHlslTokenClass tokenClass) const
     case EHTokMin10float: return "min10float";
     case EHTokMin16int:   return "min16int";
     case EHTokMin12int:   return "min12int";
+    case EHTokConstantBuffer: return "ConstantBuffer";
     default:
         return nullptr;
     }

@@ -544,7 +544,7 @@ struct ClearValues
 	uint8_t  m_clearStencil;
 };
 
-void submit(uint8_t _id, bgfx::ProgramHandle _handle, int32_t _depth = 0)
+void submit(bgfx::ViewId _id, bgfx::ProgramHandle _handle, int32_t _depth = 0)
 {
 	bgfx::submit(_id, _handle, _depth);
 
@@ -552,7 +552,7 @@ void submit(uint8_t _id, bgfx::ProgramHandle _handle, int32_t _depth = 0)
 	s_viewMask |= 1 << _id;
 }
 
-void touch(uint8_t _id)
+void touch(bgfx::ViewId _id)
 {
 	bgfx::ProgramHandle handle = BGFX_INVALID_HANDLE;
 	::submit(_id, handle);
@@ -1786,7 +1786,7 @@ void createNearClipVolume(float* __restrict _outPlanes24f
 bool clipTest(const float* _planes, uint8_t _planeNum, const Mesh& _mesh, const float* _scale, const float* _translate)
 {
 	float (*volumePlanes)[4] = (float(*)[4])_planes;
-	float scale = bx::fmax(bx::fmax(_scale[0], _scale[1]), _scale[2]);
+	float scale = bx::max(_scale[0], _scale[1], _scale[2]);
 
 	const GroupArray& groups = _mesh.m_groups;
 	for (GroupArray::const_iterator it = groups.begin(), itEnd = groups.end(); it != itEnd; ++it)
@@ -2164,11 +2164,17 @@ public:
 
 			showExampleDialog(this);
 
-			ImGui::SetNextWindowPos(ImVec2(m_viewState.m_width - 256.0f, 10.0f) );
+			ImGui::SetNextWindowPos(
+				  ImVec2(m_viewState.m_width - 256.0f, 10.0f)
+				, ImGuiCond_FirstUseEver
+				);
+			ImGui::SetNextWindowSize(
+				  ImVec2(256.0f, 700.0f)
+				, ImGuiCond_FirstUseEver
+				);
 			ImGui::Begin("Settings"
 				, NULL
-				, ImVec2(256.0f, 700.0f)
-				, ImGuiWindowFlags_AlwaysAutoResize
+				, 0
 				);
 
 			const char* titles[2] =
@@ -2266,11 +2272,17 @@ public:
 
 			ImGui::End();
 
-			ImGui::SetNextWindowPos(ImVec2(10, float(m_viewState.m_height) - 77.0f - 10.0f) );
+			ImGui::SetNextWindowPos(
+				  ImVec2(10, float(m_viewState.m_height) - 77.0f - 10.0f)
+				, ImGuiCond_FirstUseEver
+				);
+			ImGui::SetNextWindowSize(
+				  ImVec2(120.0f, 77.0f)
+				, ImGuiCond_FirstUseEver
+				);
 			ImGui::Begin("Show help:"
 				, NULL
-				, ImVec2(120.0f, 77.0f)
-				, ImGuiWindowFlags_AlwaysAutoResize
+				, 0
 				);
 
 			if (ImGui::Button(m_showHelp ? "ON" : "OFF") )
