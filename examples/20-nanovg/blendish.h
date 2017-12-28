@@ -29,11 +29,6 @@ THE SOFTWARE.
 #error "nanovg.h must be included first."
 #endif
 
-#ifndef __QNXNTO__
-# define fmaxf bx::fmax
-# define fminf bx::fmin
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif

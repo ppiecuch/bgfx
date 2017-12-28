@@ -104,8 +104,6 @@ namespace entry
 			, m_aspectRatio(16.0f/9.0f)
             , m_scroll(0) 
         { 
-            m_window[handle.idx];
-
             connect(this, SIGNAL(signalWindowCreate(WindowHandle, const Msg)), this, SLOT(onWindowCreateEvent(WindowHandle, const Msg)));
             connect(this, SIGNAL(signalWindowDestroy(WindowHandle)), this, SLOT(onWindowDestroyEvent(WindowHandle)));
             connect(this, SIGNAL(signalWindowSetTitle(WindowHandle, const Msg)), this, SLOT(onWindowSetTitleEvent(WindowHandle, const Msg)));

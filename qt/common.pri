@@ -21,6 +21,8 @@ DEFINES += \
  
 INCLUDEPATH += \
     $$PWD/../3rdparty/bx/include \
+    $$PWD/../3rdparty/bx/3rdparty \
+    $$PWD/../3rdparty/khronos \
     $$PWD/../3rdparty/khronos \
     $$PWD/../3rdparty \
     $$PWD/../include
