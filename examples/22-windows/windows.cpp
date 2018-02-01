@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2017 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -167,7 +167,7 @@ public:
 
 	bool update() override
 	{
-		if ( !entry::processWindowEvents(m_state, m_debug, m_reset) )
+		if (!entry::processWindowEvents(m_state, m_debug, m_reset) )
 		{
 			entry::MouseState mouseState = m_state.m_mouse;
 
@@ -274,7 +274,7 @@ public:
 			else
 			{
 				bool blink = uint32_t(time*3.0f)&1;
-				bgfx::dbgTextPrintf(0, 0, blink ? 0x1f : 0x01, " Multiple windows is not supported by `%s` renderer. ", bgfx::getRendererName(bgfx::getCaps()->rendererType) );
+				bgfx::dbgTextPrintf(0, 0, blink ? 0x4f : 0x04, " Multiple windows is not supported by `%s` renderer. ", bgfx::getRendererName(bgfx::getCaps()->rendererType) );
 			}
 
 			uint32_t count = 0;

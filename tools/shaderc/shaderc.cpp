@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2017 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -18,7 +18,7 @@ extern "C"
 #define BGFX_CHUNK_MAGIC_VSH BX_MAKEFOURCC('V', 'S', 'H', 0x5)
 
 #define BGFX_SHADERC_VERSION_MAJOR 1
-#define BGFX_SHADERC_VERSION_MINOR 6
+#define BGFX_SHADERC_VERSION_MINOR 8
 
 namespace bgfx
 {
@@ -816,7 +816,7 @@ namespace bgfx
 
 		fprintf(stderr
 			, "shaderc, bgfx shader compiler tool, version %d.%d.%d.\n"
-			  "Copyright 2011-2017 Branimir Karadzic. All rights reserved.\n"
+			  "Copyright 2011-2018 Branimir Karadzic. All rights reserved.\n"
 			  "License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause\n\n"
 			, BGFX_SHADERC_VERSION_MAJOR
 			, BGFX_SHADERC_VERSION_MINOR
@@ -1792,6 +1792,11 @@ namespace bgfx
 						{
 							std::string code;
 
+							if (NULL != bx::strFind(preprocessor.m_preprocessed.c_str(), "layout(std430") )
+							{
+								glsl = 430;
+							}
+
 							if (glsl < 400)
 							{
 								const bool usesTextureLod   = false
@@ -2004,6 +2009,15 @@ namespace bgfx
 							else
 							{
 								bx::stringPrintf(code, "#version %d\n", glsl);
+
+								bx::stringPrintf(code
+									, "#define texture2DLod      textureLod\n"
+									  "#define texture2DGrad     textureGrad\n"
+									  "#define texture2DProjLod  textureProjLod\n"
+									  "#define texture2DProjGrad textureProjGrad\n"
+									  "#define textureCubeLod    textureLod\n"
+									  "#define textureCubeGrad   textureGrad\n"
+									);
 							}
 
 							code += preprocessor.m_preprocessed;
@@ -2188,11 +2202,11 @@ namespace bgfx
 			}
 		}
 
-		bool depends = cmdLine.hasArg("depends");
+		options.depends = cmdLine.hasArg("depends");
 		options.preprocessOnly = cmdLine.hasArg("preprocess");
 		const char* includeDir = cmdLine.findOption('i');
 
-		BX_TRACE("depends: %d", depends);
+		BX_TRACE("depends: %d", options.depends);
 		BX_TRACE("preprocessOnly: %d", options.preprocessOnly);
 		BX_TRACE("includeDir: %s", includeDir);
 

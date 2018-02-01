@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2017 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -227,7 +227,7 @@ namespace entry
 			*_pressedChar = (uint8_t)keyChar;
 
 			int keyCode = keyChar;
-			*specialKeys = translateModifiers([event modifierFlags]);
+			*specialKeys = translateModifiers(int([event modifierFlags]));
 
 			// if this is a unhandled key just return None
 			if (keyCode < 256)
@@ -472,7 +472,10 @@ namespace entry
 			thread.init(mte.threadFunc, &mte);
 
 			WindowHandle handle = { 0 };
-			m_eventQueue.postSizeEvent(handle, ENTRY_DEFAULT_WIDTH, ENTRY_DEFAULT_HEIGHT);
+			NSRect contentRect = [window contentRectForFrameRect: m_windowFrame];
+			uint32_t width = uint32_t(contentRect.size.width);
+			uint32_t height = uint32_t(contentRect.size.height);
+			m_eventQueue.postSizeEvent(handle, width, height);
 
 			while (!(m_exit = [dg applicationHasTerminated]) )
 			{
@@ -593,16 +596,9 @@ namespace entry
 		}
 	}
 
-	void toggleWindowFrame(WindowHandle _handle)
+	void setWindowFlags(WindowHandle _handle, uint32_t _flags, bool _enabled)
 	{
-		if (s_ctx.isValid(_handle) )
-		{
-			s_ctx.m_style ^= NSTitledWindowMask;
-			dispatch_async(dispatch_get_main_queue()
-			, ^{
-				[s_ctx.m_window[_handle.idx] setStyleMask: s_ctx.m_style];
-			});
-		}
+		BX_UNUSED(_handle, _flags, _enabled);
 	}
 
 	void toggleFullscreen(WindowHandle _handle)

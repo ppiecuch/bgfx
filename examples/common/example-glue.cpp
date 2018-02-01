@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2017 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -228,8 +228,10 @@ void showExampleDialog(entry::AppI* _app, const char* _errorText)
 	const bgfx::Stats* stats = bgfx::getStats();
 	const double toMsCpu = 1000.0/stats->cpuTimerFreq;
 	const double toMsGpu = 1000.0/stats->gpuTimerFreq;
-	ImGui::Text("Frame %0.3f"
-		, double(stats->cpuTimeFrame)*toMsCpu
+	const double frameMs = double(stats->cpuTimeFrame)*toMsCpu;
+	ImGui::Text("Frame %0.3f [ms], %0.3f FPS"
+		, frameMs
+		, 1000.0/frameMs
 		);
 
 	ImGui::Text("Submit CPU %0.3f, GPU %0.3f (L: %d)"
@@ -382,9 +384,8 @@ void showExampleDialog(entry::AppI* _app, const char* _errorText)
 					ImGui::EndChild();
 				}
 			}
-
-			ImGui::End();
 		}
+		ImGui::End();
 	}
 
 	ImGui::End();

@@ -1,5 +1,5 @@
 --
--- Copyright 2010-2017 Branimir Karadzic. All rights reserved.
+-- Copyright 2010-2018 Branimir Karadzic. All rights reserved.
 -- License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
 --
 
@@ -76,7 +76,6 @@ function bgfxProjectBase(_kind, _defines)
 
 		includedirs {
 			path.join(BGFX_DIR, "3rdparty"),
-			path.join(BGFX_DIR, "3rdparty/dxsdk/include"),
 			path.join(BX_DIR,   "include"),
 			path.join(BIMG_DIR, "include"),
 		}
@@ -119,6 +118,11 @@ function bgfxProjectBase(_kind, _defines)
 		configuration { "Debug" }
 			defines {
 				"BGFX_CONFIG_DEBUG=1",
+			}
+
+		configuration { "vs* or mingw*", "not durango" }
+			includedirs {
+				path.join(BGFX_DIR, "3rdparty/dxsdk/include"),
 			}
 
 		configuration { "android*" }

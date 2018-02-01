@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2017 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -653,25 +653,26 @@ namespace bgfx
 			float m_v;
 		};
 
-		static uint32_t palette[16] =
+		static uint32_t palette[] =
 		{
-			0x0,
-			0xff0000cc,
-			0xff069a4e,
-			0xff00a0c4,
-			0xffa46534,
-			0xff7b5075,
-			0xff9a9806,
-			0xffcfd7d3,
-			0xff535755,
-			0xff2929ef,
-			0xff34e28a,
-			0xff4fe9fc,
-			0xffcf9f72,
-			0xffa87fad,
-			0xffe2e234,
-			0xffeceeee,
+			0x0,        // Black
+			0xffa46534, // Blue
+			0xff069a4e, // Green
+			0xff9a9806, // Cyan
+			0xff0000cc, // Red
+			0xff7b5075, // Magenta
+			0xff00a0c4, // Brown
+			0xffcfd7d3, // Light Gray
+			0xff535755, // Dark Gray
+			0xffcf9f72, // Light Blue
+			0xff34e28a, // Light Green
+			0xffe2e234, // Light Cyan
+			0xff2929ef, // Light Red
+			0xffa87fad, // Light Magenta
+			0xff4fe9fc, // Yellow
+			0xffeceeee, // White
 		};
+		BX_STATIC_ASSERT(BX_COUNTOF(palette) == 16);
 
 		uint32_t yy = 0;
 		uint32_t xx = 0;
@@ -1771,6 +1772,10 @@ namespace bgfx
 			--m_colorPaletteDirty;
 			bx::memCopy(m_submit->m_colorPalette, m_clearColor, sizeof(m_clearColor) );
 		}
+
+		freeAllHandles(m_submit);
+		m_submit->resetFreeHandles();
+
 		m_submit->finish();
 
 		bx::xchg(m_render, m_submit);
@@ -1787,9 +1792,7 @@ namespace bgfx
 		m_submit->start();
 
 		bx::memSet(m_seq, 0, sizeof(m_seq) );
-		freeAllHandles(m_submit);
 
-		m_submit->resetFreeHandles();
 		m_submit->m_textVideoMem->resize(m_render->m_textVideoMem->m_small
 			, m_resolution.m_width
 			, m_resolution.m_height
@@ -2842,6 +2845,7 @@ error:
 		case ErrorState::ContextAllocated:
 			BX_ALIGNED_DELETE(g_allocator, s_ctx, 64);
 			s_ctx = NULL;
+			BX_FALLTHROUGH;
 
 		case ErrorState::Default:
 			if (NULL != s_callbackStub)
@@ -3068,6 +3072,7 @@ error:
 
 	void Encoder::setTexture(uint8_t _stage, UniformHandle _sampler, TextureHandle _handle, uint32_t _flags)
 	{
+		BGFX_CHECK_HANDLE("setTexture/UniformHandle", s_ctx->m_uniformHandle, _sampler);
 		BGFX_CHECK_HANDLE_INVALID_OK("setTexture/TextureHandle", s_ctx->m_textureHandle, _handle);
 		BX_CHECK(_stage < BGFX_CONFIG_MAX_TEXTURE_SAMPLERS, "Invalid stage %d (max %d).", _stage, BGFX_CONFIG_MAX_TEXTURE_SAMPLERS);
 		BGFX_ENCODER(setTexture(_stage, _sampler, _handle, _flags) );
@@ -3143,9 +3148,10 @@ error:
 		BGFX_ENCODER(setBuffer(_stage, handle, _access) );
 	}
 
-	void Encoder::setImage(uint8_t _stage, UniformHandle _sampler, TextureHandle _handle, uint8_t _mip, Access::Enum _access, TextureFormat::Enum _format)
+	void Encoder::setImage(uint8_t _stage, TextureHandle _handle, uint8_t _mip, Access::Enum _access, TextureFormat::Enum _format)
 	{
 		BX_CHECK(_stage < BGFX_CONFIG_MAX_TEXTURE_SAMPLERS, "Invalid stage %d (max %d).", _stage, BGFX_CONFIG_MAX_TEXTURE_SAMPLERS);
+		BGFX_CHECK_HANDLE_INVALID_OK("setImage/TextureHandle", s_ctx->m_textureHandle, _handle);
 		_format = TextureFormat::Count == _format
 			? TextureFormat::Enum(s_ctx->m_textureRef[_handle.idx].m_format)
 			: _format
@@ -3153,7 +3159,7 @@ error:
 		BX_CHECK(_format != TextureFormat::BGRA8
 			, "Can't use TextureFormat::BGRA8 with compute, use TextureFormat::RGBA8 instead."
 			);
-		BGFX_ENCODER(setImage(_stage, _sampler, _handle, _mip, _access, _format) );
+		BGFX_ENCODER(setImage(_stage, _handle, _mip, _access, _format) );
 	}
 
 	void Encoder::dispatch(ViewId _id, ProgramHandle _program, uint32_t _numX, uint32_t _numY, uint32_t _numZ, uint8_t _flags)
@@ -4275,10 +4281,10 @@ error:
 		s_ctx->m_encoder0->setBuffer(_stage, _handle, _access);
 	}
 
-	void setImage(uint8_t _stage, UniformHandle _sampler, TextureHandle _handle, uint8_t _mip, Access::Enum _access, TextureFormat::Enum _format)
+	void setImage(uint8_t _stage, TextureHandle _handle, uint8_t _mip, Access::Enum _access, TextureFormat::Enum _format)
 	{
 		BGFX_CHECK_API_THREAD();
-		s_ctx->m_encoder0->setImage(_stage, _sampler, _handle, _mip, _access, _format);
+		s_ctx->m_encoder0->setImage(_stage, _handle, _mip, _access, _format);
 	}
 
 	void dispatch(ViewId _id, ProgramHandle _handle, uint32_t _numX, uint32_t _numY, uint32_t _numZ, uint8_t _flags)
@@ -4658,7 +4664,7 @@ BGFX_C_API bool bgfx_init(bgfx_renderer_type_t _type, uint16_t _vendorId, uint16
 		);
 }
 
-BGFX_C_API void bgfx_shutdown()
+BGFX_C_API void bgfx_shutdown(void)
 {
 	return bgfx::shutdown();
 }
@@ -4673,22 +4679,22 @@ BGFX_C_API uint32_t bgfx_frame(bool _capture)
 	return bgfx::frame(_capture);
 }
 
-BGFX_C_API bgfx_renderer_type_t bgfx_get_renderer_type()
+BGFX_C_API bgfx_renderer_type_t bgfx_get_renderer_type(void)
 {
 	return bgfx_renderer_type_t(bgfx::getRendererType() );
 }
 
-BGFX_C_API const bgfx_caps_t* bgfx_get_caps()
+BGFX_C_API const bgfx_caps_t* bgfx_get_caps(void)
 {
 	return (const bgfx_caps_t*)bgfx::getCaps();
 }
 
-BGFX_C_API const bgfx_hmd_t* bgfx_get_hmd()
+BGFX_C_API const bgfx_hmd_t* bgfx_get_hmd(void)
 {
 	return (const bgfx_hmd_t*)bgfx::getHMD();
 }
 
-BGFX_C_API const bgfx_stats_t* bgfx_get_stats()
+BGFX_C_API const bgfx_stats_t* bgfx_get_stats(void)
 {
 	return (const bgfx_stats_t*)bgfx::getStats();
 }
@@ -5079,7 +5085,7 @@ BGFX_C_API void bgfx_destroy_uniform(bgfx_uniform_handle_t _handle)
 	bgfx::destroy(handle.cpp);
 }
 
-BGFX_C_API bgfx_occlusion_query_handle_t bgfx_create_occlusion_query()
+BGFX_C_API bgfx_occlusion_query_handle_t bgfx_create_occlusion_query(void)
 {
 	union { bgfx_occlusion_query_handle_t c; bgfx::OcclusionQueryHandle cpp; } handle;
 	handle.cpp = bgfx::createOcclusionQuery();
@@ -5299,11 +5305,10 @@ BGFX_C_API void bgfx_submit_indirect(bgfx_view_id_t _id, bgfx_program_handle_t _
 	bgfx::submit(_id, handle.cpp, indirectHandle.cpp, _start, _num, _depth, _preserveState);
 }
 
-BGFX_C_API void bgfx_set_image(uint8_t _stage, bgfx_uniform_handle_t _sampler, bgfx_texture_handle_t _handle, uint8_t _mip, bgfx_access_t _access, bgfx_texture_format_t _format)
+BGFX_C_API void bgfx_set_image(uint8_t _stage, bgfx_texture_handle_t _handle, uint8_t _mip, bgfx_access_t _access, bgfx_texture_format_t _format)
 {
-	union { bgfx_uniform_handle_t c; bgfx::UniformHandle cpp; } sampler = { _sampler };
 	union { bgfx_texture_handle_t c; bgfx::TextureHandle cpp; } handle  = { _handle  };
-	bgfx::setImage(_stage, sampler.cpp, handle.cpp, _mip, bgfx::Access::Enum(_access), bgfx::TextureFormat::Enum(_format) );
+	bgfx::setImage(_stage, handle.cpp, _mip, bgfx::Access::Enum(_access), bgfx::TextureFormat::Enum(_format) );
 }
 
 BGFX_C_API void bgfx_set_compute_index_buffer(uint8_t _stage, bgfx_index_buffer_handle_t _handle, bgfx_access_t _access)
@@ -5349,7 +5354,7 @@ BGFX_C_API void bgfx_dispatch_indirect(bgfx_view_id_t _id, bgfx_program_handle_t
 	bgfx::dispatch(_id, handle.cpp, indirectHandle.cpp, _start, _num, _flags);
 }
 
-BGFX_C_API void bgfx_discard()
+BGFX_C_API void bgfx_discard(void)
 {
 	bgfx::discard();
 }
@@ -5498,11 +5503,10 @@ BGFX_C_API void bgfx_encoder_submit_indirect(bgfx_encoder* _encoder, bgfx_view_i
 	BGFX_ENCODER(submit(_id, handle.cpp, indirectHandle.cpp, _start, _num, _depth, _preserveState) );
 }
 
-BGFX_C_API void bgfx_encoder_set_image(bgfx_encoder* _encoder, uint8_t _stage, bgfx_uniform_handle_t _sampler, bgfx_texture_handle_t _handle, uint8_t _mip, bgfx_access_t _access, bgfx_texture_format_t _format)
+BGFX_C_API void bgfx_encoder_set_image(bgfx_encoder* _encoder, uint8_t _stage, bgfx_texture_handle_t _handle, uint8_t _mip, bgfx_access_t _access, bgfx_texture_format_t _format)
 {
-	union { bgfx_uniform_handle_t c; bgfx::UniformHandle cpp; } sampler = { _sampler };
 	union { bgfx_texture_handle_t c; bgfx::TextureHandle cpp; } handle  = { _handle  };
-	BGFX_ENCODER(setImage(_stage, sampler.cpp, handle.cpp, _mip, bgfx::Access::Enum(_access), bgfx::TextureFormat::Enum(_format) ) );
+	BGFX_ENCODER(setImage(_stage, handle.cpp, _mip, bgfx::Access::Enum(_access), bgfx::TextureFormat::Enum(_format) ) );
 }
 
 BGFX_C_API void bgfx_encoder_set_compute_index_buffer(bgfx_encoder* _encoder, uint8_t _stage, bgfx_index_buffer_handle_t _handle, bgfx_access_t _access)

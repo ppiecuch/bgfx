@@ -376,10 +376,8 @@ bool HlslGrammar::acceptDeclaration(TIntermNode*& nodeList)
 
     bool forbidDeclarators = (peekTokenClass(EHTokCBuffer) || peekTokenClass(EHTokTBuffer));
     // fully_specified_type
-    if (! acceptFullySpecifiedType(declaredType, nodeList))
+    if (! acceptFullySpecifiedType(declaredType, nodeList, declarator.attributes, forbidDeclarators))
         return false;
-
-    parseContext.transferTypeAttributes(declarator.attributes, declaredType);
 
     // cbuffer and tbuffer end with the closing '}'.
     // No semicolon is included.
@@ -538,10 +536,11 @@ bool HlslGrammar::acceptDeclaration(TIntermNode*& nodeList)
 bool HlslGrammar::acceptControlDeclaration(TIntermNode*& node)
 {
     node = nullptr;
+    TAttributeMap attributes;
 
     // fully_specified_type
     TType type;
-    if (! acceptFullySpecifiedType(type))
+    if (! acceptFullySpecifiedType(type, attributes))
         return false;
 
     // filter out type casts
@@ -579,12 +578,12 @@ bool HlslGrammar::acceptControlDeclaration(TIntermNode*& node)
 //      : type_specifier
 //      | type_qualifier type_specifier
 //
-bool HlslGrammar::acceptFullySpecifiedType(TType& type)
+bool HlslGrammar::acceptFullySpecifiedType(TType& type, const TAttributeMap& attributes)
 {
     TIntermNode* nodeList = nullptr;
-    return acceptFullySpecifiedType(type, nodeList);
+    return acceptFullySpecifiedType(type, nodeList, attributes);
 }
-bool HlslGrammar::acceptFullySpecifiedType(TType& type, TIntermNode*& nodeList)
+bool HlslGrammar::acceptFullySpecifiedType(TType& type, TIntermNode*& nodeList, const TAttributeMap& attributes, bool forbidDeclarators)
 {
     // type_qualifier
     TQualifier qualifier;
@@ -603,11 +602,18 @@ bool HlslGrammar::acceptFullySpecifiedType(TType& type, TIntermNode*& nodeList)
 
         return false;
     }
+
     if (type.getBasicType() == EbtBlock) {
         // the type was a block, which set some parts of the qualifier
         parseContext.mergeQualifiers(type.getQualifier(), qualifier);
+    
+        // merge in the attributes
+        parseContext.transferTypeAttributes(attributes, type);
+
         // further, it can create an anonymous instance of the block
-        if (peek() != EHTokIdentifier)
+        // (cbuffer and tbuffer don't consume the next identifier, and
+        // should set forbidDeclarators)
+        if (forbidDeclarators || peek() != EHTokIdentifier)
             parseContext.declareBlock(loc, type);
     } else {
         // Some qualifiers are set when parsing the type.  Merge those with
@@ -626,7 +632,10 @@ bool HlslGrammar::acceptFullySpecifiedType(TType& type, TIntermNode*& nodeList)
         if (type.isBuiltIn())
             qualifier.builtIn = type.getQualifier().builtIn;
 
-        type.getQualifier()    = qualifier;
+        type.getQualifier() = qualifier;
+
+        // merge in the attributes
+        parseContext.transferTypeAttributes(attributes, type);
     }
 
     return true;
@@ -2333,12 +2342,10 @@ bool HlslGrammar::acceptStructDeclarationList(TTypeList*& typeList, TIntermNode*
 
         // fully_specified_type
         TType memberType;
-        if (! acceptFullySpecifiedType(memberType, nodeList)) {
+        if (! acceptFullySpecifiedType(memberType, nodeList, attributes)) {
             expected("member type");
             return false;
         }
-
-        parseContext.transferTypeAttributes(attributes, memberType);
 
         // struct_declarator COMMA struct_declarator ...
         bool functionDefinitionAccepted = false;
@@ -2540,10 +2547,8 @@ bool HlslGrammar::acceptParameterDeclaration(TFunction& function)
 
     // fully_specified_type
     TType* type = new TType;
-    if (! acceptFullySpecifiedType(*type))
+    if (! acceptFullySpecifiedType(*type, attributes))
         return false;
-
-    parseContext.transferTypeAttributes(attributes, *type);
 
     // identifier
     HlslToken idToken;
@@ -3046,6 +3051,8 @@ bool HlslGrammar::acceptPostfixExpression(TIntermTyped*& node)
         }
         if (! peekTokenClass(EHTokLeftParen)) {
             node = parseContext.handleVariable(idToken.loc, fullName);
+            if (node == nullptr)
+                return false;
         } else if (acceptFunctionCall(idToken.loc, *fullName, node, nullptr)) {
             // function_call (nothing else to do yet)
         } else {
@@ -3779,9 +3786,17 @@ bool HlslGrammar::acceptJumpStatement(TIntermNode*& statement)
     switch (jump) {
     case EHTokContinue:
         statement = intermediate.addBranch(EOpContinue, token.loc);
+        if (parseContext.loopNestingLevel == 0) {
+            expected("loop");
+            return false;
+        }
         break;
     case EHTokBreak:
         statement = intermediate.addBranch(EOpBreak, token.loc);
+        if (parseContext.loopNestingLevel == 0 && parseContext.switchSequenceStack.size() == 0) {
+            expected("loop or switch");
+            return false;
+        }
         break;
     case EHTokDiscard:
         statement = intermediate.addBranch(EOpKill, token.loc);
@@ -4074,6 +4089,7 @@ const char* HlslGrammar::getTypeString(EHlslTokenClass tokenClass) const
     case EHTokMin16int:   return "min16int";
     case EHTokMin12int:   return "min12int";
     case EHTokConstantBuffer: return "ConstantBuffer";
+    case EHTokLayout:     return "layout";
     default:
         return nullptr;
     }

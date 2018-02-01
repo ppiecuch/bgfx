@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2017 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -387,7 +387,7 @@ public:
 				// When multiple render targets (MRT) is not supported by GPU,
 				// implement alternative code path that doesn't use MRT.
 				bool blink = uint32_t(time*3.0f)&1;
-				bgfx::dbgTextPrintf(0, 0, blink ? 0x1f : 0x01, " MRT not supported by GPU. ");
+				bgfx::dbgTextPrintf(0, 0, blink ? 0x4f : 0x04, " MRT not supported by GPU. ");
 
 				// Set view 0 default viewport.
 				bgfx::setViewRect(0, 0, 0, uint16_t(m_width), uint16_t(m_height) );
@@ -548,10 +548,10 @@ public:
 				{
 					Sphere lightPosRadius;
 
-					float lightTime = time * m_lightAnimationSpeed * (bx::fsin(light/float(m_numLights) * bx::kPiHalf ) * 0.5f + 0.5f);
-					lightPosRadius.m_center[0] = bx::fsin( ( (lightTime + light*0.47f) + bx::kPiHalf*1.37f ) )*offset;
-					lightPosRadius.m_center[1] = bx::fcos( ( (lightTime + light*0.69f) + bx::kPiHalf*1.49f ) )*offset;
-					lightPosRadius.m_center[2] = bx::fsin( ( (lightTime + light*0.37f) + bx::kPiHalf*1.57f ) )*2.0f;
+					float lightTime = time * m_lightAnimationSpeed * (bx::sin(light/float(m_numLights) * bx::kPiHalf ) * 0.5f + 0.5f);
+					lightPosRadius.m_center[0] = bx::sin( ( (lightTime + light*0.47f) + bx::kPiHalf*1.37f ) )*offset;
+					lightPosRadius.m_center[1] = bx::cos( ( (lightTime + light*0.69f) + bx::kPiHalf*1.49f ) )*offset;
+					lightPosRadius.m_center[2] = bx::sin( ( (lightTime + light*0.37f) + bx::kPiHalf*1.57f ) )*2.0f;
 					lightPosRadius.m_radius = 2.0f;
 
 					Aabb aabb;

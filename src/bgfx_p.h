@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2017 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -450,7 +450,7 @@ namespace bgfx
 		if (_hasMips)
 		{
 			const uint32_t max = bx::uint32_max(bx::uint32_max(_width, _height), _depth);
-			const uint32_t num = 1 + uint32_t(bx::flog2(float(max) ) );
+			const uint32_t num = 1 + uint32_t(bx::log2(float(max) ) );
 
 			return uint8_t(num);
 		}
@@ -1195,9 +1195,11 @@ namespace bgfx
 	public:
 		static UniformBuffer* create(uint32_t _size = 1<<20)
 		{
-			uint32_t size = BX_ALIGN_16(bx::uint32_max(_size, sizeof(UniformBuffer) ) );
-			void*    data = BX_ALLOC(g_allocator, size);
-			return BX_PLACEMENT_NEW(data, UniformBuffer)(_size);
+			const uint32_t structSize = sizeof(UniformBuffer)-sizeof(UniformBuffer::m_buffer);
+
+			uint32_t size = BX_ALIGN_16(_size);
+			void*    data = BX_ALLOC(g_allocator, size+structSize);
+			return BX_PLACEMENT_NEW(data, UniformBuffer)(size);
 		}
 
 		static void destroy(UniformBuffer* _uniformBuffer)
@@ -1211,8 +1213,9 @@ namespace bgfx
 			UniformBuffer* uniformBuffer = *_uniformBuffer;
 			if (_treshold >= uniformBuffer->m_size - uniformBuffer->m_pos)
 			{
-				uint32_t size = BX_ALIGN_16(bx::uint32_max(uniformBuffer->m_size + _grow, sizeof(UniformBuffer) ) );
-				void*    data = BX_REALLOC(g_allocator, uniformBuffer, size);
+				const uint32_t structSize = sizeof(UniformBuffer)-sizeof(UniformBuffer::m_buffer);
+				uint32_t size = BX_ALIGN_16(uniformBuffer->m_size + _grow);
+				void*    data = BX_REALLOC(g_allocator, uniformBuffer, size+structSize);
 				uniformBuffer = reinterpret_cast<UniformBuffer*>(data);
 				uniformBuffer->m_size = size;
 
@@ -1300,7 +1303,7 @@ namespace bgfx
 
 	private:
 		UniformBuffer(uint32_t _size)
-			: m_size(_size-sizeof(m_buffer) )
+			: m_size(_size)
 			, m_pos(0)
 		{
 			finish();
@@ -1312,7 +1315,7 @@ namespace bgfx
 
 		uint32_t m_size;
 		uint32_t m_pos;
-		char m_buffer[8];
+		char m_buffer[256<<20];
 	};
 
 	struct UniformRegInfo
@@ -2227,7 +2230,7 @@ namespace bgfx
 			bind.m_un.m_compute.m_mip    = 0;
 		}
 
-		void setImage(uint8_t _stage, UniformHandle _sampler, TextureHandle _handle, uint8_t _mip, Access::Enum _access, TextureFormat::Enum _format)
+		void setImage(uint8_t _stage, TextureHandle _handle, uint8_t _mip, Access::Enum _access, TextureFormat::Enum _format)
 		{
 			Binding& bind = m_bind.m_bind[_stage];
 			bind.m_idx    = _handle.idx;
@@ -2235,12 +2238,6 @@ namespace bgfx
 			bind.m_un.m_compute.m_format = uint8_t(_format);
 			bind.m_un.m_compute.m_access = uint8_t(_access);
 			bind.m_un.m_compute.m_mip    = _mip;
-
-			if (isValid(_sampler) )
-			{
-				uint32_t stage = _stage;
-				setUniform(UniformType::Int1, _sampler, &stage, 1);
-			}
 		}
 
 		void discard()
@@ -4296,7 +4293,7 @@ namespace bgfx
 
 		BGFX_API_FUNC(void setViewClear(ViewId _id, uint16_t _flags, uint32_t _rgba, float _depth, uint8_t _stencil) )
 		{
-			BX_CHECK(bx::fequal(_depth, bx::clamp(_depth, 0.0f, 1.0f), 0.0001f)
+			BX_CHECK(bx::equal(_depth, bx::clamp(_depth, 0.0f, 1.0f), 0.0001f)
 				, "Clear depth value must be between 0.0 and 1.0 (_depth %f)."
 				, _depth
 				);
@@ -4306,7 +4303,7 @@ namespace bgfx
 
 		BGFX_API_FUNC(void setViewClear(ViewId _id, uint16_t _flags, float _depth, uint8_t _stencil, uint8_t _0, uint8_t _1, uint8_t _2, uint8_t _3, uint8_t _4, uint8_t _5, uint8_t _6, uint8_t _7) )
 		{
-			BX_CHECK(bx::fequal(_depth, bx::clamp(_depth, 0.0f, 1.0f), 0.0001f)
+			BX_CHECK(bx::equal(_depth, bx::clamp(_depth, 0.0f, 1.0f), 0.0001f)
 				, "Clear depth value must be between 0.0 and 1.0 (_depth %f)."
 				, _depth
 				);

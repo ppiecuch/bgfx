@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2017 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -130,7 +130,7 @@ public:
 		bgfx::reset(m_width, m_height, m_reset);
 
 		const bgfx::Caps* caps = bgfx::getCaps();
-		m_maxDim = (int32_t)bx::fpow(float(caps->limits.maxDrawCalls), 1.0f/3.0f);
+		m_maxDim = (int32_t)bx::pow(float(caps->limits.maxDrawCalls), 1.0f/3.0f);
 
 		// Enable debug text.
 		bgfx::setDebug(m_debug);

@@ -1,4 +1,4 @@
-// dear imgui, v1.53
+// dear imgui, v1.54 WIP
 // (drawing and font code)
 
 // Contains implementation for
@@ -42,7 +42,9 @@
 #pragma clang diagnostic ignored "-Wfloat-equal"            // warning : comparing floating point with == or != is unsafe   // storing and comparing against same constants ok.
 #pragma clang diagnostic ignored "-Wglobal-constructors"    // warning : declaration requires a global destructor           // similar to above, not sure what the exact difference it.
 #pragma clang diagnostic ignored "-Wsign-conversion"        // warning : implicit conversion changes signedness             //
+#if __has_warning("-Wcomma")
 #pragma clang diagnostic ignored "-Wcomma"                  // warning : possible misuse of comma operator here             //
+#endif
 #if __has_warning("-Wreserved-id-macro")
 #pragma clang diagnostic ignored "-Wreserved-id-macro"      // warning : macro name is a reserved identifier                //
 #endif
@@ -349,7 +351,7 @@ void ImDrawList::AddDrawCmd()
     ImDrawCmd draw_cmd;
     draw_cmd.ClipRect = GetCurrentClipRect();
     draw_cmd.TextureId = GetCurrentTextureId();
-    draw_cmd.ViewId = (unsigned char)(GImGui->Style.ViewId);
+    draw_cmd.ViewId = (unsigned short)(GImGui->Style.ViewId);
 
     IM_ASSERT(draw_cmd.ClipRect.x <= draw_cmd.ClipRect.z && draw_cmd.ClipRect.y <= draw_cmd.ClipRect.w);
     CmdBuffer.push_back(draw_cmd);
@@ -484,7 +486,7 @@ void ImDrawList::ChannelsSplit(int channels_count)
             ImDrawCmd draw_cmd;
             draw_cmd.ClipRect = _ClipRectStack.back();
             draw_cmd.TextureId = _TextureIdStack.back();
-            draw_cmd.ViewId = (unsigned char)(GImGui->Style.ViewId);
+            draw_cmd.ViewId = (unsigned short)(GImGui->Style.ViewId);
             _Channels[i].CmdBuffer.push_back(draw_cmd);
         }
     }
@@ -1352,7 +1354,6 @@ static const ImVec2 FONT_ATLAS_DEFAULT_TEX_CURSOR_DATA[ImGuiMouseCursor_Count_][
     { ImVec2(55,0), ImVec2(17,17), ImVec2( 9, 9) }, // ImGuiMouseCursor_ResizeNWSE
 };
 
-
 ImFontAtlas::ImFontAtlas()
 {
     TexID = NULL;
@@ -1361,7 +1362,8 @@ ImFontAtlas::ImFontAtlas()
     TexPixelsAlpha8 = NULL;
     TexPixelsRGBA32 = NULL;
     TexWidth = TexHeight = 0;
-    TexUvWhitePixel = ImVec2(0, 0);
+    TexUvScale = ImVec2(0.0f, 0.0f);
+    TexUvWhitePixel = ImVec2(0.0f, 0.0f);
     for (int n = 0; n < IM_ARRAYSIZE(CustomRectIds); n++)
         CustomRectIds[n] = -1;
 }
@@ -1439,13 +1441,16 @@ void    ImFontAtlas::GetTexDataAsRGBA32(unsigned char** out_pixels, int* out_wid
     // Although it is likely to be the most commonly used format, our font rendering is 1 channel / 8 bpp
     if (!TexPixelsRGBA32)
     {
-        unsigned char* pixels;
+        unsigned char* pixels = NULL;
         GetTexDataAsAlpha8(&pixels, NULL, NULL);
-        TexPixelsRGBA32 = (unsigned int*)ImGui::MemAlloc((size_t)(TexWidth * TexHeight * 4));
-        const unsigned char* src = pixels;
-        unsigned int* dst = TexPixelsRGBA32;
-        for (int n = TexWidth * TexHeight; n > 0; n--)
-            *dst++ = IM_COL32(255, 255, 255, (unsigned int)(*src++));
+        if (pixels)
+        {
+            TexPixelsRGBA32 = (unsigned int*)ImGui::MemAlloc((size_t)(TexWidth * TexHeight * 4));
+            const unsigned char* src = pixels;
+            unsigned int* dst = TexPixelsRGBA32;
+            for (int n = TexWidth * TexHeight; n > 0; n--)
+                *dst++ = IM_COL32(255, 255, 255, (unsigned int)(*src++));
+        }
     }
 
     *out_pixels = (unsigned char*)TexPixelsRGBA32;
@@ -1602,8 +1607,27 @@ void ImFontAtlas::CalcCustomRectUV(const CustomRect* rect, ImVec2* out_uv_min, I
 {
     IM_ASSERT(TexWidth > 0 && TexHeight > 0);   // Font atlas needs to be built before we can calculate UV coordinates
     IM_ASSERT(rect->IsPacked());                // Make sure the rectangle has been packed
-    *out_uv_min = ImVec2((float)rect->X / TexWidth, (float)rect->Y / TexHeight);
-    *out_uv_max = ImVec2((float)(rect->X + rect->Width) / TexWidth, (float)(rect->Y + rect->Height) / TexHeight);
+    *out_uv_min = ImVec2((float)rect->X * TexUvScale.x, (float)rect->Y * TexUvScale.y);
+    *out_uv_max = ImVec2((float)(rect->X + rect->Width) * TexUvScale.x, (float)(rect->Y + rect->Height) * TexUvScale.y);
+}
+
+bool ImFontAtlas::GetMouseCursorTexData(ImGuiMouseCursor cursor_type, ImVec2* out_offset, ImVec2* out_size, ImVec2 out_uv_border[2], ImVec2 out_uv_fill[2])
+{
+    if (cursor_type <= ImGuiMouseCursor_None || cursor_type >= ImGuiMouseCursor_Count_)
+        return false;
+
+    ImFontAtlas::CustomRect& r = CustomRects[CustomRectIds[0]];
+    IM_ASSERT(r.ID == FONT_ATLAS_DEFAULT_TEX_DATA_ID);
+    ImVec2 pos = FONT_ATLAS_DEFAULT_TEX_CURSOR_DATA[cursor_type][0] + ImVec2((float)r.X, (float)r.Y);
+    ImVec2 size = FONT_ATLAS_DEFAULT_TEX_CURSOR_DATA[cursor_type][1];
+    *out_size = size;
+    *out_offset = FONT_ATLAS_DEFAULT_TEX_CURSOR_DATA[cursor_type][2];
+    out_uv_border[0] = (pos) * TexUvScale;
+    out_uv_border[1] = (pos + size) * TexUvScale;
+    pos.x += FONT_ATLAS_DEFAULT_TEX_DATA_W_HALF + 1;
+    out_uv_fill[0] = (pos) * TexUvScale;
+    out_uv_fill[1] = (pos + size) * TexUvScale;
+    return true;
 }
 
 bool    ImFontAtlas::Build()
@@ -1636,7 +1660,8 @@ bool    ImFontAtlasBuildWithStbTruetype(ImFontAtlas* atlas)
 
     atlas->TexID = NULL;
     atlas->TexWidth = atlas->TexHeight = 0;
-    atlas->TexUvWhitePixel = ImVec2(0, 0);
+    atlas->TexUvScale = ImVec2(0.0f, 0.0f);
+    atlas->TexUvWhitePixel = ImVec2(0.0f, 0.0f);
     atlas->ClearTexData();
 
     // Count glyphs/ranges
@@ -1685,6 +1710,7 @@ bool    ImFontAtlasBuildWithStbTruetype(ImFontAtlas* atlas)
         IM_ASSERT(font_offset >= 0);
         if (!stbtt_InitFont(&tmp.FontInfo, (unsigned char*)cfg.FontData, font_offset))
         {
+            atlas->TexWidth = atlas->TexHeight = 0; // Reset output on failure
             ImGui::MemFree(tmp_array);
             return false;
         }
@@ -1744,6 +1770,7 @@ bool    ImFontAtlasBuildWithStbTruetype(ImFontAtlas* atlas)
 
     // Create texture
     atlas->TexHeight = ImUpperPowerOfTwo(atlas->TexHeight);
+    atlas->TexUvScale = ImVec2(1.0f / atlas->TexWidth, 1.0f / atlas->TexHeight);
     atlas->TexPixelsAlpha8 = (unsigned char*)ImGui::MemAlloc(atlas->TexWidth * atlas->TexHeight);
     memset(atlas->TexPixelsAlpha8, 0, atlas->TexWidth * atlas->TexHeight);
     spc.pixels = atlas->TexPixelsAlpha8;
@@ -1885,24 +1912,7 @@ static void ImFontAtlasBuildRenderDefaultTexData(ImFontAtlas* atlas)
             atlas->TexPixelsAlpha8[offset0] = FONT_ATLAS_DEFAULT_TEX_DATA_PIXELS[n] == '.' ? 0xFF : 0x00;
             atlas->TexPixelsAlpha8[offset1] = FONT_ATLAS_DEFAULT_TEX_DATA_PIXELS[n] == 'X' ? 0xFF : 0x00;
         }
-    const ImVec2 tex_uv_scale(1.0f / atlas->TexWidth, 1.0f / atlas->TexHeight);
-    atlas->TexUvWhitePixel = ImVec2((r.X + 0.5f) * tex_uv_scale.x, (r.Y + 0.5f) * tex_uv_scale.y);
-
-    // Setup mouse cursors
-    for (int type = 0; type < ImGuiMouseCursor_Count_; type++)
-    {
-        ImGuiMouseCursorData& cursor_data = GImGui->MouseCursorData[type];
-        ImVec2 pos = FONT_ATLAS_DEFAULT_TEX_CURSOR_DATA[type][0] + ImVec2((float)r.X, (float)r.Y);
-        const ImVec2 size = FONT_ATLAS_DEFAULT_TEX_CURSOR_DATA[type][1];
-        cursor_data.Type = type;
-        cursor_data.Size = size;
-        cursor_data.HotOffset = FONT_ATLAS_DEFAULT_TEX_CURSOR_DATA[type][2];
-        cursor_data.TexUvMin[0] = (pos) * tex_uv_scale;
-        cursor_data.TexUvMax[0] = (pos + size) * tex_uv_scale;
-        pos.x += FONT_ATLAS_DEFAULT_TEX_DATA_W_HALF + 1;
-        cursor_data.TexUvMin[1] = (pos) * tex_uv_scale;
-        cursor_data.TexUvMax[1] = (pos + size) * tex_uv_scale;
-    }
+    atlas->TexUvWhitePixel = ImVec2((r.X + 0.5f) * atlas->TexUvScale.x, (r.Y + 0.5f) * atlas->TexUvScale.y);
 }
 
 void ImFontAtlasBuildFinish(ImFontAtlas* atlas)
