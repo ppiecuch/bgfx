@@ -1537,6 +1537,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				{
 					g_caps.supported |= BGFX_CAPS_TEXTURE_COMPARE_ALL;
 					g_caps.limits.maxTextureSize   = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+					g_caps.limits.maxTextureLayers = D3D11_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION;
 					g_caps.limits.maxFBAttachments = uint8_t(bx::uint32_min(
 						  D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT
 						, BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS
@@ -2379,8 +2380,8 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			vp.MaxDepth = 1.0f;
 			deviceCtx->RSSetViewports(1, &vp);
 
-			uint64_t state = BGFX_STATE_RGB_WRITE
-				| BGFX_STATE_ALPHA_WRITE
+			uint64_t state = BGFX_STATE_WRITE_RGB
+				| BGFX_STATE_WRITE_A
 				| BGFX_STATE_DEPTH_TEST_ALWAYS
 				;
 
@@ -3088,16 +3089,11 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				drt->DestBlendAlpha = s_blendFactor[dstA][1];
 				drt->BlendOpAlpha   = s_blendEquation[equA];
 
-				uint8_t writeMask = (_state&BGFX_STATE_ALPHA_WRITE)
-					? D3D11_COLOR_WRITE_ENABLE_ALPHA
-					: 0
-					;
-				writeMask |= (_state&BGFX_STATE_RGB_WRITE)
-					? D3D11_COLOR_WRITE_ENABLE_RED
-					| D3D11_COLOR_WRITE_ENABLE_GREEN
-					| D3D11_COLOR_WRITE_ENABLE_BLUE
-					: 0
-					;
+				uint8_t writeMask = 0;
+				writeMask |= (_state&BGFX_STATE_WRITE_R) ? D3D11_COLOR_WRITE_ENABLE_RED   : 0;
+				writeMask |= (_state&BGFX_STATE_WRITE_G) ? D3D11_COLOR_WRITE_ENABLE_GREEN : 0;
+				writeMask |= (_state&BGFX_STATE_WRITE_B) ? D3D11_COLOR_WRITE_ENABLE_BLUE  : 0;
+				writeMask |= (_state&BGFX_STATE_WRITE_A) ? D3D11_COLOR_WRITE_ENABLE_ALPHA : 0;
 
 				drt->RenderTargetWriteMask = writeMask;
 
@@ -3180,7 +3176,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				D3D11_DEPTH_STENCIL_DESC desc;
 				bx::memSet(&desc, 0, sizeof(desc) );
 				desc.DepthEnable    = 0 != func;
-				desc.DepthWriteMask = !!(BGFX_STATE_DEPTH_WRITE & _state) ? D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK_ZERO;
+				desc.DepthWriteMask = !!(BGFX_STATE_WRITE_Z & _state) ? D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK_ZERO;
 				desc.DepthFunc      = s_cmpFunc[func];
 
 				uint32_t bstencil     = unpackStencil(1, _stencil);
@@ -3751,8 +3747,8 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				ID3D11DeviceContext* deviceCtx = m_deviceCtx;
 
 				uint64_t state = 0;
-				state |= _clear.m_flags & BGFX_CLEAR_COLOR ? BGFX_STATE_RGB_WRITE|BGFX_STATE_ALPHA_WRITE : 0;
-				state |= _clear.m_flags & BGFX_CLEAR_DEPTH ? BGFX_STATE_DEPTH_TEST_ALWAYS|BGFX_STATE_DEPTH_WRITE : 0;
+				state |= _clear.m_flags & BGFX_CLEAR_COLOR ? BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A         : 0;
+				state |= _clear.m_flags & BGFX_CLEAR_DEPTH ? BGFX_STATE_DEPTH_TEST_ALWAYS|BGFX_STATE_WRITE_Z : 0;
 
 				uint64_t stencil = 0;
 				stencil |= _clear.m_flags & BGFX_CLEAR_STENCIL ? 0
@@ -4936,7 +4932,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				srvd.Format = getSrvFormat();
 			}
 
-			bool directAccess = s_renderD3D11->m_directAccessSupport
+			const bool directAccess = s_renderD3D11->m_directAccessSupport
 				&& !renderTarget
 				&& !readBack
 				&& !blit
@@ -5159,7 +5155,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		box.left   = _rect.m_x;
 		box.top    = _rect.m_y;
 		box.right  = box.left + _rect.m_width;
-		box.bottom = box.top + _rect.m_height;
+		box.bottom = box.top  + _rect.m_height;
 
 		uint32_t layer = 0;
 
@@ -5176,6 +5172,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		}
 
 		const uint32_t subres = _mip + ( (layer + _side) * m_numMips);
+		const bool     depth  = bimg::isDepth(bimg::TextureFormat::Enum(m_textureFormat) );
 		const uint32_t bpp    = bimg::getBitsPerPixel(bimg::TextureFormat::Enum(m_textureFormat) );
 		const uint32_t rectpitch  = _rect.m_width*bpp/8;
 		const uint32_t srcpitch   = UINT16_MAX == _pitch ? rectpitch : _pitch;
@@ -5196,7 +5193,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		deviceCtx->UpdateSubresource(
 			  m_ptr
 			, subres
-			, &box
+			, depth ? NULL : &box
 			, data
 			, srcpitch
 			, TextureD3D11::Texture3D == m_type ? slicepitch : 0

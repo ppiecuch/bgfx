@@ -650,6 +650,7 @@ namespace bgfx { namespace d3d12
 			, m_vsChanges(0)
 			, m_backBufferColorIdx(0)
 			, m_rtMsaa(false)
+			, m_directAccessSupport(false)
 		{
 		}
 
@@ -836,28 +837,42 @@ namespace bgfx { namespace d3d12
 				}
 			}
 
-			if (BX_ENABLED(BGFX_CONFIG_DEBUG) )
+			if (BX_ENABLED(BGFX_CONFIG_DEBUG||BGFX_CONFIG_DEBUG_PIX) )
 			{
 				ID3D12Debug* debug0;
 				hr = D3D12GetDebugInterface(IID_ID3D12Debug, (void**)&debug0);
 
 				if (SUCCEEDED(hr) )
 				{
-					debug0->EnableDebugLayer();
+					if (BX_ENABLED(BGFX_CONFIG_DEBUG) )
+					{
+						debug0->EnableDebugLayer();
 
 #if BX_PLATFORM_WINDOWS
-					{
-						ID3D12Debug1* debug1;
-						hr = debug0->QueryInterface(IID_ID3D12Debug1, (void**)&debug1);
-
-						if (SUCCEEDED(hr) )
 						{
-//							debug1->SetEnableGPUBasedValidation(true);
-//							debug1->SetEnableSynchronizedCommandQueueValidation(true);
+							ID3D12Debug1* debug1;
+							hr = debug0->QueryInterface(IID_ID3D12Debug1, (void**)&debug1);
+
+							if (SUCCEEDED(hr) )
+							{
+//								debug1->SetEnableGPUBasedValidation(true);
+//								debug1->SetEnableSynchronizedCommandQueueValidation(true);
+							}
 						}
-					}
+#elif BX_PLATFORM_XBOXONE
+						debug0->SetProcessDebugFlags(D3D12_PROCESS_DEBUG_FLAG_DEBUG_LAYER_ENABLED);
 #endif // BX_PLATFORM_WINDOWS
+					}
+
+#if BX_PLATFORM_XBOXONE
+					if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
+					{
+						// https://github.com/Microsoft/Xbox-ATG-Samples/blob/76d236e3bd372aceec18b2ad0556a7879dbd9628/XDKSamples/IntroGraphics/SimpleTriangle12/DeviceResources.cpp#L67
+						debug0->SetProcessDebugFlags(D3D12XBOX_PROCESS_DEBUG_FLAG_INSTRUMENTED);
+					}
+#endif // BX_PLATFORM_XBOXONE
 				}
+
 			}
 
 			{
@@ -1258,6 +1273,11 @@ namespace bgfx { namespace d3d12
 					, (void**)&m_rootSignature
 					) );
 
+				m_directAccessSupport = true
+					&& BX_ENABLED(BX_PLATFORM_XBOXONE)
+					&& m_architecture.UMA
+					;
+
 				g_caps.supported |= ( 0
 					| BGFX_CAPS_TEXTURE_3D
 					| BGFX_CAPS_TEXTURE_COMPARE_ALL
@@ -1267,8 +1287,8 @@ namespace bgfx { namespace d3d12
 					| BGFX_CAPS_FRAGMENT_DEPTH
 					| BGFX_CAPS_BLEND_INDEPENDENT
 					| BGFX_CAPS_COMPUTE
-					| (m_options.ROVsSupported ? BGFX_CAPS_FRAGMENT_ORDERING : 0)
-//					| (m_architecture.UMA ? BGFX_CAPS_TEXTURE_DIRECT_ACCESS : 0)
+					| (m_options.ROVsSupported ? BGFX_CAPS_FRAGMENT_ORDERING     : 0)
+					| (m_directAccessSupport   ? BGFX_CAPS_TEXTURE_DIRECT_ACCESS : 0)
 					| (BX_ENABLED(BX_PLATFORM_WINDOWS) ? BGFX_CAPS_SWAP_CHAIN : 0)
 					| BGFX_CAPS_TEXTURE_BLIT
 					| BGFX_CAPS_TEXTURE_READ_BACK
@@ -1277,7 +1297,8 @@ namespace bgfx { namespace d3d12
 					| BGFX_CAPS_TEXTURE_2D_ARRAY
 					| BGFX_CAPS_TEXTURE_CUBE_ARRAY
 					);
-				g_caps.limits.maxTextureSize   = 16384;
+				g_caps.limits.maxTextureSize   = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+				g_caps.limits.maxTextureLayers = D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION;
 				g_caps.limits.maxFBAttachments = uint8_t(bx::uint32_min(16, BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS) );
 				g_caps.limits.maxVertexStreams = BGFX_CONFIG_MAX_VERTEX_STREAMS;
 
@@ -1529,7 +1550,7 @@ namespace bgfx { namespace d3d12
 
 			m_cmd.shutdown();
 
-			DX_RELEASE(m_device, 0);
+			DX_RELEASE(m_device,  0);
 			DX_RELEASE(m_adapter, 0);
 			DX_RELEASE(m_factory, 0);
 
@@ -1993,8 +2014,8 @@ namespace bgfx { namespace d3d12
 			m_commandList->RSSetScissorRects(1, &rc);
 
 			const uint64_t state = 0
-				| BGFX_STATE_RGB_WRITE
-				| BGFX_STATE_ALPHA_WRITE
+				| BGFX_STATE_WRITE_RGB
+				| BGFX_STATE_WRITE_A
 				| BGFX_STATE_DEPTH_TEST_ALWAYS
 				;
 
@@ -2511,16 +2532,11 @@ data.NumQualityLevels = 0;
 				drt->BlendOpAlpha   = s_blendEquation[equA];
 			}
 
-			uint8_t writeMask = (_state & BGFX_STATE_ALPHA_WRITE)
-					? D3D12_COLOR_WRITE_ENABLE_ALPHA
-					: 0
-					;
-			writeMask |= (_state & BGFX_STATE_RGB_WRITE)
-					? D3D12_COLOR_WRITE_ENABLE_RED
-					| D3D12_COLOR_WRITE_ENABLE_GREEN
-					| D3D12_COLOR_WRITE_ENABLE_BLUE
-					: 0
-					;
+			uint8_t writeMask = 0;
+			writeMask |= (_state & BGFX_STATE_WRITE_R) ? D3D12_COLOR_WRITE_ENABLE_RED   : 0;
+			writeMask |= (_state & BGFX_STATE_WRITE_G) ? D3D12_COLOR_WRITE_ENABLE_GREEN : 0;
+			writeMask |= (_state & BGFX_STATE_WRITE_B) ? D3D12_COLOR_WRITE_ENABLE_BLUE  : 0;
+			writeMask |= (_state & BGFX_STATE_WRITE_A) ? D3D12_COLOR_WRITE_ENABLE_ALPHA : 0;
 
 			drt->LogicOp = D3D12_LOGIC_OP_CLEAR;
 			drt->RenderTargetWriteMask = writeMask;
@@ -2588,7 +2604,7 @@ data.NumQualityLevels = 0;
 			bx::memSet(&_desc, 0, sizeof(_desc) );
 			uint32_t func = (_state&BGFX_STATE_DEPTH_TEST_MASK)>>BGFX_STATE_DEPTH_TEST_SHIFT;
 			_desc.DepthEnable = 0 != func;
-			_desc.DepthWriteMask = !!(BGFX_STATE_DEPTH_WRITE & _state)
+			_desc.DepthWriteMask = !!(BGFX_STATE_WRITE_Z & _state)
 				? D3D12_DEPTH_WRITE_MASK_ALL
 				: D3D12_DEPTH_WRITE_MASK_ZERO
 				;
@@ -2744,9 +2760,9 @@ data.NumQualityLevels = 0;
 			ProgramD3D12& program = m_program[_programIdx];
 
 			_state &= 0
-				| BGFX_STATE_RGB_WRITE
-				| BGFX_STATE_ALPHA_WRITE
-				| BGFX_STATE_DEPTH_WRITE
+				| BGFX_STATE_WRITE_RGB
+				| BGFX_STATE_WRITE_A
+				| BGFX_STATE_WRITE_Z
 				| BGFX_STATE_DEPTH_TEST_MASK
 				| BGFX_STATE_BLEND_MASK
 				| BGFX_STATE_BLEND_EQUATION_MASK
@@ -3327,6 +3343,7 @@ data.NumQualityLevels = 0;
 		FrameBufferHandle m_fbh;
 		uint32_t m_backBufferColorIdx;
 		bool m_rtMsaa;
+		bool m_directAccessSupport;
 	};
 
 	static RendererContextD3D12* s_renderD3D12;
@@ -4308,6 +4325,7 @@ data.NumQualityLevels = 0;
 		{
 			s_renderD3D12->m_cmd.release(m_ptr);
 			m_dynamic = false;
+			m_state   = D3D12_RESOURCE_STATE_COMMON;
 		}
 	}
 
@@ -4551,8 +4569,6 @@ data.NumQualityLevels = 0;
 				, swizzle ? " (swizzle BGRA8 -> RGBA8)" : ""
 				);
 
-			uint32_t totalSize = 0;
-
 			for (uint8_t side = 0; side < numSides; ++side)
 			{
 				uint32_t width  = textureWidth;
@@ -4586,7 +4602,6 @@ data.NumQualityLevels = 0;
 							srd[kk].pData      = temp;
 							srd[kk].RowPitch   = pitch;
 							srd[kk].SlicePitch = slice;
-							totalSize += size;
 						}
 						else if (compressed)
 						{
@@ -4606,7 +4621,6 @@ data.NumQualityLevels = 0;
 							srd[kk].pData      = temp;
 							srd[kk].RowPitch   = pitch;
 							srd[kk].SlicePitch = slice;
-							totalSize += size;
 						}
 						else
 						{
@@ -4626,7 +4640,6 @@ data.NumQualityLevels = 0;
 							srd[kk].pData = temp;
 							srd[kk].RowPitch   = pitch;
 							srd[kk].SlicePitch = slice;
-							totalSize += size;
 						}
 
 						++kk;
@@ -4635,7 +4648,6 @@ data.NumQualityLevels = 0;
 					{
 						const uint32_t pitch = bx::strideAlign(width*bpp / 8, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
 						const uint32_t slice = bx::strideAlign(height*pitch,  D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT);
-						totalSize += slice;
 					}
 
 					width  >>= 1;
@@ -4643,8 +4655,6 @@ data.NumQualityLevels = 0;
 					depth  >>= 1;
 				}
 			}
-
-			BX_TRACE("texture total size: %d", totalSize);
 
 			const uint32_t msaaQuality = bx::uint32_satsub( (m_flags&BGFX_TEXTURE_RT_MSAA_MASK)>>BGFX_TEXTURE_RT_MSAA_SHIFT, 1);
 			const DXGI_SAMPLE_DESC& msaa = s_msaa[msaaQuality];
@@ -4716,6 +4726,13 @@ data.NumQualityLevels = 0;
 			{
 				state = D3D12_RESOURCE_STATE_COPY_DEST;
 			}
+
+			const bool directAccess = s_renderD3D12->m_directAccessSupport
+				&& !renderTarget
+//				&& !readBack
+				&& !blit
+				&& !writeOnly
+				;
 
 			switch (m_type)
 			{
@@ -4804,38 +4821,17 @@ data.NumQualityLevels = 0;
 
 			m_ptr = createCommittedResource(device, HeapProperty::Texture, &resourceDesc, clearValue);
 
-			if (kk != 0)
+			if (directAccess)
 			{
-//				void* directAccessPtr;
-//				DX_CHECK(m_ptr->Map(0, NULL, &directAccessPtr) );
+				DX_CHECK(m_ptr->Map(0, NULL, &m_directAccessPtr) );
 			}
 
+			if (kk != 0)
 			{
 				uint64_t uploadBufferSize;
-				uint32_t* numRows        = (uint32_t*)alloca(sizeof(uint32_t)*numSrd);
-				uint64_t* rowSizeInBytes = (uint64_t*)alloca(sizeof(uint64_t)*numSrd);
-				D3D12_PLACED_SUBRESOURCE_FOOTPRINT* layouts = (D3D12_PLACED_SUBRESOURCE_FOOTPRINT*)alloca(sizeof(D3D12_PLACED_SUBRESOURCE_FOOTPRINT)*numSrd);
+				device->GetCopyableFootprints(&resourceDesc, 0, numSrd, 0, NULL, NULL, NULL, &uploadBufferSize);
 
-				device->GetCopyableFootprints(&resourceDesc
-					, 0
-					, numSrd
-					, 0
-					, layouts
-					, numRows
-					, rowSizeInBytes
-					, &uploadBufferSize
-					);
-				BX_WARN(uploadBufferSize == totalSize, "uploadBufferSize %d (totalSize %d), numRows %d, rowSizeInBytes %d"
-					, uploadBufferSize
-					, totalSize
-					, numRows[0]
-					, rowSizeInBytes[0]
-					);
-			}
-
-			if (kk != 0)
-			{
-				ID3D12Resource* staging = createCommittedResource(s_renderD3D12->m_device, HeapProperty::Upload, totalSize);
+				ID3D12Resource* staging = createCommittedResource(s_renderD3D12->m_device, HeapProperty::Upload, uint32_t(uploadBufferSize) );
 
 				setState(commandList, D3D12_RESOURCE_STATE_COPY_DEST);
 
@@ -4888,7 +4884,8 @@ data.NumQualityLevels = 0;
 			}
 
 			s_renderD3D12->m_cmd.release(m_ptr);
-			m_ptr = NULL;
+			m_ptr   = NULL;
+			m_state = D3D12_RESOURCE_STATE_COMMON;
 		}
 	}
 

@@ -195,7 +195,7 @@ namespace bgfx
 					{
 						bx::MutexScope scope(m_mutex);
 						++m_numBlocks;
-						m_maxBlocks = bx::uint32_max(m_maxBlocks, m_numBlocks);
+						m_maxBlocks = bx::max(m_maxBlocks, m_numBlocks);
 					}
 #endif // BGFX_CONFIG_MEMORY_TRACKING
 
@@ -212,7 +212,7 @@ namespace bgfx
 				{
 					bx::MutexScope scope(m_mutex);
 					++m_numBlocks;
-					m_maxBlocks = bx::uint32_max(m_maxBlocks, m_numBlocks);
+					m_maxBlocks = bx::max(m_maxBlocks, m_numBlocks);
 				}
 #endif // BGFX_CONFIG_MEMORY_TRACKING
 
@@ -938,7 +938,7 @@ namespace bgfx
 		{
 			streamMask >>= ntz;
 			idx         += ntz;
-			numVertices = bx::uint32_min(numVertices, m_numVertices[idx]);
+			numVertices = bx::min(numVertices, m_numVertices[idx]);
 		}
 		m_draw.m_numVertices = numVertices;
 
@@ -987,9 +987,9 @@ namespace bgfx
 
 		m_compute.m_startMatrix = m_draw.m_startMatrix;
 		m_compute.m_numMatrices = m_draw.m_numMatrices;
-		m_compute.m_numX   = bx::uint32_max(_numX, 1);
-		m_compute.m_numY   = bx::uint32_max(_numY, 1);
-		m_compute.m_numZ   = bx::uint32_max(_numZ, 1);
+		m_compute.m_numX   = bx::max(_numX, 1u);
+		m_compute.m_numY   = bx::max(_numY, 1u);
+		m_compute.m_numZ   = bx::max(_numZ, 1u);
 		m_compute.m_submitFlags = _flags;
 
 		m_key.m_program = _handle.idx;
@@ -1249,6 +1249,7 @@ namespace bgfx
 		LIMITS(maxDrawCalls);
 		LIMITS(maxBlits);
 		LIMITS(maxTextureSize);
+		LIMITS(maxTextureLayers);
 		LIMITS(maxViews);
 		LIMITS(maxFrameBuffers);
 		LIMITS(maxFBAttachments);
@@ -2806,6 +2807,8 @@ namespace bgfx
 		bx::memSet(&g_caps, 0, sizeof(g_caps) );
 		g_caps.limits.maxDrawCalls            = BGFX_CONFIG_MAX_DRAW_CALLS;
 		g_caps.limits.maxBlits                = BGFX_CONFIG_MAX_BLIT_ITEMS;
+		g_caps.limits.maxTextureSize          = 0;
+		g_caps.limits.maxTextureLayers        = 1;
 		g_caps.limits.maxViews                = BGFX_CONFIG_MAX_VIEWS;
 		g_caps.limits.maxFrameBuffers         = BGFX_CONFIG_MAX_FRAME_BUFFERS;
 		g_caps.limits.maxPrograms             = BGFX_CONFIG_MAX_PROGRAMS;
@@ -3046,10 +3049,15 @@ error:
 		setVertexBuffer(_stream, _tvb, 0, UINT32_MAX);
 	}
 
-	void Encoder::setInstanceDataBuffer(const InstanceDataBuffer* _idb, uint32_t _num)
+	void Encoder::setInstanceDataBuffer(const InstanceDataBuffer* _idb)
+	{
+		setInstanceDataBuffer(_idb, 0, UINT32_MAX);
+	}
+
+	void Encoder::setInstanceDataBuffer(const InstanceDataBuffer* _idb, uint32_t _start, uint32_t _num)
 	{
 		BX_CHECK(NULL != _idb, "_idb can't be NULL");
-		BGFX_ENCODER(setInstanceDataBuffer(_idb, _num) );
+		BGFX_ENCODER(setInstanceDataBuffer(_idb, _start, _num) );
 	}
 
 	void Encoder::setInstanceDataBuffer(VertexBufferHandle _handle, uint32_t _startVertex, uint32_t _num)
@@ -3414,7 +3422,9 @@ error:
 		BX_CHECK(NULL != _tib, "_tib can't be NULL");
 		BX_CHECK(0 < _num, "Requesting 0 indices.");
 		s_ctx->allocTransientIndexBuffer(_tib, _num);
-		BX_CHECK(_num == _tib->size/2, "Failed to allocate transient index buffer (requested %d, available %d). Use bgfx::checkAvailTransient* functions to ensure availability."
+		BX_CHECK(_num == _tib->size/2
+			, "Failed to allocate transient index buffer (requested %d, available %d). "
+			  "Use bgfx::getAvailTransient* functions to ensure availability."
 			, _num
 			, _tib->size/2
 			);
@@ -3424,10 +3434,11 @@ error:
 	{
 		BX_CHECK(NULL != _tvb, "_tvb can't be NULL");
 		BX_CHECK(0 < _num, "Requesting 0 vertices.");
-		BX_CHECK(UINT16_MAX >= _num, "Requesting %d vertices (max: %d).", _num, UINT16_MAX);
 		BX_CHECK(isValid(_decl), "Invalid VertexDecl.");
 		s_ctx->allocTransientVertexBuffer(_tvb, _num, _decl);
-		BX_CHECK(_num == _tvb->size / _decl.m_stride, "Failed to allocate transient vertex buffer (requested %d, available %d). Use bgfx::checkAvailTransient* functions to ensure availability."
+		BX_CHECK(_num == _tvb->size / _decl.m_stride
+			, "Failed to allocate transient vertex buffer (requested %d, available %d). "
+			  "Use bgfx::getAvailTransient* functions to ensure availability."
 			, _num
 			, _tvb->size / _decl.m_stride
 			);
@@ -3454,7 +3465,9 @@ error:
 		BX_CHECK(_stride == BX_ALIGN_16(_stride), "Stride must be multiple of 16.");
 		BX_CHECK(0 < _num, "Requesting 0 instanced data vertices.");
 		s_ctx->allocInstanceDataBuffer(_idb, _num, _stride);
-		BX_CHECK(_num == _idb->size / _stride, "Failed to allocate instance data buffer (requested %d, available %d). Use bgfx::checkAvailTransient* functions to ensure availability."
+		BX_CHECK(_num == _idb->size / _stride
+			, "Failed to allocate instance data buffer (requested %d, available %d). "
+			  "Use bgfx::getAvailTransient* functions to ensure availability."
 			, _num
 			, _idb->size / _stride
 			);
@@ -4203,10 +4216,16 @@ error:
 		setVertexBuffer(_stream, _tvb, 0, UINT32_MAX);
 	}
 
-	void setInstanceDataBuffer(const InstanceDataBuffer* _idb, uint32_t _num)
+	void setInstanceDataBuffer(const InstanceDataBuffer* _idb)
 	{
 		BGFX_CHECK_API_THREAD();
-		s_ctx->m_encoder0->setInstanceDataBuffer(_idb, _num);
+		s_ctx->m_encoder0->setInstanceDataBuffer(_idb);
+	}
+
+	void setInstanceDataBuffer(const InstanceDataBuffer* _idb, uint32_t _start, uint32_t _num)
+	{
+		BGFX_CHECK_API_THREAD();
+		s_ctx->m_encoder0->setInstanceDataBuffer(_idb, _start, _num);
 	}
 
 	void setInstanceDataBuffer(VertexBufferHandle _handle, uint32_t _startVertex, uint32_t _num)
@@ -4445,6 +4464,38 @@ BX_STATIC_ASSERT(FLAGS_MASK_TEST(0
 BX_STATIC_ASSERT(FLAGS_MASK_TEST(0
 	| BGFX_SUBMIT_INTERNAL_OCCLUSION_VISIBLE
 	, BGFX_SUBMIT_RESERVED_MASK
+	) );
+
+BX_STATIC_ASSERT( (0
+	| BGFX_STATE_WRITE_MASK
+	| BGFX_STATE_DEPTH_TEST_MASK
+	| BGFX_STATE_BLEND_MASK
+	| BGFX_STATE_BLEND_EQUATION_MASK
+	| BGFX_STATE_BLEND_INDEPENDENT
+	| BGFX_STATE_BLEND_ALPHA_TO_COVERAGE
+	| BGFX_STATE_CULL_MASK
+	| BGFX_STATE_ALPHA_REF_MASK
+	| BGFX_STATE_PT_MASK
+	| BGFX_STATE_POINT_SIZE_MASK
+	| BGFX_STATE_MSAA
+	| BGFX_STATE_LINEAA
+	| BGFX_STATE_CONSERVATIVE_RASTER
+	| BGFX_STATE_RESERVED_MASK
+	) == (0
+	^ BGFX_STATE_WRITE_MASK
+	^ BGFX_STATE_DEPTH_TEST_MASK
+	^ BGFX_STATE_BLEND_MASK
+	^ BGFX_STATE_BLEND_EQUATION_MASK
+	^ BGFX_STATE_BLEND_INDEPENDENT
+	^ BGFX_STATE_BLEND_ALPHA_TO_COVERAGE
+	^ BGFX_STATE_CULL_MASK
+	^ BGFX_STATE_ALPHA_REF_MASK
+	^ BGFX_STATE_PT_MASK
+	^ BGFX_STATE_POINT_SIZE_MASK
+	^ BGFX_STATE_MSAA
+	^ BGFX_STATE_LINEAA
+	^ BGFX_STATE_CONSERVATIVE_RASTER
+	^ BGFX_STATE_RESERVED_MASK
 	) );
 
 #undef FLAGS_MASK_TEST
@@ -5256,9 +5307,9 @@ BGFX_C_API void bgfx_set_transient_vertex_buffer(uint8_t _stream, const bgfx_tra
 	bgfx::setVertexBuffer(_stream, (const bgfx::TransientVertexBuffer*)_tvb, _startVertex, _numVertices);
 }
 
-BGFX_C_API void bgfx_set_instance_data_buffer(const bgfx_instance_data_buffer_t* _idb, uint32_t _num)
+BGFX_C_API void bgfx_set_instance_data_buffer(const bgfx_instance_data_buffer_t* _idb, uint32_t _start, uint32_t _num)
 {
-	bgfx::setInstanceDataBuffer( (const bgfx::InstanceDataBuffer*)_idb, _num);
+	bgfx::setInstanceDataBuffer( (const bgfx::InstanceDataBuffer*)_idb, _start, _num);
 }
 
 BGFX_C_API void bgfx_set_instance_data_from_vertex_buffer(bgfx_vertex_buffer_handle_t _handle, uint32_t _startVertex, uint32_t _num)
@@ -5454,9 +5505,9 @@ BGFX_C_API void bgfx_encoder_set_transient_vertex_buffer(bgfx_encoder* _encoder,
 	BGFX_ENCODER(setVertexBuffer(_stream, (const bgfx::TransientVertexBuffer*)_tvb, _startVertex, _numVertices) );
 }
 
-BGFX_C_API void bgfx_encoder_set_instance_data_buffer(bgfx_encoder* _encoder, const bgfx_instance_data_buffer_t* _idb, uint32_t _num)
+BGFX_C_API void bgfx_encoder_set_instance_data_buffer(bgfx_encoder* _encoder, const bgfx_instance_data_buffer_t* _idb, uint32_t _start, uint32_t _num)
 {
-	BGFX_ENCODER(setInstanceDataBuffer( (const bgfx::InstanceDataBuffer*)_idb, _num) );
+	BGFX_ENCODER(setInstanceDataBuffer( (const bgfx::InstanceDataBuffer*)_idb, _start, _num) );
 }
 
 BGFX_C_API void bgfx_encoder_set_instance_data_from_vertex_buffer(bgfx_encoder* _encoder, bgfx_vertex_buffer_handle_t _handle, uint32_t _startVertex, uint32_t _num)

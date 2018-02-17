@@ -2385,16 +2385,11 @@ VK_IMPORT_DEVICE
 		{
 			VkPipelineColorBlendAttachmentState* bas = const_cast<VkPipelineColorBlendAttachmentState*>(_desc.pAttachments);
 
-			uint8_t writeMask = (_state & BGFX_STATE_ALPHA_WRITE)
-					? VK_COLOR_COMPONENT_A_BIT
-					: 0
-					;
-			writeMask |= (_state & BGFX_STATE_RGB_WRITE)
-					? VK_COLOR_COMPONENT_R_BIT
-					| VK_COLOR_COMPONENT_G_BIT
-					| VK_COLOR_COMPONENT_B_BIT
-					: 0
-					;
+			uint8_t writeMask = 0;
+			writeMask |= (_state & BGFX_STATE_WRITE_R) ? VK_COLOR_COMPONENT_R_BIT : 0;
+			writeMask |= (_state & BGFX_STATE_WRITE_G) ? VK_COLOR_COMPONENT_G_BIT : 0;
+			writeMask |= (_state & BGFX_STATE_WRITE_B) ? VK_COLOR_COMPONENT_B_BIT : 0;
+			writeMask |= (_state & BGFX_STATE_WRITE_A) ? VK_COLOR_COMPONENT_A_BIT : 0;
 
 			bas->blendEnable = !!(BGFX_STATE_BLEND_MASK & _state);
 
@@ -2501,7 +2496,7 @@ VK_IMPORT_DEVICE
 			_desc.pNext = NULL;
 			_desc.flags = 0;
 			_desc.depthTestEnable  = 0 != func;
-			_desc.depthWriteEnable = !!(BGFX_STATE_DEPTH_WRITE & _state);
+			_desc.depthWriteEnable = !!(BGFX_STATE_WRITE_Z & _state);
 			_desc.depthCompareOp   = s_cmpFunc[func];
 			_desc.depthBoundsTestEnable = VK_FALSE;
 
@@ -2581,9 +2576,9 @@ VK_IMPORT_DEVICE
 			ProgramVK& program = m_program[_programIdx];
 
 			_state &= 0
-				| BGFX_STATE_RGB_WRITE
-				| BGFX_STATE_ALPHA_WRITE
-				| BGFX_STATE_DEPTH_WRITE
+				| BGFX_STATE_WRITE_RGB
+				| BGFX_STATE_WRITE_A
+				| BGFX_STATE_WRITE_Z
 				| BGFX_STATE_DEPTH_TEST_MASK
 				| BGFX_STATE_BLEND_MASK
 				| BGFX_STATE_BLEND_EQUATION_MASK
@@ -2976,27 +2971,28 @@ VK_IMPORT_DEVICE
 //			VK_CHECK(vkWaitForFences(m_device, 1, &m_fence, true, INT64_MAX) );
 		}
 
-		uint32_t selectMemoryType(uint32_t memoryTypeBits, uint32_t propertyFlags)
+		uint32_t selectMemoryType(uint32_t _memoryTypeBits, uint32_t _propertyFlags) const
 		{
-			for (uint32_t ii = 0; ii < m_memoryProperties.memoryTypeCount; ++ii)
+			for (uint32_t ii = 0, num = m_memoryProperties.memoryTypeCount; ii < num; ++ii)
 			{
-				if ( ( ((1<<ii) & memoryTypeBits) != 0)
-				&& ( (m_memoryProperties.memoryTypes[ii].propertyFlags & propertyFlags) == propertyFlags) )
+				const VkMemoryType& memType = m_memoryProperties.memoryTypes[ii];
+				if ( (0 != ( (1<<ii) & _memoryTypeBits) )
+				&& ( (memType.propertyFlags & _propertyFlags) == _propertyFlags) )
 				{
 					return ii;
 				}
 			}
 
-			BX_TRACE("failed to find memory that supports flags 0x%08x", propertyFlags);
+			BX_TRACE("Failed to find memory that supports flags 0x%08x.", _propertyFlags);
 			return 0;
 		}
 
-		VkAllocationCallbacks* m_allocatorCb;
+		VkAllocationCallbacks*   m_allocatorCb;
 		VkDebugReportCallbackEXT m_debugReportCallback;
 		VkInstance       m_instance;
 		VkPhysicalDevice m_physicalDevice;
 
-		VkPhysicalDeviceProperties m_deviceProperties;
+		VkPhysicalDeviceProperties       m_deviceProperties;
 		VkPhysicalDeviceMemoryProperties m_memoryProperties;
 
 		VkSwapchainCreateInfoKHR m_sci;
