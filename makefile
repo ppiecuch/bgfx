@@ -23,7 +23,7 @@ endif
 
 # $(info $(OS))
 
-BX_DIR?=../bx
+BX_DIR?=3rdparty/bx
 GENIE?=$(BX_DIR)/tools/bin/$(OS)/genie
 NINJA?=$(BX_DIR)/tools/bin/$(OS)/ninja
 

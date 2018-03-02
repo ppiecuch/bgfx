@@ -83,11 +83,11 @@ BIMG_DIR   = os.getenv("BIMG_DIR")
 local BGFX_BUILD_DIR = path.join(BGFX_DIR, ".build")
 local BGFX_THIRD_PARTY_DIR = path.join(BGFX_DIR, "3rdparty")
 if not BX_DIR then
-	BX_DIR = path.getabsolute(path.join(BGFX_DIR, "../bx"))
+	BX_DIR = path.getabsolute(path.join(BGFX_DIR, "3rdparty/bx"))
 end
 
 if not BIMG_DIR then
-	BIMG_DIR = path.getabsolute(path.join(BGFX_DIR, "../bimg"))
+	BIMG_DIR = path.getabsolute(path.join(BGFX_DIR, "3rdparty/bimg"))
 end
 
 if not os.isdir(BX_DIR) or not os.isdir(BIMG_DIR) then

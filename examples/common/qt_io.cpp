@@ -1,3 +1,5 @@
+#ifdef QT_CORE_LIB
+
 #include <qdebug.h>
 #include <qfile.h>
 
@@ -40,3 +42,5 @@ extern "C" long qReadFile(const char *filename, char *buffer, long maxSize)
   }
   return file.read(buffer, maxSize);
 }
+
+#endif // QT_CORE_LIB

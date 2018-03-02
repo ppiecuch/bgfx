@@ -4,10 +4,12 @@
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
-#include "entry_p.h"
-#include "osx_utils.h"
 
 #ifdef QT_GUI_LIB
+
+#include "entry_p.h"
+
+#include "../osx_utils.h"
 
 #include <bx/mutex.h>
 #include <bx/thread.h>

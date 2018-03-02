@@ -22,6 +22,7 @@
 //
 #define NVG_ANTIALIAS 1
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include "nanovg.h"

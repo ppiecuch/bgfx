@@ -2120,7 +2120,6 @@ namespace bgfx
 					 ||  BX_PLATFORM_EMSCRIPTEN
 					 ||  BX_PLATFORM_IOS
 					 ||  BX_PLATFORM_RPI
-					 ||  BX_PLATFORM_QNX
 					 ) )
 				{
 					score += RendererType::OpenGLES == renderer ? 20 : 0;
