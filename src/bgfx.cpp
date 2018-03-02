@@ -561,7 +561,7 @@ namespace bgfx
 			num = bx::vsnprintf(temp, num, _format, argListCopy);
 
 			uint8_t attr = _attr;
-			uint8_t* mem = &m_mem[(_y*m_width+_x)*2];
+			MemSlot* mem = &m_mem[_y*m_width+_x];
 			for (uint32_t ii = 0, xx = _x; ii < num && xx < m_width; ++ii)
 			{
 				char ch = temp[ii];
@@ -573,9 +573,9 @@ namespace bgfx
 				}
 				else
 				{
-					mem[0] = ch;
-					mem[1] = attr;
-					mem += 2;
+					mem->character = ch;
+					mem->attribute = attr;
+					++mem;
 					++xx;
 				}
 			}
@@ -697,12 +697,14 @@ namespace bgfx
 			for (; yy < _mem.m_height && numIndices < numBatchIndices; ++yy)
 			{
 				xx = xx < _mem.m_width ? xx : 0;
-				const uint8_t* line = &_mem.m_mem[(yy*_mem.m_width+xx)*2];
+				const TextVideoMem::MemSlot* line = &_mem.m_mem[yy*_mem.m_width+xx];
 
 				for (; xx < _mem.m_width && numIndices < numBatchIndices; ++xx)
 				{
-					uint8_t ch = line[0];
-					uint8_t attr = line[1];
+					uint32_t ch = line->character;
+					uint8_t attr = line->attribute;
+					if (ch > 0xff)
+						ch = 0;	// todo: render unicode code point , ch > 255)
 
 					if (0 != (ch|attr)
 					&& (' ' != ch || 0 != (attr&0xf0) ) )
@@ -734,7 +736,7 @@ namespace bgfx
 						numIndices += 6;
 					}
 
-					line += 2;
+					line ++;
 				}
 
 				if (numIndices >= numBatchIndices)
@@ -3648,7 +3650,7 @@ error:
 	TextureHandle createTexture(const Memory* _mem, uint32_t _flags, uint8_t _skip, TextureInfo* _info)
 	{
 		BX_CHECK(NULL != _mem, "_mem can't be NULL");
-		return s_ctx->createTexture(_mem, _flags, _skip, _info, BackbufferRatio::Count);
+		return s_ctx->createTexture(_mem, _flags, _skip, _info, BackbufferRatio::Count, false);
 	}
 
 	void getTextureSizeFromRatio(BackbufferRatio::Enum _ratio, uint16_t& _width, uint16_t& _height)
@@ -3719,7 +3721,7 @@ error:
 		tc.m_mem       = _mem;
 		bx::write(&writer, tc);
 
-		return s_ctx->createTexture(mem, _flags, 0, NULL, _ratio);
+		return s_ctx->createTexture(mem, _flags, 0, NULL, _ratio, NULL != _mem);
 	}
 
 	TextureHandle createTexture2D(uint16_t _width, uint16_t _height, bool _hasMips, uint16_t _numLayers, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
@@ -3772,7 +3774,7 @@ error:
 		tc.m_mem       = _mem;
 		bx::write(&writer, tc);
 
-		return s_ctx->createTexture(mem, _flags, 0, NULL, BackbufferRatio::Count);
+		return s_ctx->createTexture(mem, _flags, 0, NULL, BackbufferRatio::Count, NULL != _mem);
 	}
 
 	TextureHandle createTextureCube(uint16_t _size, bool _hasMips, uint16_t _numLayers, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
@@ -3814,7 +3816,7 @@ error:
 		tc.m_mem       = _mem;
 		bx::write(&writer, tc);
 
-		return s_ctx->createTexture(mem, _flags, 0, NULL, BackbufferRatio::Count);
+		return s_ctx->createTexture(mem, _flags, 0, NULL, BackbufferRatio::Count, NULL != _mem);
 	}
 
 	void setName(TextureHandle _handle, const char* _name)
