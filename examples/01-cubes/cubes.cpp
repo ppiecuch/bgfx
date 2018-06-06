@@ -98,8 +98,13 @@ public:
 		m_debug  = BGFX_DEBUG_NONE;
 		m_reset  = BGFX_RESET_VSYNC;
 
-		bgfx::init(args.m_type, args.m_pciId);
-		bgfx::reset(m_width, m_height, m_reset);
+		bgfx::Init init;
+		init.type     = args.m_type;
+		init.vendorId = args.m_pciId;
+		init.resolution.width  = m_width;
+		init.resolution.height = m_height;
+		init.resolution.reset  = m_reset;
+		bgfx::init(init);
 
 		// Enable debug text.
 		bgfx::setDebug(m_debug);
@@ -172,7 +177,7 @@ public:
 				, ImGuiCond_FirstUseEver
 				);
 			ImGui::SetNextWindowSize(
-				  ImVec2(m_width / 5.0f, m_height / 2.0f)
+				  ImVec2(m_width / 5.0f, m_height / 4.0f)
 				, ImGuiCond_FirstUseEver
 				);
 			ImGui::Begin("Settings"
@@ -186,7 +191,6 @@ public:
 			ImGui::Checkbox("Write A", &m_a);
 
 			ImGui::End();
-
 
 			imguiEndFrame();
 
@@ -246,9 +250,9 @@ public:
 
 					// Set render states.
 					bgfx::setState(0
-						| (m_r	? BGFX_STATE_WRITE_R : 0)
-						| (m_g	? BGFX_STATE_WRITE_G : 0)
-						| (m_b	? BGFX_STATE_WRITE_B : 0)
+						| (m_r ? BGFX_STATE_WRITE_R : 0)
+						| (m_g ? BGFX_STATE_WRITE_G : 0)
+						| (m_b ? BGFX_STATE_WRITE_B : 0)
 						| (m_a ? BGFX_STATE_WRITE_A : 0)
 						| BGFX_STATE_WRITE_Z
 						| BGFX_STATE_DEPTH_TEST_LESS

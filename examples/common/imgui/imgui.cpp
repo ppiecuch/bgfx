@@ -8,7 +8,7 @@
 #include <bx/allocator.h>
 #include <bx/math.h>
 #include <bx/timer.h>
-#include <ocornut-imgui/imgui.h>
+#include <dear-imgui/imgui.h>
 
 #include "imgui.h"
 #include "../bgfx_utils.h"
@@ -183,7 +183,7 @@ struct OcornutImguiContext
 					bgfx::setTexture(0, s_tex, th);
 					bgfx::setVertexBuffer(0, &tvb, 0, numVertices);
 					bgfx::setIndexBuffer(&tib, offset, cmd->ElemCount);
-					bgfx::submit(cmd->ViewId, program);
+					bgfx::submit(m_viewId, program);
 				}
 
 				offset += cmd->ElemCount;
@@ -240,10 +240,11 @@ struct OcornutImguiContext
 		io.KeyMap[ImGuiKey_Y]          = (int)entry::Key::KeyY;
 		io.KeyMap[ImGuiKey_Z]          = (int)entry::Key::KeyZ;
 
-		io.NavFlags |= 0
-			| ImGuiNavFlags_EnableGamepad
-			| ImGuiNavFlags_EnableKeyboard
+		io.ConfigFlags |= 0
+			| ImGuiConfigFlags_NavEnableGamepad
+			| ImGuiConfigFlags_NavEnableKeyboard
 			;
+
 		io.NavInputs[ImGuiNavInput_Activate]    = (int)entry::Key::GamepadA;
 		io.NavInputs[ImGuiNavInput_Cancel]      = (int)entry::Key::GamepadB;
 //		io.NavInputs[ImGuiNavInput_Input]       = (int)entry::Key::;
@@ -408,14 +409,12 @@ struct OcornutImguiContext
 #endif // USE_ENTRY
 
 		ImGui::NewFrame();
-		ImGui::PushStyleVar(ImGuiStyleVar_ViewId, (float)_viewId);
 
 		ImGuizmo::BeginFrame();
 	}
 
 	void endFrame()
 	{
-		ImGui::PopStyleVar(1);
 		ImGui::Render();
 		render(ImGui::GetDrawData() );
 	}

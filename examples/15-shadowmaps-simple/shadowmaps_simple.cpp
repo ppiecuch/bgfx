@@ -75,8 +75,13 @@ public:
 		m_debug = BGFX_DEBUG_NONE;
 		m_reset = BGFX_RESET_VSYNC;
 
-		bgfx::init(args.m_type, args.m_pciId);
-		bgfx::reset(m_width, m_height, m_reset);
+		bgfx::Init init;
+		init.type     = args.m_type;
+		init.vendorId = args.m_pciId;
+		init.resolution.width  = m_width;
+		init.resolution.height = m_height;
+		init.resolution.reset  = m_reset;
+		bgfx::init(init);
 
 		// Enable debug text.
 		bgfx::setDebug(m_debug);
@@ -179,8 +184,7 @@ public:
 
 		m_state[0] = meshStateCreate();
 		m_state[0]->m_state = 0
-			| BGFX_STATE_WRITE_RGB
-			| BGFX_STATE_WRITE_A
+			| (m_shadowSamplerSupported ? 0 : BGFX_STATE_WRITE_RGB|BGFX_STATE_WRITE_A)
 			| BGFX_STATE_WRITE_Z
 			| BGFX_STATE_DEPTH_TEST_LESS
 			| BGFX_STATE_CULL_CCW

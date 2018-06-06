@@ -1228,7 +1228,7 @@ namespace bgfx { namespace gl
 		{
 		}
 
-		void create(Memory* _mem);
+		void create(const Memory* _mem);
 		void destroy();
 
 		GLuint m_id;

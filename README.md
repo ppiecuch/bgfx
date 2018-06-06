@@ -24,7 +24,7 @@ Supported rendering backends:
  * Direct3D 9
  * Direct3D 11
  * Direct3D 12
- * Metal (WIP)
+ * Metal
  * OpenGL 2.1
  * OpenGL 3.1+
  * OpenGL ES 2
@@ -44,7 +44,7 @@ Supported platforms:
  * iOS (iPhone, iPad, AppleTV)
  * Linux
  * MIPS Creator CI20
- * OSX (10.9+)
+ * OSX (10.12+)
  * RaspberryPi
  * SteamLink
  * Windows (XP, Vista, 7, 8, 10)
@@ -86,8 +86,8 @@ Languages:
 [Tools](https://bkaradzic.github.io/bgfx/tools.html)
 ----------------------------------------------------
 
-Who is using it?
-----------------
+Who is using it? #madewithbgfx
+------------------------------
 
 ## Airmech
 
@@ -121,12 +121,6 @@ derivative of the original Torque Engine.
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=p4LTM_QGK34" 
 target="_blank"><img src="http://img.youtube.com/vi/p4LTM_QGK34/0.jpg" 
 alt="Torque 6 Material Editor" width="640" height="480" border="0" /></a>
-
-## twinkle
-
-https://github.com/cgbystrom/twinkle GPU-accelerated UI framework powered by
-JavaScript for desktop/mobile apps. Idea is to combine the fast workflow and
-deployment model of web with the performance of native code and GPU acceleration.
 
 ## Lumix Engine
 
@@ -245,20 +239,11 @@ target="_blank"><img src="http://img.youtube.com/vi/cAsqLbqSDBg/0.jpg"
 alt="Lumix Engine - new features v0.29 & v0.30"
 width="640" height="480" border="0" /></a>
 
-## FbxPipeline
-
-https://github.com/VladSerhiienko/FbxPipeline - Yet another FBX exporter with
-flatbuffers serialization.
-
-## FRAG - Framework for Rather Awesome Games
-
-http://fragworks.io/ - FRAG is a cross-platform 2D game creation framework for
-the Nim programming language.
-
 ## vg-renderer
 
 https://github.com/jdryg/vg-renderer#vg-renderer - A vector graphics renderer
-for bgfx, based on ideas from both NanoVG and ImDrawList (Dear ImGUI)
+for bgfx, based on ideas from both NanoVG and ImDrawList (Dear ImGUI)  
+![vg-renderer](https://raw.githubusercontent.com/jdryg/vg-renderer/master/img/vgrenderer_tiger.png)
 
 ## Zombie Safari
 
@@ -305,6 +290,13 @@ tools and share them with whomever you want.
 target="_blank"><img src="http://img.youtube.com/vi/nY8y_dFolKo/0.jpg" 
 alt="WonderWorlds"
 width="640" height="480" border="0" /></a>
+
+## mud
+
+https://hugoam.github.io/mud-io/ - an all-purpose c++ app prototyping library,
+focused towards live graphical apps and games.
+
+![mud](https://raw.githubusercontent.com/hugoam/mud-io/master/media/14_live_gfx.png)
 
 [License (BSD 2-clause)](https://bkaradzic.github.io/bgfx/license.html)
 -----------------------------------------------------------------------

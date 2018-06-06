@@ -69,13 +69,13 @@ static const uint16_t s_cubeIndices[36] =
 	6, 3, 7,
 };
 
-void savePng(const char* _filePath, uint32_t _width, uint32_t _height, uint32_t _srcPitch, const void* _src, bool _grayscale, bool _yflip)
+void savePng(const char* _filePath, uint32_t _width, uint32_t _height, uint32_t _srcPitch, const void* _src, bimg::TextureFormat::Enum _format, bool _yflip)
 {
 	bx::FileWriter writer;
 	bx::Error err;
 	if (bx::open(&writer, _filePath, false, &err) )
 	{
-		bimg::imageWritePng(&writer, _width, _height, _srcPitch, _src, _grayscale, _yflip, &err);
+		bimg::imageWritePng(&writer, _width, _height, _srcPitch, _src, _format, _yflip, &err);
 		bx::close(&writer);
 	}
 }
@@ -188,7 +188,7 @@ struct BgfxCallback : public bgfx::CallbackI
 
 		// Save screen shot as PNG.
 		bx::snprintf(temp, BX_COUNTOF(temp), "%s.png", _filePath);
-		savePng(temp, _width, _height, _pitch, _data, false, _yflip);
+		savePng(temp, _width, _height, _pitch, _data, bimg::TextureFormat::BGRA8, _yflip);
 
 		// Save screen shot as TGA.
 		bx::snprintf(temp, BX_COUNTOF(temp), "%s.tga", _filePath);
@@ -323,14 +323,15 @@ public:
 			| BGFX_RESET_MSAA_X16
 			;
 
-		bgfx::init(
-			  args.m_type
-			, args.m_pciId
-			, 0
-			, &m_callback  // custom callback handler
-			, &m_allocator // custom allocator
-			);
-		bgfx::reset(m_width, m_height, m_reset);
+		bgfx::Init init;
+		init.type     = args.m_type;
+		init.vendorId = args.m_pciId;
+		init.resolution.width  = m_width;
+		init.resolution.height = m_height;
+		init.resolution.reset  = m_reset;
+		init.callback  = &m_callback;  // custom callback handler
+		init.allocator = &m_allocator; // custom allocator
+		bgfx::init(init);
 
 		// Enable debug text.
 		bgfx::setDebug(m_debug);

@@ -46,9 +46,7 @@
 
 #include "SpvBuilder.h"
 
-#ifdef AMD_EXTENSIONS
-    #include "hex_float.h"
-#endif
+#include "hex_float.h"
 
 #ifndef _WIN32
     #include <cstdio>
@@ -194,6 +192,9 @@ Id Builder::makeIntegerType(int width, bool hasSign)
 
     // deal with capabilities
     switch (width) {
+    case 8:
+        addCapability(CapabilityInt8);
+        break;
     case 16:
         addCapability(CapabilityInt16);
         break;
@@ -819,7 +820,6 @@ Id Builder::makeDoubleConstant(double d, bool specConstant)
     return c->getResultId();
 }
 
-#ifdef AMD_EXTENSIONS
 Id Builder::makeFloat16Constant(float f16, bool specConstant)
 {
     Op opcode = specConstant ? OpSpecConstant : OpConstant;
@@ -847,7 +847,25 @@ Id Builder::makeFloat16Constant(float f16, bool specConstant)
 
     return c->getResultId();
 }
-#endif
+
+Id Builder::makeFpConstant(Id type, double d, bool specConstant)
+{
+        assert(isFloatType(type));
+
+        switch (getScalarTypeWidth(type)) {
+        case 16:
+                return makeFloat16Constant((float)d, specConstant);
+        case 32:
+                return makeFloatConstant((float)d, specConstant);
+        case 64:
+                return makeDoubleConstant(d, specConstant);
+        default:
+                break;
+        }
+
+        assert(false);
+        return NoResult;
+}
 
 Id Builder::findCompositeConstant(Op typeClass, const std::vector<Id>& comps)
 {
@@ -994,6 +1012,7 @@ void Builder::addDecoration(Id id, Decoration decoration, int num)
 {
     if (decoration == spv::DecorationMax)
         return;
+
     Instruction* dec = new Instruction(OpDecorate);
     dec->addIdOperand(id);
     dec->addImmediateOperand(decoration);
@@ -1003,14 +1022,57 @@ void Builder::addDecoration(Id id, Decoration decoration, int num)
     decorations.push_back(std::unique_ptr<Instruction>(dec));
 }
 
+void Builder::addDecoration(Id id, Decoration decoration, const char* s)
+{
+    if (decoration == spv::DecorationMax)
+        return;
+
+    Instruction* dec = new Instruction(OpDecorateStringGOOGLE);
+    dec->addIdOperand(id);
+    dec->addImmediateOperand(decoration);
+    dec->addStringOperand(s);
+
+    decorations.push_back(std::unique_ptr<Instruction>(dec));
+}
+
+void Builder::addDecorationId(Id id, Decoration decoration, Id idDecoration)
+{
+    if (decoration == spv::DecorationMax)
+        return;
+
+    Instruction* dec = new Instruction(OpDecorateId);
+    dec->addIdOperand(id);
+    dec->addImmediateOperand(decoration);
+    dec->addIdOperand(idDecoration);
+
+    decorations.push_back(std::unique_ptr<Instruction>(dec));
+}
+
 void Builder::addMemberDecoration(Id id, unsigned int member, Decoration decoration, int num)
 {
+    if (decoration == spv::DecorationMax)
+        return;
+
     Instruction* dec = new Instruction(OpMemberDecorate);
     dec->addIdOperand(id);
     dec->addImmediateOperand(member);
     dec->addImmediateOperand(decoration);
     if (num >= 0)
         dec->addImmediateOperand(num);
+
+    decorations.push_back(std::unique_ptr<Instruction>(dec));
+}
+
+void Builder::addMemberDecoration(Id id, unsigned int member, Decoration decoration, const char *s)
+{
+    if (decoration == spv::DecorationMax)
+        return;
+
+    Instruction* dec = new Instruction(OpMemberDecorateStringGOOGLE);
+    dec->addIdOperand(id);
+    dec->addImmediateOperand(member);
+    dec->addImmediateOperand(decoration);
+    dec->addStringOperand(s);
 
     decorations.push_back(std::unique_ptr<Instruction>(dec));
 }
@@ -1751,7 +1813,11 @@ Id Builder::createTextureQueryCall(Op opCode, const TextureParameters& parameter
         break;
     }
     case OpImageQueryLod:
+#ifdef AMD_EXTENSIONS
+        resultType = makeVectorType(getScalarTypeId(getTypeId(parameters.coords)), 2);
+#else
         resultType = makeVectorType(makeFloatType(32), 2);
+#endif
         break;
     case OpImageQueryLevels:
     case OpImageQuerySamples:
@@ -2265,7 +2331,7 @@ void Builder::accessChainStore(Id rvalue)
 }
 
 // Comments in header
-Id Builder::accessChainLoad(Decoration precision, Id resultType)
+Id Builder::accessChainLoad(Decoration precision, Decoration nonUniform, Id resultType)
 {
     Id id;
 
@@ -2311,6 +2377,7 @@ Id Builder::accessChainLoad(Decoration precision, Id resultType)
         // load through the access chain
         id = createLoad(collapseAccessChain());
         setPrecision(id, precision);
+        addDecoration(id, nonUniform);
     }
 
     // Done, unless there are swizzles to do
@@ -2331,6 +2398,7 @@ Id Builder::accessChainLoad(Decoration precision, Id resultType)
     if (accessChain.component != NoResult)
         id = setPrecision(createVectorExtractDynamic(id, resultType, accessChain.component), precision);
 
+    addDecoration(id, nonUniform);
     return id;
 }
 
@@ -2527,7 +2595,7 @@ void Builder::remapDynamicSwizzle()
     if (accessChain.component != NoResult && accessChain.swizzle.size() > 1) {
         // build a vector of the swizzle for the component to map into
         std::vector<Id> components;
-        for (int c = 0; c < accessChain.swizzle.size(); ++c)
+        for (int c = 0; c < (int)accessChain.swizzle.size(); ++c)
             components.push_back(makeUintConstant(accessChain.swizzle[c]));
         Id mapType = makeVectorType(makeUintType(32), (int)accessChain.swizzle.size());
         Id map = makeCompositeConstant(mapType, components);
