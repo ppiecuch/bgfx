@@ -625,6 +625,9 @@ namespace bgfx
 		/// matching id.
 		uint16_t deviceId;
 
+		bool debug;   //!< Enable device for debuging.
+		bool profile; //!< Enable device for profiling.
+
 		Resolution resolution; //!< Backbuffer resolution and reset parameters.
 
 		struct Limits
@@ -1672,6 +1675,9 @@ namespace bgfx
 		VertexDecl& skip(uint8_t _num);
 
 		/// Decode attribute.
+		///
+		/// @attention C99 equivalent is `bgfx_vertex_decl_decode`.
+		///
 		void decode(
 			  Attrib::Enum _attrib
 			, uint8_t& _num
@@ -1681,6 +1687,9 @@ namespace bgfx
 			) const;
 
 		/// Returns true if VertexDecl contains attribute.
+		///
+		/// @attention C99 equivalent is `bgfx_vertex_decl_has`.
+		///
 		bool has(Attrib::Enum _attrib) const { return UINT16_MAX != m_attributes[_attrib]; }
 
 		/// Returns relative attribute offset from the vertex.
@@ -2418,12 +2427,15 @@ namespace bgfx
 	///
 	/// @param[in] _handle Shader handle.
 	/// @param[in] _name Shader name.
+	/// @param[in] _len Shader name length (if length is INT32_MAX, it's expected
+	///   that _name is zero terminated string.
 	///
 	/// @attention C99 equivalent is `bgfx_set_shader_name`.
 	///
 	void setName(
 		  ShaderHandle _handle
-		, const char* _name
+		, const char* _ptr
+		, int32_t _len = INT32_MAX
 		);
 
 	/// Destroy shader. Once a shader program is created with _handle,
@@ -2778,12 +2790,15 @@ namespace bgfx
 	///
 	/// @param[in] _handle Texture handle.
 	/// @param[in] _name Texture name.
+	/// @param[in] _len Texture name length (if length is INT32_MAX, it's expected
+	///   that _name is zero terminated string.
 	///
 	/// @attention C99 equivalent is `bgfx_set_texture_name`.
 	///
 	void setName(
 		  TextureHandle _handle
-		, const char* _name
+		, const char* _ptr
+		, int32_t _len = INT32_MAX
 		);
 
 	/// Returns texture direct access pointer.

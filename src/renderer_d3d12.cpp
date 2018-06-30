@@ -435,10 +435,12 @@ namespace bgfx { namespace d3d12
 
 	static void initHeapProperties(ID3D12Device* _device)
 	{
+#if BX_PLATFORM_WINDOWS
 		initHeapProperties(_device, s_heapProperties[HeapProperty::Default ].m_properties);
 		initHeapProperties(_device, s_heapProperties[HeapProperty::Texture ].m_properties);
 		initHeapProperties(_device, s_heapProperties[HeapProperty::Upload  ].m_properties);
 		initHeapProperties(_device, s_heapProperties[HeapProperty::ReadBack].m_properties);
+#endif // BX_PLATFORM_WINDOWS
 	}
 
 	ID3D12Resource* createCommittedResource(ID3D12Device* _device, HeapProperty::Enum _heapProperty, const D3D12_RESOURCE_DESC* _resourceDesc, const D3D12_CLEAR_VALUE* _clearValue, bool _memSet = false)
@@ -664,7 +666,12 @@ namespace bgfx { namespace d3d12
 			}
 #endif // BGFX_CONFIG_DEBUG_PIX && BX_PLATFORM_WINDOWS
 
-			m_renderdocdll = loadRenderDoc();
+			if (_init.debug
+			||  _init.profile)
+			{
+				m_renderdocdll = loadRenderDoc();
+			}
+
 			setGraphicsDebuggerPresent(NULL != m_renderdocdll || NULL != m_winPixEvent);
 
 			m_fbh.idx = kInvalidHandle;
@@ -729,18 +736,21 @@ namespace bgfx { namespace d3d12
 
 			HRESULT hr;
 
-			if (BX_ENABLED(BGFX_CONFIG_DEBUG||BGFX_CONFIG_DEBUG_PIX) )
+			if (_init.debug
+			||  _init.profile)
 			{
 				ID3D12Debug* debug0;
 				hr = D3D12GetDebugInterface(IID_ID3D12Debug, (void**)&debug0);
 
 				if (SUCCEEDED(hr) )
 				{
-					if (BX_ENABLED(BGFX_CONFIG_DEBUG) )
+					uint32_t debugFlags = 0;
+
+					if (_init.debug)
 					{
+#if BX_PLATFORM_WINDOWS
 						debug0->EnableDebugLayer();
 
-#if BX_PLATFORM_WINDOWS
 						{
 							ID3D12Debug1* debug1;
 							hr = debug0->QueryInterface(IID_ID3D12Debug1, (void**)&debug1);
@@ -754,17 +764,20 @@ namespace bgfx { namespace d3d12
 							DX_RELEASE(debug1, 1);
 						}
 #elif BX_PLATFORM_XBOXONE
-						debug0->SetProcessDebugFlags(D3D12_PROCESS_DEBUG_FLAG_DEBUG_LAYER_ENABLED);
+						debugFlags |= D3D12_PROCESS_DEBUG_FLAG_DEBUG_LAYER_ENABLED;
 #endif // BX_PLATFORM_WINDOWS
 					}
 
 #if BX_PLATFORM_XBOXONE
-					if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
+					// https://github.com/Microsoft/Xbox-ATG-Samples/blob/76d236e3bd372aceec18b2ad0556a7879dbd9628/XDKSamples/IntroGraphics/SimpleTriangle12/DeviceResources.cpp#L67
+					debugFlags |= _init.profile ? D3D12XBOX_PROCESS_DEBUG_FLAG_INSTRUMENTED : 0;
+
+					if (0 != debugFlags)
 					{
-						// https://github.com/Microsoft/Xbox-ATG-Samples/blob/76d236e3bd372aceec18b2ad0556a7879dbd9628/XDKSamples/IntroGraphics/SimpleTriangle12/DeviceResources.cpp#L67
-						debug0->SetProcessDebugFlags(D3D12XBOX_PROCESS_DEBUG_FLAG_INSTRUMENTED);
+						debug0->SetProcessDebugFlags(D3D12XBOX_PROCESS_DEBUG_FLAGS(debugFlags) );
 					}
 #endif // BX_PLATFORM_XBOXONE
+					BX_UNUSED(debugFlags);
 
 					DX_RELEASE(debug0, 0);
 				}
@@ -806,6 +819,10 @@ namespace bgfx { namespace d3d12
 			}
 
 			m_dxgi.update(m_device);
+
+#if BX_PLATFORM_XBOXONE
+			m_device->SetDebugErrorFilterX(0x73EC9EAF, D3D12XBOX_DEBUG_FILTER_FLAG_DISABLE_BREAKS);
+#endif // BX_PLATFORM_XBOXONE
 
 			if (BGFX_PCI_ID_NVIDIA != m_dxgi.m_adapterDesc.VendorId)
 			{
@@ -936,7 +953,7 @@ namespace bgfx { namespace d3d12
 					| DXGI_MWA_NO_ALT_ENTER
 					) );
 
-				if (BX_ENABLED(BGFX_CONFIG_DEBUG) )
+				if (_init.debug)
 				{
 					hr = m_device->QueryInterface(IID_ID3D12InfoQueue, (void**)&m_infoQueue);
 
@@ -1780,7 +1797,7 @@ namespace bgfx { namespace d3d12
 
 		void setMarker(const char* _marker, uint32_t /*_size*/) override
 		{
-			if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX))
+			if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
 			{
 				PIX3_SETMARKER(m_commandList, D3DCOLOR_MARKER, _marker);
 			}
@@ -1992,10 +2009,16 @@ namespace bgfx { namespace d3d12
 			clearValue.DepthStencil.Depth   = 1.0f;
 			clearValue.DepthStencil.Stencil = 0;
 
+			m_commandList = m_cmd.alloc();
+
 			m_backBufferDepthStencil = createCommittedResource(m_device, HeapProperty::Default, &resourceDesc, &clearValue);
 			m_device->CreateDepthStencilView(m_backBufferDepthStencil, NULL, getCPUHandleHeapStart(m_dsvDescriptorHeap));
 
-			m_commandList = m_cmd.alloc();
+			setResourceBarrier(m_commandList
+				, m_backBufferDepthStencil
+				, D3D12_RESOURCE_STATE_COMMON
+				, D3D12_RESOURCE_STATE_DEPTH_WRITE
+				);
 
 			for (uint32_t ii = 0; ii < BX_COUNTOF(m_frameBuffers); ++ii)
 			{
@@ -4158,6 +4181,9 @@ namespace bgfx { namespace d3d12
 
 		if (drawIndirect)
 		{
+#if BX_PLATFORM_XBOXONE
+			flags |= D3D12XBOX_RESOURCE_FLAG_ALLOW_INDIRECT_BUFFER;
+#endif // BX_PLATFORM_XBOXONE
 			format = DXGI_FORMAT_R32G32B32A32_UINT;
 			stride = 16;
 		}
@@ -4468,14 +4494,6 @@ namespace bgfx { namespace d3d12
 
 			const bool compressed = bimg::isCompressed(bimg::TextureFormat::Enum(m_textureFormat) );
 			const bool swizzle    = TextureFormat::BGRA8 == m_textureFormat && 0 != (m_flags&BGFX_TEXTURE_COMPUTE_WRITE);
-			uint32_t blockWidth   = 1;
-			uint32_t blockHeight  = 1;
-
-			if (convert && compressed)
-			{
-				blockWidth  = blockInfo.blockWidth;
-				blockHeight = blockInfo.blockHeight;
-			}
 
 			const bool writeOnly    = 0 != (m_flags&BGFX_TEXTURE_RT_WRITE_ONLY);
 			const bool computeWrite = 0 != (m_flags&BGFX_TEXTURE_COMPUTE_WRITE);
@@ -6325,8 +6343,8 @@ namespace bgfx { namespace d3d12
 
 		static int64_t min = frameTime;
 		static int64_t max = frameTime;
-		min = bx::int64_min(min, frameTime);
-		max = bx::int64_max(max, frameTime);
+		min = bx::min<int64_t>(min, frameTime);
+		max = bx::max<int64_t>(max, frameTime);
 
 		static uint32_t maxGpuLatency = 0;
 		static double   maxGpuElapsed = 0.0f;
@@ -6334,8 +6352,8 @@ namespace bgfx { namespace d3d12
 
 		static int64_t presentMin = m_presentElapsed;
 		static int64_t presentMax = m_presentElapsed;
-		presentMin = bx::int64_min(presentMin, m_presentElapsed);
-		presentMax = bx::int64_max(presentMax, m_presentElapsed);
+		presentMin = bx::min<int64_t>(presentMin, m_presentElapsed);
+		presentMax = bx::max<int64_t>(presentMax, m_presentElapsed);
 
 		if (UINT32_MAX != frameQueryIdx)
 		{
