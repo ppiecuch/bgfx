@@ -1252,9 +1252,9 @@ int _main_(int _argc, char** _argv)
 		checkerBoard = bgfx::createTexture2D(checkerBoardSize, checkerBoardSize, false, 1
 			, bgfx::TextureFormat::BGRA8
 			, 0
-			| BGFX_TEXTURE_MIN_POINT
-			| BGFX_TEXTURE_MIP_POINT
-			| BGFX_TEXTURE_MAG_POINT
+			| BGFX_SAMPLER_MIN_POINT
+			| BGFX_SAMPLER_MIP_POINT
+			| BGFX_SAMPLER_MAG_POINT
 			, mem
 			);
 	}
@@ -1473,6 +1473,40 @@ int _main_(int _argc, char** _argv)
 					ImGui::EndMenu();
 				}
 
+				if (0 != view.m_fileList.size() )
+				{
+					ImGui::Separator();
+					ImGui::TextColored(
+						  ImVec4(0.0f, 1.0f, 1.0f, 1.0f)
+						, view.m_fileList[view.m_fileIndex].c_str()
+						);
+
+					ImGui::Separator();
+					const char* name = "";
+					if (view.m_textureInfo.cubeMap)
+					{
+						name = " CubeMap";
+					}
+					else if (1 < view.m_textureInfo.depth)
+					{
+						name = " 3D";
+						view.m_textureInfo.numLayers = view.m_textureInfo.depth;
+					}
+					else if (1 < view.m_textureInfo.numLayers)
+					{
+						name = " 2D Array";
+					}
+
+					ImGui::Text("%d x %d%s, mips: %d, layers %d, %s"
+						, view.m_textureInfo.width
+						, view.m_textureInfo.height
+						, name
+						, view.m_textureInfo.numMips
+						, view.m_textureInfo.numLayers
+						, bimg::getName(bimg::TextureFormat::Enum(view.m_textureInfo.format) )
+						);
+				}
+
 				ImGui::EndMainMenuBar();
 			}
 
@@ -1561,7 +1595,7 @@ int _main_(int _argc, char** _argv)
 			if (view.m_info)
 			{
 				ImGui::SetNextWindowSize(
-					  ImVec2(300.0f, 300.0f)
+					  ImVec2(300.0f, 320.0f)
 					, ImGuiCond_FirstUseEver
 					);
 
@@ -1575,6 +1609,8 @@ int _main_(int _argc, char** _argv)
 						}
 						else
 						{
+							ImGui::Text("Name: %s", view.m_fileList[view.m_fileIndex].c_str() );
+
 							ImGui::Text("Dimensions: %d x %d"
 								, view.m_textureInfo.width
 								, view.m_textureInfo.height
@@ -1637,7 +1673,7 @@ int _main_(int _argc, char** _argv)
 						ImGui::PushItemWidth(-1);
 						if (ImGui::ListBoxHeader("##empty", ImVec2(0.0f, listHeight) ) )
 						{
-							const int32_t itemCount  = int32_t(view.m_fileList.size() );
+							const int32_t itemCount = int32_t(view.m_fileList.size() );
 
 							int32_t start, end;
 							ImGui::CalcListClipping(itemCount, itemHeight, &start, &end);
@@ -1777,9 +1813,9 @@ int _main_(int _argc, char** _argv)
 				bimg::Orientation::Enum orientation;
 				texture = loadTexture(fp.get()
 					, 0
-					| BGFX_TEXTURE_U_CLAMP
-					| BGFX_TEXTURE_V_CLAMP
-					| BGFX_TEXTURE_W_CLAMP
+					| BGFX_SAMPLER_U_CLAMP
+					| BGFX_SAMPLER_V_CLAMP
+					| BGFX_SAMPLER_W_CLAMP
 					, 0
 					, &view.m_textureInfo
 					, &orientation
@@ -1837,6 +1873,7 @@ int _main_(int _argc, char** _argv)
 				{
 					bx::stringPrintf(title, "Failed to load %s!", filePath);
 				}
+
 				entry::WindowHandle handle = { 0 };
 				entry::setWindowTitle(handle, title.c_str() );
 			}
@@ -1966,13 +2003,13 @@ int _main_(int _argc, char** _argv)
 			bgfx::setUniform(u_params, params);
 
 			const uint32_t textureFlags = 0
-				| BGFX_TEXTURE_U_CLAMP
-				| BGFX_TEXTURE_V_CLAMP
-				| BGFX_TEXTURE_W_CLAMP
+				| BGFX_SAMPLER_U_CLAMP
+				| BGFX_SAMPLER_V_CLAMP
+				| BGFX_SAMPLER_W_CLAMP
 				| (view.m_filter ? 0 : 0
-				| BGFX_TEXTURE_MIN_POINT
-				| BGFX_TEXTURE_MIP_POINT
-				| BGFX_TEXTURE_MAG_POINT
+				| BGFX_SAMPLER_MIN_POINT
+				| BGFX_SAMPLER_MIP_POINT
+				| BGFX_SAMPLER_MAG_POINT
 				  )
 				;
 

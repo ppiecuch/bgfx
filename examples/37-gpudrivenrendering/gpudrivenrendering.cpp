@@ -588,19 +588,19 @@ public:
 
 		//Setup Occlusion pass
 		{
-			const uint32_t samplerFlags = 0
+			const uint64_t tsFlags = 0
 				| BGFX_TEXTURE_RT
-				| BGFX_TEXTURE_MIN_POINT
-				| BGFX_TEXTURE_MAG_POINT
-				| BGFX_TEXTURE_MIP_POINT
-				| BGFX_TEXTURE_U_CLAMP
-				| BGFX_TEXTURE_V_CLAMP
+				| BGFX_SAMPLER_MIN_POINT
+				| BGFX_SAMPLER_MAG_POINT
+				| BGFX_SAMPLER_MIP_POINT
+				| BGFX_SAMPLER_U_CLAMP
+				| BGFX_SAMPLER_V_CLAMP
 				;
 
 			// Create buffers for the HiZ pass
-			m_hiZDepthBuffer = bgfx::createFrameBuffer(uint16_t(m_hiZwidth), uint16_t(m_hiZheight), bgfx::TextureFormat::D32, samplerFlags);
+			m_hiZDepthBuffer = bgfx::createFrameBuffer(uint16_t(m_hiZwidth), uint16_t(m_hiZheight), bgfx::TextureFormat::D32, tsFlags);
 
-			bgfx::TextureHandle buffer = bgfx::createTexture2D(uint16_t(m_hiZwidth), uint16_t(m_hiZheight), true, 1, bgfx::TextureFormat::R32F, BGFX_TEXTURE_COMPUTE_WRITE | samplerFlags);
+			bgfx::TextureHandle buffer = bgfx::createTexture2D(uint16_t(m_hiZwidth), uint16_t(m_hiZheight), true, 1, bgfx::TextureFormat::R32F, BGFX_TEXTURE_COMPUTE_WRITE | tsFlags);
 			m_hiZBuffer = bgfx::createFrameBuffer(1, &buffer, true);
 
 			//how many mip will the Hi Z buffer have?
@@ -987,18 +987,6 @@ public:
 	void renderMainPass()
 	{
 		// Set view and projection matrix for view 0.
-		const bgfx::HMD* hmd = bgfx::getHMD();
-		if (NULL != hmd && 0 != (hmd->flags & BGFX_HMD_RENDERING))
-		{
-			bgfx::setViewTransform(RENDER_PASS_MAIN_ID, m_mainView, hmd->eye[0].projection, BGFX_VIEW_STEREO, hmd->eye[1].projection);
-
-			// Set view 0 default viewport.
-			//
-			// Use HMD's width/height since HMD's internal frame buffer size
-			// might be much larger than window size.
-			bgfx::setViewRect(RENDER_PASS_MAIN_ID, 0, 0, hmd->width, hmd->height);
-		}
-		else
 		{
 			bgfx::setViewTransform(RENDER_PASS_MAIN_ID, m_mainView, m_mainProj);
 
