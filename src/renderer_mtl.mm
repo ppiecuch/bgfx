@@ -471,6 +471,7 @@ namespace bgfx { namespace mtl
 			retain(m_device);
 			m_metalLayer.device      = m_device;
 			m_metalLayer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+			m_metalLayer.magnificationFilter = kCAFilterNearest;
 
 			m_cmd.init(m_device);
 			BGFX_FATAL(NULL != m_cmd.m_commandQueue, Fatal::UnableToInitialize, "Unable to create Metal device.");
@@ -483,9 +484,9 @@ namespace bgfx { namespace mtl
 			m_textureDescriptor = newTextureDescriptor();
 			m_samplerDescriptor = newSamplerDescriptor();
 
-			for (uint8_t i=0; i < MTL_MAX_FRAMES_IN_FLIGHT; ++i)
+			for (uint8_t ii = 0; ii < MTL_MAX_FRAMES_IN_FLIGHT; ++ii)
 			{
-				m_uniformBuffers[i] = m_device.newBufferWithLength(UNIFORM_BUFFER_SIZE, 0);
+				m_uniformBuffers[ii] = m_device.newBufferWithLength(UNIFORM_BUFFER_SIZE, 0);
 			}
 
 			m_uniformBufferVertexOffset   = 0;
@@ -570,6 +571,7 @@ namespace bgfx { namespace mtl
 				g_caps.limits.maxFBAttachments = 8;
 				g_caps.supported |= BGFX_CAPS_TEXTURE_CUBE_ARRAY;
 			}
+
 			g_caps.limits.maxTextureLayers = 2048;
 			g_caps.limits.maxVertexStreams = BGFX_CONFIG_MAX_VERTEX_STREAMS;
 
@@ -675,7 +677,7 @@ namespace bgfx { namespace mtl
 				}
 			}
 
-			for (uint32_t ii=1; ii<5; ++ii)
+			for (uint32_t ii = 1; ii < 5; ++ii)
 			{
 				if (!m_device.supportsTextureSampleCount(s_msaa[ii]) )
 				{
@@ -872,7 +874,7 @@ namespace bgfx { namespace mtl
 			texture.m_ptr.getBytes(_data, srcWidth*bpp/8, 0, region, _mip, 0);
 		}
 
-		void resizeTexture(TextureHandle _handle, uint16_t _width, uint16_t _height, uint8_t _numMips) override
+		void resizeTexture(TextureHandle _handle, uint16_t _width, uint16_t _height, uint8_t _numMips, uint16_t _numLayers) override
 		{
 			TextureMtl& texture = m_textures[_handle.idx];
 
@@ -887,7 +889,7 @@ namespace bgfx { namespace mtl
 			tc.m_width     = _width;
 			tc.m_height    = _height;
 			tc.m_depth     = 0;
-			tc.m_numLayers = 1;
+			tc.m_numLayers = _numLayers;
 			tc.m_numMips   = _numMips;
 			tc.m_format    = TextureFormat::Enum(texture.m_requestedFormat);
 			tc.m_cubeMap   = false;
@@ -1950,6 +1952,8 @@ namespace bgfx { namespace mtl
 				VertexDescriptor vertexDesc = m_vertexDescriptor;
 				reset(vertexDesc);
 
+				bool attrSet[Attrib::Count] = {};
+
 				uint8_t stream = 0;
 				for (; stream < _numStreams; ++stream)
 				{
@@ -1957,7 +1961,7 @@ namespace bgfx { namespace mtl
 					for (uint32_t ii = 0; Attrib::Count != program.m_used[ii]; ++ii)
 					{
 						Attrib::Enum attr = Attrib::Enum(program.m_used[ii]);
-						uint32_t loc = program.m_attributes[attr];
+						const uint32_t loc = program.m_attributes[attr];
 
 						uint8_t num;
 						AttribType::Enum type;
@@ -1973,24 +1977,32 @@ namespace bgfx { namespace mtl
 							vertexDesc.attributes[loc].offset      = vertexDecl.m_offset[attr];
 
 							BX_TRACE("attrib: %s format: %d offset: %d", s_attribName[attr], (int)vertexDesc.attributes[loc].format, (int)vertexDesc.attributes[loc].offset);
+
+							attrSet[attr] = true;
 						}
-//						else
-//						{	// NOTE: missing attribute: using dummy attribute with smallest possible size
-//							vertexDesc.attributes[loc].format      = MTLVertexFormatUChar2;
-//							vertexDesc.attributes[loc].bufferIndex = 1;
-//							vertexDesc.attributes[loc].offset      = 0;
-//						}
 					}
 
 					vertexDesc.layouts[stream+1].stride       = vertexDecl.getStride();
 					vertexDesc.layouts[stream+1].stepFunction = MTLVertexStepFunctionPerVertex;
 				}
 
+				for (uint32_t ii = 0; Attrib::Count != program.m_used[ii]; ++ii)
+				{
+					Attrib::Enum attr = Attrib::Enum(program.m_used[ii]);
+					const uint32_t loc = program.m_attributes[attr];
+					if (!attrSet[attr])
+					{
+						vertexDesc.attributes[loc].format      = MTLVertexFormatUChar2;
+						vertexDesc.attributes[loc].bufferIndex = 1;
+						vertexDesc.attributes[loc].offset      = 0;
+					}
+				}
+
 				if (0 < _numInstanceData)
 				{
 					for (uint32_t ii = 0; UINT16_MAX != program.m_instanceData[ii]; ++ii)
 					{
-						uint32_t loc = program.m_instanceData[ii];
+						const uint32_t loc = program.m_instanceData[ii];
 						vertexDesc.attributes[loc].format      = MTLVertexFormatFloat4;
 						vertexDesc.attributes[loc].bufferIndex = stream+1;
 						vertexDesc.attributes[loc].offset      = ii*16;
@@ -2340,26 +2352,25 @@ namespace bgfx { namespace mtl
 		uint32_t magic;
 		bx::read(&reader, magic);
 
-		switch (magic)
+		uint32_t hashIn;
+		bx::read(&reader, hashIn);
+
+		uint32_t hashOut;
+
+		if (isShaderVerLess(magic, 6) )
 		{
-			case BGFX_CHUNK_MAGIC_CSH:
-			case BGFX_CHUNK_MAGIC_FSH:
-			case BGFX_CHUNK_MAGIC_VSH:
-				break;
-
-			default:
-				BGFX_FATAL(false, Fatal::InvalidShader, "Unknown shader format %x.", magic);
-				break;
+			hashOut = hashIn;
 		}
-
-		uint32_t iohash;
-		bx::read(&reader, iohash);
+		else
+		{
+			bx::read(&reader, hashOut);
+		}
 
 		uint16_t count;
 		bx::read(&reader, count);
 
 		BX_TRACE("%s Shader consts %d"
-			, BGFX_CHUNK_MAGIC_FSH == magic ? "Fragment" : BGFX_CHUNK_MAGIC_VSH == magic ? "Vertex" : "Compute"
+			, getShaderTypeName(magic)
 			, count
 			);
 
@@ -2402,12 +2413,13 @@ namespace bgfx { namespace mtl
 		BGFX_FATAL(NULL != m_function
 			, bgfx::Fatal::InvalidShader
 			, "Failed to create %s shader."
-			, BGFX_CHUNK_MAGIC_FSH == magic ? "Fragment" : BGFX_CHUNK_MAGIC_VSH == magic ? "Vertex" : "Compute"
+			, getShaderTypeName(magic)
 			);
 
 		bx::HashMurmur2A murmur;
 		murmur.begin();
-		murmur.add(iohash);
+		murmur.add(hashIn);
+		murmur.add(hashOut);
 		murmur.add(code, shaderSize);
 //		murmur.add(numAttrs);
 //		murmur.add(m_attrMask, numAttrs);
@@ -4091,6 +4103,7 @@ namespace bgfx { namespace mtl
 		perfStats.gpuTimerFreq  = m_gpuTimer.m_frequency;
 		perfStats.numDraw       = statsKeyType[0];
 		perfStats.numCompute    = statsKeyType[1];
+		perfStats.numBlit       = _render->m_numBlitItems;
 		perfStats.maxGpuLatency = maxGpuLatency;
 		bx::memCopy(perfStats.numPrims, statsNumPrimsRendered, sizeof(perfStats.numPrims) );
 		perfStats.gpuMemoryMax  = -INT64_MAX;

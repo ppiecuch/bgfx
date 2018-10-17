@@ -419,9 +419,12 @@ namespace bgfx { namespace d3d12
 	static inline D3D12_HEAP_PROPERTIES ID3D12DeviceGetCustomHeapProperties(ID3D12Device *device, UINT nodeMask, D3D12_HEAP_TYPE heapType)
 	{
 		// NOTICE: gcc trick for return struct
-		typedef void (STDMETHODCALLTYPE ID3D12Device::*GetCustomHeapProperties_f)(D3D12_HEAP_PROPERTIES *, UINT, D3D12_HEAP_TYPE);
+		union {
+			D3D12_HEAP_PROPERTIES (STDMETHODCALLTYPE ID3D12Device::*w)(UINT, D3D12_HEAP_TYPE);
+			void (STDMETHODCALLTYPE ID3D12Device::*f)(D3D12_HEAP_PROPERTIES *, UINT, D3D12_HEAP_TYPE);
+		} conversion = { &ID3D12Device::GetCustomHeapProperties };
 		D3D12_HEAP_PROPERTIES ret;
-		(device->*(GetCustomHeapProperties_f)(&ID3D12Device::GetCustomHeapProperties))(&ret, nodeMask, heapType);
+		(device->*conversion.f)(&ret, nodeMask, heapType);
 		return ret;
 	}
 
@@ -563,8 +566,11 @@ namespace bgfx { namespace d3d12
 		return _heap->GetCPUDescriptorHandleForHeapStart();
 #else
 		D3D12_CPU_DESCRIPTOR_HANDLE handle;
-		typedef void (WINAPI ID3D12DescriptorHeap::*PFN_GET_CPU_DESCRIPTOR_HANDLE_FOR_HEAP_START)(D3D12_CPU_DESCRIPTOR_HANDLE *);
-		(_heap->*(PFN_GET_CPU_DESCRIPTOR_HANDLE_FOR_HEAP_START)(&ID3D12DescriptorHeap::GetCPUDescriptorHandleForHeapStart) )(&handle);
+		union {
+			D3D12_CPU_DESCRIPTOR_HANDLE (WINAPI ID3D12DescriptorHeap::*w)();
+			void (WINAPI ID3D12DescriptorHeap::*f)(D3D12_CPU_DESCRIPTOR_HANDLE *);
+		} conversion = { &ID3D12DescriptorHeap::GetCPUDescriptorHandleForHeapStart };
+		(_heap->*conversion.f)(&handle);
 		return handle;
 #endif // BX_COMPILER_MSVC
 	}
@@ -575,8 +581,11 @@ namespace bgfx { namespace d3d12
 		return _heap->GetGPUDescriptorHandleForHeapStart();
 #else
 		D3D12_GPU_DESCRIPTOR_HANDLE handle;
-		typedef void (WINAPI ID3D12DescriptorHeap::*PFN_GET_GPU_DESCRIPTOR_HANDLE_FOR_HEAP_START)(D3D12_GPU_DESCRIPTOR_HANDLE *);
-		(_heap->*(PFN_GET_GPU_DESCRIPTOR_HANDLE_FOR_HEAP_START)(&ID3D12DescriptorHeap::GetGPUDescriptorHandleForHeapStart) )(&handle);
+		union {
+			D3D12_GPU_DESCRIPTOR_HANDLE (WINAPI ID3D12DescriptorHeap::*w)();
+			void (WINAPI ID3D12DescriptorHeap::*f)(D3D12_GPU_DESCRIPTOR_HANDLE *);
+		} conversion = { &ID3D12DescriptorHeap::GetGPUDescriptorHandleForHeapStart };
+		(_heap->*conversion.f)(&handle);
 		return handle;
 #endif // BX_COMPILER_MSVC
 	}
@@ -586,9 +595,12 @@ namespace bgfx { namespace d3d12
 #if BX_COMPILER_MSVC
 		return _resource->GetDesc();
 #else
-		typedef void (STDMETHODCALLTYPE ID3D12Resource::*PFN_GET_GET_DESC)(D3D12_RESOURCE_DESC*);
 		D3D12_RESOURCE_DESC desc;
-		(_resource->*(PFN_GET_GET_DESC)(&ID3D12Resource::GetDesc))(&desc);
+		union {
+			D3D12_RESOURCE_DESC (STDMETHODCALLTYPE ID3D12Resource::*w)();
+			void (STDMETHODCALLTYPE ID3D12Resource::*f)(D3D12_RESOURCE_DESC *);
+		} conversion = { &ID3D12Resource::GetDesc };
+		(_resource->*conversion.f)(&desc);
 		return desc;
 #endif // BX_COMPILER_MSVC
 	}
@@ -823,6 +835,7 @@ namespace bgfx { namespace d3d12
 
 #if BX_PLATFORM_XBOXONE
 			m_device->SetDebugErrorFilterX(0x73EC9EAF, D3D12XBOX_DEBUG_FILTER_FLAG_DISABLE_BREAKS);
+			m_device->SetDebugErrorFilterX(0x8EC9B15C, D3D12XBOX_DEBUG_FILTER_FLAG_DISABLE_OUTPUT);
 #endif // BX_PLATFORM_XBOXONE
 
 			if (BGFX_PCI_ID_NVIDIA != m_dxgi.m_adapterDesc.VendorId)
@@ -877,7 +890,7 @@ namespace bgfx { namespace d3d12
 				m_scd.sampleDesc = s_msaa[(_init.resolution.reset&BGFX_RESET_MSAA_MASK)>>BGFX_RESET_MSAA_SHIFT];
 
 				m_scd.bufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-				m_scd.bufferCount = bx::uint32_min(BX_COUNTOF(m_backBufferColor), 4);
+				m_scd.bufferCount = bx::clamp<uint8_t>(_init.resolution.numBackBuffers, 2, BX_COUNTOF(m_backBufferColor) );
 				m_scd.scaling = 0 == g_platformData.ndt
 					? DXGI_SCALING_NONE
 					: DXGI_SCALING_STRETCH
@@ -885,9 +898,11 @@ namespace bgfx { namespace d3d12
 				m_scd.swapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
 				m_scd.alphaMode  = DXGI_ALPHA_MODE_IGNORE;
 				m_scd.flags      = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-				m_scd.nwh        = g_platformData.nwh;
-				m_scd.ndt        = g_platformData.ndt;
-				m_scd.windowed   = true;
+
+				m_scd.maxFrameLatency = bx::min<uint8_t>(_init.resolution.maxFrameLatency, 3);
+				m_scd.nwh             = g_platformData.nwh;
+				m_scd.ndt             = g_platformData.ndt;
+				m_scd.windowed        = true;
 
 				m_backBufferColorIdx = m_scd.bufferCount-1;
 
@@ -952,6 +967,8 @@ namespace bgfx { namespace d3d12
 				m_numWindows = 1;
 
 #if BX_PLATFORM_WINDOWS
+				m_infoQueue = NULL;
+
 				DX_CHECK(m_dxgi.m_factory->MakeWindowAssociation( (HWND)g_platformData.nwh
 					, 0
 					| DXGI_MWA_NO_WINDOW_CHANGES
@@ -979,8 +996,6 @@ namespace bgfx { namespace d3d12
 						filter.DenyList.NumCategories = BX_COUNTOF(catlist);
 						filter.DenyList.pCategoryList = catlist;
 						m_infoQueue->PushStorageFilter(&filter);
-
-						DX_RELEASE_WARNONLY(m_infoQueue, 0);
 					}
 				}
 #endif // BX_PLATFORM_WINDOWS
@@ -1090,10 +1105,11 @@ namespace bgfx { namespace d3d12
 					| BGFX_CAPS_TEXTURE_2D_ARRAY
 					| BGFX_CAPS_TEXTURE_CUBE_ARRAY
 					);
-				g_caps.limits.maxTextureSize   = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
-				g_caps.limits.maxTextureLayers = D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION;
-				g_caps.limits.maxFBAttachments = uint8_t(bx::uint32_min(16, BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS) );
-				g_caps.limits.maxVertexStreams = BGFX_CONFIG_MAX_VERTEX_STREAMS;
+				g_caps.limits.maxTextureSize     = D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+				g_caps.limits.maxTextureLayers   = D3D12_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION;
+				g_caps.limits.maxFBAttachments   = bx::min<uint8_t>(16, BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS);
+				g_caps.limits.maxComputeBindings = bx::min(D3D12_UAV_SLOT_COUNT, BGFX_MAX_COMPUTE_BINDINGS);
+				g_caps.limits.maxVertexStreams   = BGFX_CONFIG_MAX_VERTEX_STREAMS;
 
 				for (uint32_t ii = 0; ii < TextureFormat::Count; ++ii)
 				{
@@ -1364,6 +1380,10 @@ namespace bgfx { namespace d3d12
 				m_textures[ii].destroy();
 			}
 
+#if BX_PLATFORM_WINDOWS
+			DX_RELEASE_W(m_infoQueue, 0);
+#endif // BX_PLATFORM_WINDOWS
+
 			DX_RELEASE(m_rtvDescriptorHeap, 0);
 			DX_RELEASE(m_dsvDescriptorHeap, 0);
 
@@ -1610,7 +1630,7 @@ namespace bgfx { namespace d3d12
 			DX_RELEASE(readback, 0);
 		}
 
-		void resizeTexture(TextureHandle _handle, uint16_t _width, uint16_t _height, uint8_t _numMips) override
+		void resizeTexture(TextureHandle _handle, uint16_t _width, uint16_t _height, uint8_t _numMips, uint16_t _numLayers) override
 		{
 			TextureD3D12& texture = m_textures[_handle.idx];
 
@@ -1625,7 +1645,7 @@ namespace bgfx { namespace d3d12
 			tc.m_width     = _width;
 			tc.m_height    = _height;
 			tc.m_depth     = 0;
-			tc.m_numLayers = 1;
+			tc.m_numLayers = _numLayers;
 			tc.m_numMips   = _numMips;
 			tc.m_format    = TextureFormat::Enum(texture.m_requestedFormat);
 			tc.m_cubeMap   = false;
@@ -3193,11 +3213,11 @@ namespace bgfx { namespace d3d12
 		D3D12_CPU_DESCRIPTOR_HANDLE m_dsvHandle;
 		D3D12_CPU_DESCRIPTOR_HANDLE* m_currentColor;
 		D3D12_CPU_DESCRIPTOR_HANDLE* m_currentDepthStencil;
-		ID3D12Resource* m_backBufferColor[4];
-		uint64_t m_backBufferColorFence[4];
+		ID3D12Resource* m_backBufferColor[BGFX_CONFIG_MAX_BACK_BUFFERS];
+		uint64_t m_backBufferColorFence[BGFX_CONFIG_MAX_BACK_BUFFERS];
 		ID3D12Resource* m_backBufferDepthStencil;
 
-		ScratchBufferD3D12 m_scratchBuffer[4];
+		ScratchBufferD3D12 m_scratchBuffer[BGFX_CONFIG_MAX_BACK_BUFFERS];
 		DescriptorAllocatorD3D12 m_samplerAllocator;
 
 		ID3D12RootSignature*    m_rootSignature;
@@ -4318,22 +4338,21 @@ namespace bgfx { namespace d3d12
 		uint32_t magic;
 		bx::read(&reader, magic);
 
-		switch (magic)
+		const bool fragment = isShaderType(magic, 'F');
+
+		uint32_t hashIn;
+		bx::read(&reader, hashIn);
+
+		uint32_t hashOut;
+
+		if (isShaderVerLess(magic, 6) )
 		{
-		case BGFX_CHUNK_MAGIC_CSH:
-		case BGFX_CHUNK_MAGIC_FSH:
-		case BGFX_CHUNK_MAGIC_VSH:
-			break;
-
-		default:
-			BGFX_FATAL(false, Fatal::InvalidShader, "Unknown shader format %x.", magic);
-			break;
+			hashOut = hashIn;
 		}
-
-		bool fragment = BGFX_CHUNK_MAGIC_FSH == magic;
-
-		uint32_t iohash;
-		bx::read(&reader, iohash);
+		else
+		{
+			bx::read(&reader, hashOut);
+		}
 
 		uint16_t count;
 		bx::read(&reader, count);
@@ -4342,7 +4361,7 @@ namespace bgfx { namespace d3d12
 		m_numUniforms = count;
 
 		BX_TRACE("%s Shader consts %d"
-			, BGFX_CHUNK_MAGIC_FSH == magic ? "Fragment" : BGFX_CHUNK_MAGIC_VSH == magic ? "Vertex" : "Compute"
+			, getShaderTypeName(magic)
 			, count
 			);
 
@@ -4448,7 +4467,8 @@ namespace bgfx { namespace d3d12
 
 		bx::HashMurmur2A murmur;
 		murmur.begin();
-		murmur.add(iohash);
+		murmur.add(hashIn);
+		murmur.add(hashOut);
 		murmur.add(code, shaderSize);
 		murmur.add(numAttrs);
 		murmur.add(m_attrMask, numAttrs);
@@ -4885,8 +4905,9 @@ namespace bgfx { namespace d3d12
 		s_renderD3D12->m_cmd.release(staging);
 	}
 
-	void TextureD3D12::resolve()
+	void TextureD3D12::resolve(uint8_t _resolve) const
 	{
+		BX_UNUSED(_resolve);
 	}
 
 	D3D12_RESOURCE_STATES TextureD3D12::setState(ID3D12GraphicsCommandList* _commandList, D3D12_RESOURCE_STATES _state)
@@ -5124,6 +5145,18 @@ namespace bgfx { namespace d3d12
 
 	void FrameBufferD3D12::resolve()
 	{
+		if (0 < m_numTh)
+		{
+			for (uint32_t ii = 0; ii < m_numTh; ++ii)
+			{
+				const Attachment& at = m_attachment[ii];
+				if (isValid(at.handle) )
+				{
+					const TextureD3D12& texture = s_renderD3D12->m_textures[at.handle.idx];
+					texture.resolve(at.resolve);
+				}
+			}
+		}
 	}
 
 	void FrameBufferD3D12::clear(ID3D12GraphicsCommandList* _commandList, const Clear& _clear, const float _palette[][4], const D3D12_RECT* _rect, uint32_t _num)
@@ -5603,6 +5636,8 @@ namespace bgfx { namespace d3d12
 		Rect viewScissorRect;
 		viewScissorRect.clear();
 
+		const uint32_t maxComputeBindings = g_caps.limits.maxComputeBindings;
+
 		uint32_t statsNumPrimsSubmitted[BX_COUNTOF(s_primInfo)] = {};
 		uint32_t statsNumPrimsRendered[BX_COUNTOF(s_primInfo)] = {};
 		uint32_t statsNumInstances[BX_COUNTOF(s_primInfo)] = {};
@@ -5800,7 +5835,7 @@ namespace bgfx { namespace d3d12
 							D3D12_GPU_DESCRIPTOR_HANDLE srvHandle[BGFX_MAX_COMPUTE_BINDINGS] = {};
 							uint32_t samplerFlags[BGFX_MAX_COMPUTE_BINDINGS] = {};
 
-							for (uint32_t ii = 0; ii < BGFX_MAX_COMPUTE_BINDINGS; ++ii)
+							for (uint32_t ii = 0; ii < maxComputeBindings; ++ii)
 							{
 								const Binding& bind = renderBind.m_bind[ii];
 								if (kInvalidHandle != bind.m_idx)
@@ -5848,9 +5883,14 @@ namespace bgfx { namespace d3d12
 										break;
 									}
 								}
+								else
+								{
+									samplerFlags[ii] = 0;
+									scratchBuffer.allocEmpty(srvHandle[ii]);
+								}
 							}
 
-							uint16_t samplerStateIdx = getSamplerState(samplerFlags, BGFX_MAX_COMPUTE_BINDINGS, _render->m_colorPalette);
+							uint16_t samplerStateIdx = getSamplerState(samplerFlags, maxComputeBindings, _render->m_colorPalette);
 							if (samplerStateIdx != currentSamplerStateIdx)
 							{
 								currentSamplerStateIdx = samplerStateIdx;
@@ -6395,6 +6435,7 @@ namespace bgfx { namespace d3d12
 		perfStats.gpuTimerFreq  = m_gpuTimer.m_frequency;
 		perfStats.numDraw       = statsKeyType[0];
 		perfStats.numCompute    = statsKeyType[1];
+		perfStats.numBlit       = _render->m_numBlitItems;
 		perfStats.maxGpuLatency = maxGpuLatency;
 		bx::memCopy(perfStats.numPrims, statsNumPrimsRendered, sizeof(perfStats.numPrims) );
 		perfStats.gpuMemoryMax  = -INT64_MAX;

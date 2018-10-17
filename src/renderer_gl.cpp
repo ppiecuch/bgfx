@@ -2321,9 +2321,10 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 					: 0
 					;
 
-				g_caps.limits.maxTextureSize   = uint16_t(glGet(GL_MAX_TEXTURE_SIZE) );
-				g_caps.limits.maxTextureLayers = uint16_t(bx::max(glGet(GL_MAX_ARRAY_TEXTURE_LAYERS), 1) );
-				g_caps.limits.maxVertexStreams = BGFX_CONFIG_MAX_VERTEX_STREAMS;
+				g_caps.limits.maxTextureSize     = uint16_t(glGet(GL_MAX_TEXTURE_SIZE) );
+				g_caps.limits.maxTextureLayers   = uint16_t(bx::max(glGet(GL_MAX_ARRAY_TEXTURE_LAYERS), 1) );
+				g_caps.limits.maxComputeBindings = computeSupport ? BGFX_MAX_COMPUTE_BINDINGS : 0;
+				g_caps.limits.maxVertexStreams   = BGFX_CONFIG_MAX_VERTEX_STREAMS;
 
 				if (BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGL)
 				||  BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES >= 30)
@@ -2817,7 +2818,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 			}
 		}
 
-		void resizeTexture(TextureHandle _handle, uint16_t _width, uint16_t _height, uint8_t _numMips) override
+		void resizeTexture(TextureHandle _handle, uint16_t _width, uint16_t _height, uint8_t _numMips, uint16_t _numLayers) override
 		{
 			TextureGL& texture = m_textures[_handle.idx];
 
@@ -2832,7 +2833,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 			tc.m_width     = _width;
 			tc.m_height    = _height;
 			tc.m_depth     = 0;
-			tc.m_numLayers = 1;
+			tc.m_numLayers = _numLayers;
 			tc.m_numMips   = _numMips;
 			tc.m_format    = TextureFormat::Enum(texture.m_requestedFormat);
 			tc.m_cubeMap   = false;
@@ -4514,6 +4515,19 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 		}
 	}
 
+	void ProgramGL::unbindAttributes()
+	{
+		for(uint32_t ii = 0, iiEnd = m_usedCount; ii < iiEnd; ++ii)
+		{
+			if(Attrib::Count == m_unboundUsedAttrib[ii])
+			{
+				Attrib::Enum attr = Attrib::Enum(m_used[ii]);
+				GLint loc = m_attributes[attr];
+				GL_CHECK(glDisableVertexAttribArray(loc));
+			}
+		}
+	}
+
 	void ProgramGL::bindInstanceData(uint32_t _stride, uint32_t _baseVertex) const
 	{
 		uint32_t baseVertex = _baseVertex;
@@ -4524,6 +4538,15 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 			GL_CHECK(glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, _stride, (void*)(uintptr_t)baseVertex) );
 			GL_CHECK(glVertexAttribDivisor(loc, 1) );
 			baseVertex += 16;
+		}
+	}
+
+	void ProgramGL::unbindInstanceData() const
+	{
+		for(uint32_t ii = 0; 0xffff != m_instanceData[ii]; ++ii)
+		{
+			GLint loc = m_instanceData[ii];
+			GL_CHECK(glDisableVertexAttribArray(loc));
 		}
 	}
 
@@ -5187,11 +5210,12 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 		}
 	}
 
-	void TextureGL::resolve() const
+	void TextureGL::resolve(uint8_t _resolve) const
 	{
 		const bool renderTarget = 0 != (m_flags&BGFX_TEXTURE_RT_MASK);
 		if (renderTarget
-		&&  1 < m_numMips)
+		&&  1 < m_numMips
+		&&  0 != (_resolve & BGFX_RESOLVE_AUTO_GEN_MIPS) )
 		{
 			GL_CHECK(glBindTexture(m_target, m_id) );
 			GL_CHECK(glGenerateMipmap(m_target) );
@@ -5231,25 +5255,38 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 		uint32_t magic;
 		bx::read(&reader, magic);
 
-		switch (magic)
+		if (isShaderType(magic, 'C') )
 		{
-		case BGFX_CHUNK_MAGIC_CSH: m_type = GL_COMPUTE_SHADER;  break;
-		case BGFX_CHUNK_MAGIC_FSH: m_type = GL_FRAGMENT_SHADER;	break;
-		case BGFX_CHUNK_MAGIC_VSH: m_type = GL_VERTEX_SHADER;   break;
-
-		default:
-			BGFX_FATAL(false, Fatal::InvalidShader, "Unknown shader format %x.", magic);
-			break;
+			m_type = GL_COMPUTE_SHADER;
+		}
+		else if (isShaderType(magic, 'F') )
+		{
+			m_type = GL_FRAGMENT_SHADER;
+		}
+		else if (isShaderType(magic, 'V') )
+		{
+			m_type = GL_VERTEX_SHADER;
 		}
 
-		uint32_t iohash;
-		bx::read(&reader, iohash);
+		uint32_t hashIn;
+		bx::read(&reader, hashIn);
+
+		uint32_t hashOut;
+
+		if (isShaderVerLess(magic, 6) )
+		{
+			hashOut = hashIn;
+		}
+		else
+		{
+			bx::read(&reader, hashOut);
+		}
 
 		uint16_t count;
 		bx::read(&reader, count);
 
 		BX_TRACE("%s Shader consts %d"
-			, BGFX_CHUNK_MAGIC_FSH == magic ? "Fragment" : BGFX_CHUNK_MAGIC_VSH == magic ? "Vertex" : "Compute"
+			, getShaderTypeName(magic)
 			, count
 			);
 
@@ -5279,9 +5316,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 		bx::read(&reader, shaderSize);
 
 		m_id = glCreateShader(m_type);
-		BX_WARN(0 != m_id, "Failed to create %s shader."
-				, BGFX_CHUNK_MAGIC_FSH == magic ? "fragment" : BGFX_CHUNK_MAGIC_VSH == magic ? "vertex" : "compute"
-				);
+		BX_WARN(0 != m_id, "Failed to create shader.");
 
 		const char* code = (const char*)reader.getDataPtr();
 
@@ -6068,11 +6103,11 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 
 		for (uint32_t ii = 0; ii < m_numTh; ++ii)
 		{
-			TextureHandle handle = m_attachment[ii].handle;
-			if (isValid(handle) )
+			const Attachment& at = m_attachment[ii];
+			if (isValid(at.handle) )
 			{
-				const TextureGL& texture = s_renderGL->m_textures[handle.idx];
-				texture.resolve();
+				const TextureGL& texture = s_renderGL->m_textures[at.handle.idx];
+				texture.resolve(at.resolve);
 			}
 		}
 	}
@@ -6300,6 +6335,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 		viewState.reset(_render, hmdEnabled);
 
 		uint16_t programIdx = kInvalidHandle;
+		uint16_t boundProgramIdx = kInvalidHandle;
 		SortKey key;
 		uint16_t view = UINT16_MAX;
 		FrameBufferHandle fbh = { BGFX_CONFIG_MAX_FRAME_BUFFERS };
@@ -6333,6 +6369,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 			|| (BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGL) && s_extension[Extension::ARB_compute_shader].m_supported)
 			||  BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES >= 31)
 			;
+		const uint32_t maxComputeBindings = g_caps.limits.maxComputeBindings;
 
 		uint32_t statsNumPrimsSubmitted[BX_COUNTOF(s_primInfo)] = {};
 		uint32_t statsNumPrimsRendered[BX_COUNTOF(s_primInfo)] = {};
@@ -6499,7 +6536,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 						GL_CHECK(glUseProgram(program.m_id) );
 
 						GLbitfield barrier = 0;
-						for (uint32_t ii = 0; ii < BGFX_MAX_COMPUTE_BINDINGS; ++ii)
+						for (uint32_t ii = 0; ii < maxComputeBindings; ++ii)
 						{
 							const Binding& bind = renderBind.m_bind[ii];
 							if (kInvalidHandle != bind.m_idx)
@@ -7134,6 +7171,14 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 
 							if (bindAttribs || diffStartVertex)
 							{
+								if(kInvalidHandle != boundProgramIdx)
+								{
+									ProgramGL& boundProgram = m_program[boundProgramIdx];
+									boundProgram.unbindAttributes();
+								}
+
+								boundProgramIdx = programIdx;
+
 								program.bindAttributesBegin();
 
 								if (UINT8_MAX != draw.m_streamMask)
@@ -7309,12 +7354,23 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 							m_occlusionQuery.end();
 						}
 
+						if(isValid(draw.m_instanceDataBuffer))
+						{
+							program.unbindInstanceData();
+						}
+
 						statsNumPrimsSubmitted[primIndex] += numPrimsSubmitted;
 						statsNumPrimsRendered[primIndex]  += numPrimsRendered;
 						statsNumInstances[primIndex]      += numInstances;
 						statsNumIndices += numIndices;
 					}
 				}
+			}
+
+			if(kInvalidHandle != boundProgramIdx)
+			{
+				ProgramGL& boundProgram = m_program[boundProgramIdx];
+				boundProgram.unbindAttributes();
 			}
 
 			submitBlit(bs, BGFX_CONFIG_MAX_VIEWS);
@@ -7378,6 +7434,7 @@ BX_TRACE("%d, %d, %d, %s", _array, _srgb, _mipAutogen, getName(_format) );
 		perfStats.gpuTimerFreq  = 1000000000;
 		perfStats.numDraw       = statsKeyType[0];
 		perfStats.numCompute    = statsKeyType[1];
+		perfStats.numBlit       = _render->m_numBlitItems;
 		perfStats.maxGpuLatency = maxGpuLatency;
 		bx::memCopy(perfStats.numPrims, statsNumPrimsRendered, sizeof(perfStats.numPrims) );
 		perfStats.gpuMemoryMax  = -INT64_MAX;

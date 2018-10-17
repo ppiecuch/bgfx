@@ -49,7 +49,7 @@ Supported platforms:
 Supported compilers:
 
  * Clang 3.3 and above
- * GCC 4.6 and above
+ * GCC 5 and above
  * VS2015 and above
 
 Languages:

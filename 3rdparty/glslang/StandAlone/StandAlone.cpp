@@ -103,6 +103,7 @@ enum TOptions {
 };
 bool targetHlslFunctionality1 = false;
 bool SpvToolsDisassembler = false;
+bool SpvToolsValidate = false;
 
 //
 // Return codes from main/exit().
@@ -171,6 +172,9 @@ std::vector<std::string> Processes;                     // what should be record
 
 // Per descriptor-set binding base data
 typedef std::map<unsigned int, unsigned int> TPerSetBaseBinding;
+
+std::vector<std::pair<std::string, int>> uniformLocationOverrides;
+int uniformBase = 0;
 
 std::array<std::array<unsigned int, EShLangCount>, glslang::EResCount> baseBinding;
 std::array<std::array<TPerSetBaseBinding, EShLangCount>, glslang::EResCount> baseBindingForSet;
@@ -243,6 +247,16 @@ const char* GetBinaryName(EShLanguage stage)
         case EShLangGeometry:        name = "geom.spv";    break;
         case EShLangFragment:        name = "frag.spv";    break;
         case EShLangCompute:         name = "comp.spv";    break;
+#ifdef NV_EXTENSIONS
+        case EShLangRayGenNV:        name = "rgen.spv";    break;
+        case EShLangIntersectNV:     name = "rint.spv";    break;
+        case EShLangAnyHitNV:        name = "rahit.spv";   break;
+        case EShLangClosestHitNV:    name = "rchit.spv";   break;
+        case EShLangMissNV:          name = "rmiss.spv";   break;
+        case EShLangCallableNV:      name = "rcall.spv";   break;
+        case EShLangMeshNV:          name = "mesh.spv";    break;
+        case EShLangTaskNV:          name = "task.spv";    break;
+#endif
         default:                     name = "unknown";     break;
         }
     } else
@@ -420,6 +434,22 @@ void ProcessArguments(std::vector<std::unique_ptr<glslang::TWorkItem>>& workItem
         Options &= ~EOptionVulkanRules;
     };
 
+    const auto getUniformOverride = [getStringOperand]() {
+        const char *arg = getStringOperand("-u<name>:<location>");
+        const char *split = strchr(arg, ':');
+        if (split == NULL) {
+            printf("%s: missing location\n", arg);
+            exit(EFailUsage);
+        }
+        errno = 0;
+        int location = ::strtol(split + 1, NULL, 10);
+        if (errno) {
+            printf("%s: invalid location\n", arg);
+            exit(EFailUsage);
+        }
+        return std::make_pair(std::string(arg, split - arg), location);
+    };
+
     for (bumpArg(); argc >= 1; bumpArg()) {
         if (argv[0][0] == '-') {
             switch (argv[0][1]) {
@@ -436,6 +466,12 @@ void ProcessArguments(std::vector<std::unique_ptr<glslang::TWorkItem>>& workItem
                     } else if (lowerword == "auto-map-locations" || // synonyms
                                lowerword == "aml") {
                         Options |= EOptionAutoMapLocations;
+                    } else if (lowerword == "uniform-base") {
+                        if (argc <= 1)
+                            Error("no <base> provided for --uniform-base");
+                        uniformBase = ::strtol(argv[1], NULL, 10);
+                        bumpArg();
+                        break;
                     } else if (lowerword == "client") {
                         if (argc > 1) {
                             if (strcmp(argv[1], "vulkan100") == 0)
@@ -514,6 +550,8 @@ void ProcessArguments(std::vector<std::unique_ptr<glslang::TWorkItem>>& workItem
                         break;
                     } else if (lowerword == "spirv-dis") {
                         SpvToolsDisassembler = true;
+                    } else if (lowerword == "spirv-val") {
+                        SpvToolsValidate = true;
                     } else if (lowerword == "stdin") {
                         Options |= EOptionStdin;
                         shaderStageName = argv[1];
@@ -558,6 +596,9 @@ void ProcessArguments(std::vector<std::unique_ptr<glslang::TWorkItem>>& workItem
                     Options |= EOptionReadHlsl;
                 else
                     UserPreamble.addDef(getStringOperand("-D<macro> macro name"));
+                break;
+            case 'u':
+                uniformLocationOverrides.push_back(getUniformOverride());
                 break;
             case 'E':
                 Options |= EOptionOutputPreprocessed;
@@ -885,6 +926,13 @@ void CompileAndLinkShaderUnits(std::vector<ShaderCompUnit> compUnits)
         if (Options & EOptionInvertY)
             shader->setInvertY(true);
 
+        for (auto& uniOverride : uniformLocationOverrides) {
+            shader->addUniformLocationOverride(uniOverride.first.c_str(),
+                                               uniOverride.second);
+        }
+
+        shader->setUniformLocationBase(uniformBase);
+
         // Set up the environment, some subsettings take precedence over earlier
         // ways of setting things.
         if (Options & EOptionSpv) {
@@ -978,6 +1026,8 @@ void CompileAndLinkShaderUnits(std::vector<ShaderCompUnit> compUnits)
                         spvOptions.generateDebugInfo = true;
                     spvOptions.disableOptimizer = (Options & EOptionOptimizeDisable) != 0;
                     spvOptions.optimizeSize = (Options & EOptionOptimizeSize) != 0;
+                    spvOptions.disassemble = SpvToolsDisassembler;
+                    spvOptions.validate = SpvToolsValidate;
                     glslang::GlslangToSpv(*program.getIntermediate((EShLanguage)stage), spirv, &logger, &spvOptions);
 
                     // Dump the spv to a file or stdout, etc., but only if not doing
@@ -989,13 +1039,6 @@ void CompileAndLinkShaderUnits(std::vector<ShaderCompUnit> compUnits)
                         } else {
                             glslang::OutputSpvBin(spirv, GetBinaryName((EShLanguage)stage));
                         }
-#if ENABLE_OPT
-                        if (SpvToolsDisassembler)
-                            spv::SpirvToolsDisassemble(std::cout, spirv);
-#else
-                        if (SpvToolsDisassembler)
-                            printf("SPIRV-Tools is not enabled; use -H for human readable SPIR-V\n");
-#endif
                         if (!SpvToolsDisassembler && (Options & EOptionHumanReadableSpv))
                             spv::Disassemble(std::cout, spirv);
                     }
@@ -1208,7 +1251,14 @@ int C_DECL main(int argc, char* argv[])
 //   .geom = geometry
 //   .frag = fragment
 //   .comp = compute
-//
+//   .rgen = ray generation
+//   .rint = ray intersection
+//   .rahit = ray any hit
+//   .rchit = ray closest hit
+//   .rmiss = ray miss
+//   .rcall = ray callable
+//   .mesh  = mesh
+//   .task  = task
 //   Additionally, the file names may end in .<stage>.glsl and .<stage>.hlsl
 //   where <stage> is one of the stages listed above.
 //
@@ -1252,6 +1302,24 @@ EShLanguage FindLanguage(const std::string& name, bool parseStageName)
         return EShLangFragment;
     else if (stageName == "comp")
         return EShLangCompute;
+#ifdef NV_EXTENSIONS
+    else if (stageName == "rgen")
+        return EShLangRayGenNV;
+    else if (stageName == "rint")
+        return EShLangIntersectNV;
+    else if (stageName == "rahit")
+        return EShLangAnyHitNV;
+    else if (stageName == "rchit")
+        return EShLangClosestHitNV;
+    else if (stageName == "rmiss")
+        return EShLangMissNV;
+    else if (stageName == "rcall")
+        return EShLangCallableNV;
+    else if (stageName == "mesh")
+        return EShLangMeshNV;
+    else if (stageName == "task")
+        return EShLangTaskNV;
+#endif
 
     usage();
     return EShLangVertex;
@@ -1321,6 +1389,16 @@ void usage()
            "    .geom   for a geometry shader\n"
            "    .frag   for a fragment shader\n"
            "    .comp   for a compute shader\n"
+#ifdef NV_EXTENSIONS
+           "    .mesh   for a mesh shader\n"
+           "    .task   for a task shader\n"
+           "    .rgen    for a ray generation shader\n"
+           "    .rint    for a ray intersection shader\n"
+           "    .rahit   for a ray any hit shader\n"
+           "    .rchit   for a ray closest hit shader\n"
+           "    .rmiss   for a ray miss shader\n"
+           "    .rcall   for a ray callable shader\n"
+#endif
            "    .glsl   for .vert.glsl, .tesc.glsl, ..., .comp.glsl compound suffixes\n"
            "    .hlsl   for .vert.hlsl, .tesc.hlsl, ..., .comp.hlsl compound suffixes\n"
            "\n"
@@ -1376,6 +1454,8 @@ void usage()
            "  -w | --suppress-warnings\n"
            "              suppress GLSL warnings, except as required by \"#extension : warn\"\n"
            "  -x          save binary output as text-based 32-bit hexadecimal numbers\n"
+           "  -u<name>:<loc> specify a uniform location override for --aml\n"
+           "  --uniform-base <base> set a base to use for generated uniform locations\n"
            "  --auto-map-bindings | --amb       automatically bind uniform variables\n"
            "                                    without explicit bindings\n"
            "  --auto-map-locations | --aml      automatically locate input/output lacking\n"
@@ -1427,6 +1507,7 @@ void usage()
            "  --shift-cbuffer-binding | --scb   synonyms for --shift-UBO-binding\n"
            "  --spirv-dis                       output standard-form disassembly; works only\n"
            "                                    when a SPIR-V generation option is also used\n"
+           "  --spirv-val                       execute the SPIRV-Tools validator\n"
            "  --source-entrypoint <name>        the given shader source function is\n"
            "                                    renamed to be the <name> given in -e\n"
            "  --sep                             synonym for --source-entrypoint\n"

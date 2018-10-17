@@ -977,8 +977,9 @@ VK_IMPORT_INSTANCE
 				g_caps.vendorId = uint16_t(m_deviceProperties.vendorID);
 				g_caps.deviceId = uint16_t(m_deviceProperties.deviceID);
 
-				g_caps.limits.maxTextureSize   = m_deviceProperties.limits.maxImageDimension2D;
-				g_caps.limits.maxFBAttachments = uint8_t(bx::uint32_min(m_deviceProperties.limits.maxFragmentOutputAttachments, BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS) );
+				g_caps.limits.maxTextureSize     = m_deviceProperties.limits.maxImageDimension2D;
+				g_caps.limits.maxFBAttachments   = uint8_t(bx::uint32_min(m_deviceProperties.limits.maxFragmentOutputAttachments, BGFX_CONFIG_MAX_FRAME_BUFFER_ATTACHMENTS) );
+				g_caps.limits.maxComputeBindings = BGFX_MAX_COMPUTE_BINDINGS;
 
 				{
 //					VkFormatProperties fp;
@@ -2081,7 +2082,7 @@ VK_IMPORT_DEVICE
 		{
 		}
 
-		void resizeTexture(TextureHandle /*_handle*/, uint16_t /*_width*/, uint16_t /*_height*/, uint8_t /*_numMips*/) override
+		void resizeTexture(TextureHandle /*_handle*/, uint16_t /*_width*/, uint16_t /*_height*/, uint8_t /*_numMips*/, uint16_t /*_numLayers*/) override
 		{
 		}
 
@@ -3436,21 +3437,35 @@ VK_DESTROY
 
 		VkShaderStageFlagBits shaderStage;
 		BX_UNUSED(shaderStage);
-		switch (magic)
-		{
-		case BGFX_CHUNK_MAGIC_CSH: shaderStage = VK_SHADER_STAGE_COMPUTE_BIT;  break;
-		case BGFX_CHUNK_MAGIC_FSH: shaderStage = VK_SHADER_STAGE_FRAGMENT_BIT; break;
-		case BGFX_CHUNK_MAGIC_VSH: shaderStage = VK_SHADER_STAGE_VERTEX_BIT;   break;
 
-		default:
-			BGFX_FATAL(false, Fatal::InvalidShader, "Unknown shader format %x.", magic);
-			break;
+		if (isShaderType(magic, 'C') )
+		{
+			shaderStage = VK_SHADER_STAGE_COMPUTE_BIT;
+		}
+		else if (isShaderType(magic, 'F') )
+		{
+			shaderStage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		}
+		else if (isShaderType(magic, 'V') )
+		{
+			shaderStage = VK_SHADER_STAGE_VERTEX_BIT;
 		}
 
-		bool fragment = BGFX_CHUNK_MAGIC_FSH == magic;
+		const bool fragment = isShaderType(magic, 'F');
 
-		uint32_t iohash;
-		bx::read(&reader, iohash);
+		uint32_t hashIn;
+		bx::read(&reader, hashIn);
+
+		uint32_t hashOut;
+
+		if (isShaderVerLess(magic, 6) )
+		{
+			hashOut = hashIn;
+		}
+		else
+		{
+			bx::read(&reader, hashOut);
+		}
 
 		uint16_t count;
 		bx::read(&reader, count);
@@ -3459,7 +3474,7 @@ VK_DESTROY
 		m_numUniforms = count;
 
 		BX_TRACE("%s Shader consts %d"
-			, BGFX_CHUNK_MAGIC_FSH == magic ? "Fragment" : BGFX_CHUNK_MAGIC_VSH == magic ? "Vertex" : "Compute"
+			, getShaderTypeName(magic)
 			, count
 			);
 
@@ -3583,7 +3598,8 @@ VK_DESTROY
 
 		bx::HashMurmur2A murmur;
 		murmur.begin();
-		murmur.add(iohash);
+		murmur.add(hashIn);
+		murmur.add(hashOut);
 		murmur.add(m_code->data, m_code->size);
 		murmur.add(m_numAttrs);
 		murmur.add(m_attrMask,  m_numAttrs);
@@ -3693,6 +3709,9 @@ VK_DESTROY
 		bool restoreScissor = false;
 		Rect viewScissorRect;
 		viewScissorRect.clear();
+
+		const uint32_t maxComputeBindings = g_caps.limits.maxComputeBindings;
+		BX_UNUSED(maxComputeBindings);
 
 		uint32_t statsNumPrimsSubmitted[BX_COUNTOF(s_primInfo)] = {};
 		uint32_t statsNumPrimsRendered[BX_COUNTOF(s_primInfo)] = {};
@@ -3878,7 +3897,7 @@ BX_UNUSED(currentSamplerStateIdx);
 //							D3D12_GPU_DESCRIPTOR_HANDLE srvHandle[BGFX_MAX_COMPUTE_BINDINGS] = {};
 //							uint32_t samplerFlags[BGFX_MAX_COMPUTE_BINDINGS] = {};
 //
-//							for (uint32_t ii = 0; ii < BGFX_MAX_COMPUTE_BINDINGS; ++ii)
+//							for (uint32_t ii = 0; ii < maxComputeBindings; ++ii)
 //							{
 //								const Binding& bind = renderBind.m_bind[ii];
 //								if (kInvalidHandle != bind.m_idx)
@@ -3927,7 +3946,7 @@ BX_UNUSED(currentSamplerStateIdx);
 //								}
 //							}
 //
-//							uint16_t samplerStateIdx = getSamplerState(samplerFlags, BGFX_MAX_COMPUTE_BINDINGS, _render->m_colorPalette);
+//							uint16_t samplerStateIdx = getSamplerState(samplerFlags, maxComputeBindings, _render->m_colorPalette);
 //							if (samplerStateIdx != currentSamplerStateIdx)
 //							{
 //								currentSamplerStateIdx = samplerStateIdx;
@@ -4403,6 +4422,7 @@ BX_UNUSED(presentMin, presentMax);
 //		perfStats.gpuTimerFreq  = m_gpuTimer.m_frequency;
 //		perfStats.numDraw       = statsKeyType[0];
 //		perfStats.numCompute    = statsKeyType[1];
+		perfStats.numBlit       = _render->m_numBlitItems;
 //		perfStats.maxGpuLatency = maxGpuLatency;
 		bx::memCopy(perfStats.numPrims, statsNumPrimsRendered, sizeof(perfStats.numPrims) );
 		perfStats.gpuMemoryMax  = -INT64_MAX;

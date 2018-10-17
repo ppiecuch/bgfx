@@ -13,12 +13,13 @@ extern "C"
 #include <fpp.h>
 } // extern "C"
 
-#define BGFX_CHUNK_MAGIC_CSH BX_MAKEFOURCC('C', 'S', 'H', 0x3)
-#define BGFX_CHUNK_MAGIC_FSH BX_MAKEFOURCC('F', 'S', 'H', 0x5)
-#define BGFX_CHUNK_MAGIC_VSH BX_MAKEFOURCC('V', 'S', 'H', 0x5)
+#define BGFX_SHADER_BIN_VERSION 6
+#define BGFX_CHUNK_MAGIC_CSH BX_MAKEFOURCC('C', 'S', 'H', BGFX_SHADER_BIN_VERSION)
+#define BGFX_CHUNK_MAGIC_FSH BX_MAKEFOURCC('F', 'S', 'H', BGFX_SHADER_BIN_VERSION)
+#define BGFX_CHUNK_MAGIC_VSH BX_MAKEFOURCC('V', 'S', 'H', BGFX_SHADER_BIN_VERSION)
 
 #define BGFX_SHADERC_VERSION_MAJOR 1
-#define BGFX_SHADERC_VERSION_MINOR 14
+#define BGFX_SHADERC_VERSION_MINOR 16
 
 namespace bgfx
 {
@@ -168,6 +169,7 @@ namespace bgfx
 		, preferFlowControl(false)
 		, backwardsCompatibility(false)
 		, warningsAreErrors(false)
+		, keepIntermediate(false)
 		, optimize(false)
 		, optimizationLevel(3)
 	{
@@ -192,6 +194,7 @@ namespace bgfx
 			"\t  preferFlowControl: %s\n"
 			"\t  backwardsCompatibility: %s\n"
 			"\t  warningsAreErrors: %s\n"
+			"\t  keepIntermediate: %s\n"
 			"\t  optimize: %s\n"
 			"\t  optimizationLevel: %d\n"
 
@@ -211,6 +214,7 @@ namespace bgfx
 			, preferFlowControl ? "true" : "false"
 			, backwardsCompatibility ? "true" : "false"
 			, warningsAreErrors ? "true" : "false"
+			, keepIntermediate ? "true" : "false"
 			, optimize ? "true" : "false"
 			, optimizationLevel
 			);
@@ -841,7 +845,7 @@ namespace bgfx
 			  "  -h, --help                    Help.\n"
 			  "  -v, --version                 Version information only.\n"
 			  "  -f <file path>                Input file path.\n"
-			  "  -i <include path>             Include path (for multiple paths use use -i multiple times).\n"
+			  "  -i <include path>             Include path (for multiple paths use -i multiple times).\n"
 			  "  -o <file path>                Output file path.\n"
 			  "      --bin2c <file path>       Generate C header file.\n"
 			  "      --depends                 Generate makefile style depends file.\n"
@@ -1149,8 +1153,13 @@ namespace bgfx
 				// To avoid commented code being recognized as used feature,
 				// first preprocess pass is used to strip all comments before
 				// substituting code.
-				preprocessor.run(data);
+				bool ok = preprocessor.run(data);
 				delete [] data;
+
+				if (!ok)
+				{
+					return false;
+				}
 
 				size = (uint32_t)preprocessor.m_preprocessed.size();
 				data = new char[size+padding+1];
@@ -1198,15 +1207,18 @@ namespace bgfx
 			{
 				bx::write(_writer, BGFX_CHUNK_MAGIC_FSH);
 				bx::write(_writer, inputHash);
+				bx::write(_writer, uint32_t(0) );
 			}
 			else if ('v' == _options.shaderType)
 			{
 				bx::write(_writer, BGFX_CHUNK_MAGIC_VSH);
+				bx::write(_writer, uint32_t(0) );
 				bx::write(_writer, outputHash);
 			}
 			else
 			{
 				bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
+				bx::write(_writer, uint32_t(0) );
 				bx::write(_writer, outputHash);
 			}
 
@@ -1331,6 +1343,7 @@ namespace bgfx
 						std::string code;
 
 						bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
+						bx::write(_writer, uint32_t(0) );
 						bx::write(_writer, outputHash);
 
 						if (0 != glsl
@@ -1821,15 +1834,18 @@ namespace bgfx
 						{
 							bx::write(_writer, BGFX_CHUNK_MAGIC_FSH);
 							bx::write(_writer, inputHash);
+							bx::write(_writer, uint32_t(0) );
 						}
 						else if ('v' == _options.shaderType)
 						{
 							bx::write(_writer, BGFX_CHUNK_MAGIC_VSH);
+							bx::write(_writer, uint32_t(0) );
 							bx::write(_writer, outputHash);
 						}
 						else
 						{
 							bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
+							bx::write(_writer, uint32_t(0) );
 							bx::write(_writer, outputHash);
 						}
 
@@ -2267,14 +2283,15 @@ namespace bgfx
 			options.profile = profile;
 		}
 
-		{	// hlsl only
-			options.debugInformation = cmdLine.hasArg('\0', "debug");
-			options.avoidFlowControl = cmdLine.hasArg('\0', "avoid-flow-control");
-			options.noPreshader = cmdLine.hasArg('\0', "no-preshader");
-			options.partialPrecision = cmdLine.hasArg('\0', "partial-precision");
-			options.preferFlowControl = cmdLine.hasArg('\0', "prefer-flow-control");
+		{
+			options.debugInformation       = cmdLine.hasArg('\0', "debug");
+			options.avoidFlowControl       = cmdLine.hasArg('\0', "avoid-flow-control");
+			options.noPreshader            = cmdLine.hasArg('\0', "no-preshader");
+			options.partialPrecision       = cmdLine.hasArg('\0', "partial-precision");
+			options.preferFlowControl      = cmdLine.hasArg('\0', "prefer-flow-control");
 			options.backwardsCompatibility = cmdLine.hasArg('\0', "backwards-compatibility");
-			options.warningsAreErrors = cmdLine.hasArg('\0', "Werror");
+			options.warningsAreErrors      = cmdLine.hasArg('\0', "Werror");
+			options.keepIntermediate       = cmdLine.hasArg('\0', "keep-intermediate");
 
 			uint32_t optimization = 3;
 			if (cmdLine.hasArg(optimization, 'O') )

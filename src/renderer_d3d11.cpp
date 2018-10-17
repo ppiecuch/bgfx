@@ -40,7 +40,7 @@ namespace bgfx { namespace d3d11
 		}
 
 		ID3D11Buffer*              m_buffer[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT];
-		ID3D11UnorderedAccessView* m_uav[D3D11_PS_CS_UAV_REGISTER_COUNT];
+		ID3D11UnorderedAccessView* m_uav[D3D11_1_UAV_SLOT_COUNT];
 		ID3D11ShaderResourceView*  m_srv[D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT];
 		ID3D11SamplerState*        m_sampler[D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT];
 		ID3D11RenderTargetView*    m_rtv[BGFX_CONFIG_MAX_FRAME_BUFFERS];
@@ -967,13 +967,15 @@ namespace bgfx { namespace d3d11
 				{
 					HRESULT hr = S_OK;
 
+					m_swapEffect =
 #if BX_PLATFORM_WINDOWS
-					m_swapEffect      = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-					m_swapBufferCount = 2;
+						DXGI_SWAP_EFFECT_FLIP_DISCARD
 #else
-					m_swapEffect      = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-					m_swapBufferCount = 2;
+						DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL
 #endif // !BX_PLATFORM_WINDOWS
+						;
+
+					m_swapBufferCount = bx::clamp<uint8_t>(_init.resolution.numBackBuffers, 2, BGFX_CONFIG_MAX_BACK_BUFFERS);
 
 					bx::memSet(&m_scd, 0, sizeof(m_scd) );
 					m_scd.width  = _init.resolution.width;
@@ -989,12 +991,14 @@ namespace bgfx { namespace d3d11
 						? DXGI_SCALING_NONE
 						: DXGI_SCALING_STRETCH
 						;
-					m_scd.swapEffect  = m_swapEffect;
-					m_scd.alphaMode   = DXGI_ALPHA_MODE_IGNORE;
-					m_scd.flags       = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-					m_scd.nwh         = g_platformData.nwh;
-					m_scd.ndt         = g_platformData.ndt;
-					m_scd.windowed    = true;
+					m_scd.swapEffect = m_swapEffect;
+					m_scd.alphaMode  = DXGI_ALPHA_MODE_IGNORE;
+					m_scd.flags      = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
+					m_scd.maxFrameLatency = bx::min<uint8_t>(_init.resolution.maxFrameLatency, 3);
+					m_scd.nwh             = g_platformData.nwh;
+					m_scd.ndt             = g_platformData.ndt;
+					m_scd.windowed        = true;
 
 					m_msaaRt = NULL;
 
@@ -1018,15 +1022,19 @@ namespace bgfx { namespace d3d11
 								, m_scd
 								, &m_swapChain
 								);
-						}
-						else
-						{
-							m_resolution       = _init.resolution;
-							m_resolution.reset = _init.resolution.reset & (~BGFX_RESET_INTERNAL_FORCE);
 
-							m_textVideoMem.resize(false, _init.resolution.width, _init.resolution.height);
-							m_textVideoMem.clear();
+							if (FAILED(hr) )
+							{
+								BX_TRACE("Init error: Failed to create swap chain.");
+								goto error;
+							}
 						}
+
+						m_resolution       = _init.resolution;
+						m_resolution.reset = _init.resolution.reset & (~BGFX_RESET_INTERNAL_FORCE);
+
+						m_textVideoMem.resize(false, _init.resolution.width, _init.resolution.height);
+						m_textVideoMem.clear();
 
 						if (1 < m_scd.sampleDesc.Count)
 						{
@@ -1119,8 +1127,6 @@ namespace bgfx { namespace d3d11
 					filter.DenyList.pIDList = idlist;
 
 					m_infoQueue->PushStorageFilter(&filter);
-
-					DX_RELEASE(m_infoQueue, 3);
 				}
 			}
 
@@ -1179,6 +1185,12 @@ namespace bgfx { namespace d3d11
 				}
 				else
 				{
+					g_caps.limits.maxComputeBindings = bx::min(BGFX_MAX_COMPUTE_BINDINGS
+						, D3D_FEATURE_LEVEL_11_1 <= m_featureLevel
+						? D3D11_1_UAV_SLOT_COUNT
+						: D3D11_PS_CS_UAV_REGISTER_COUNT
+						);
+
 					g_caps.supported |= BGFX_CAPS_TEXTURE_COMPARE_ALL;
 					g_caps.limits.maxTextureSize   = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
 					g_caps.limits.maxTextureLayers = D3D11_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION;
@@ -1504,6 +1516,8 @@ namespace bgfx { namespace d3d11
 				postReset();
 			}
 
+			m_nvapi.initAftermath(m_device, m_deviceCtx);
+
 			g_internalData.context = m_device;
 			return true;
 
@@ -1511,6 +1525,8 @@ namespace bgfx { namespace d3d11
 			switch (errorState)
 			{
 			case ErrorState::LoadedDXGI:
+				DX_RELEASE(m_annotation, 1);
+				DX_RELEASE_W(m_infoQueue, 0);
 				DX_RELEASE(m_msaaRt, 0);
 				DX_RELEASE(m_swapChain, 0);
 				DX_RELEASE(m_deviceCtx, 0);
@@ -1597,6 +1613,7 @@ namespace bgfx { namespace d3d11
 			}
 
 			DX_RELEASE(m_annotation, 1);
+			DX_RELEASE_W(m_infoQueue, 0);
 			DX_RELEASE(m_msaaRt, 0);
 			DX_RELEASE(m_swapChain, 0);
 			DX_RELEASE(m_deviceCtx, 0);
@@ -1757,7 +1774,7 @@ namespace bgfx { namespace d3d11
 			m_deviceCtx->Unmap(texture.m_ptr, _mip);
 		}
 
-		void resizeTexture(TextureHandle _handle, uint16_t _width, uint16_t _height, uint8_t _numMips) override
+		void resizeTexture(TextureHandle _handle, uint16_t _width, uint16_t _height, uint8_t _numMips, uint16_t _numLayers) override
 		{
 			TextureD3D11& texture = m_textures[_handle.idx];
 
@@ -1772,7 +1789,7 @@ namespace bgfx { namespace d3d11
 			tc.m_width     = _width;
 			tc.m_height    = _height;
 			tc.m_depth     = 0;
-			tc.m_numLayers = 1;
+			tc.m_numLayers = _numLayers;
 			tc.m_numMips   = _numMips;
 			tc.m_format    = TextureFormat::Enum(texture.m_requestedFormat);
 			tc.m_cubeMap   = false;
@@ -2225,10 +2242,13 @@ namespace bgfx { namespace d3d11
 
 		void invalidateCompute()
 		{
+			const uint32_t maxComputeBindings = g_caps.limits.maxComputeBindings;
+			const uint32_t maxTextureSamplers = g_caps.limits.maxTextureSamplers;
+
 			m_deviceCtx->CSSetShader(NULL, NULL, 0);
-			m_deviceCtx->CSSetUnorderedAccessViews(0, BGFX_MAX_COMPUTE_BINDINGS, s_zero.m_uav, NULL);
-			m_deviceCtx->CSSetShaderResources(0, BGFX_MAX_COMPUTE_BINDINGS, s_zero.m_srv);
-			m_deviceCtx->CSSetSamplers(0, BGFX_MAX_COMPUTE_BINDINGS, s_zero.m_sampler);
+			m_deviceCtx->CSSetUnorderedAccessViews(0, maxComputeBindings, s_zero.m_uav, NULL);
+			m_deviceCtx->CSSetShaderResources(0, maxTextureSamplers, s_zero.m_srv);
+			m_deviceCtx->CSSetSamplers(0, maxTextureSamplers, s_zero.m_sampler);
 		}
 
 		void updateMsaa(DXGI_FORMAT _format) const
@@ -2921,15 +2941,17 @@ namespace bgfx { namespace d3d11
 
 		void commitTextureStage()
 		{
+			const uint32_t maxTextureSamplers = g_caps.limits.maxTextureSamplers;
+
 			// vertex texture fetch not supported on 9_1 through 9_3
 			if (m_featureLevel > D3D_FEATURE_LEVEL_9_3)
 			{
-				m_deviceCtx->VSSetShaderResources(0, BGFX_CONFIG_MAX_TEXTURE_SAMPLERS, m_textureStage.m_srv);
-				m_deviceCtx->VSSetSamplers(0, BGFX_CONFIG_MAX_TEXTURE_SAMPLERS, m_textureStage.m_sampler);
+				m_deviceCtx->VSSetShaderResources(0, maxTextureSamplers, m_textureStage.m_srv);
+				m_deviceCtx->VSSetSamplers(0, maxTextureSamplers, m_textureStage.m_sampler);
 			}
 
-			m_deviceCtx->PSSetShaderResources(0, BGFX_CONFIG_MAX_TEXTURE_SAMPLERS, m_textureStage.m_srv);
-			m_deviceCtx->PSSetSamplers(0, BGFX_CONFIG_MAX_TEXTURE_SAMPLERS, m_textureStage.m_sampler);
+			m_deviceCtx->PSSetShaderResources(0, maxTextureSamplers, m_textureStage.m_srv);
+			m_deviceCtx->PSSetSamplers(0, maxTextureSamplers, m_textureStage.m_sampler);
 		}
 
 		void invalidateTextureStage()
@@ -3014,12 +3036,26 @@ namespace bgfx { namespace d3d11
 				switch (texture.m_type)
 				{
 				case TextureD3D11::Texture2D:
-					desc.ViewDimension = msaaSample
-						? D3D11_SRV_DIMENSION_TEXTURE2DMS
-						: D3D11_SRV_DIMENSION_TEXTURE2D
-						;
-					desc.Texture2D.MostDetailedMip = _mip;
-					desc.Texture2D.MipLevels       = 1;
+					if (1 < texture.m_depth)
+					{
+						desc.ViewDimension = msaaSample
+							? D3D11_SRV_DIMENSION_TEXTURE2DMSARRAY
+							: D3D11_SRV_DIMENSION_TEXTURE2DARRAY
+							;
+						desc.Texture2DArray.MostDetailedMip = _mip;
+						desc.Texture2DArray.MipLevels = 1;
+						desc.Texture2DArray.FirstArraySlice = 0;
+						desc.Texture2DArray.ArraySize = texture.m_depth;
+					}
+					else
+					{
+						desc.ViewDimension = msaaSample
+							? D3D11_SRV_DIMENSION_TEXTURE2DMS
+							: D3D11_SRV_DIMENSION_TEXTURE2D
+							;
+						desc.Texture2D.MostDetailedMip = _mip;
+						desc.Texture2D.MipLevels = 1;
+					}
 					break;
 
 				case TextureD3D11::TextureCube:
@@ -3819,22 +3855,21 @@ namespace bgfx { namespace d3d11
 		uint32_t magic;
 		bx::read(&reader, magic);
 
-		switch (magic)
+		const bool fragment = isShaderType(magic, 'F');
+
+		uint32_t hashIn;
+		bx::read(&reader, hashIn);
+
+		uint32_t hashOut;
+
+		if (isShaderVerLess(magic, 6) )
 		{
-		case BGFX_CHUNK_MAGIC_CSH:
-		case BGFX_CHUNK_MAGIC_FSH:
-		case BGFX_CHUNK_MAGIC_VSH:
-			break;
-
-		default:
-			BGFX_FATAL(false, Fatal::InvalidShader, "Unknown shader format %x.", magic);
-			break;
+			hashOut = hashIn;
 		}
-
-		bool fragment = BGFX_CHUNK_MAGIC_FSH == magic;
-
-		uint32_t iohash;
-		bx::read(&reader, iohash);
+		else
+		{
+			bx::read(&reader, hashOut);
+		}
 
 		uint16_t count;
 		bx::read(&reader, count);
@@ -3843,11 +3878,11 @@ namespace bgfx { namespace d3d11
 		m_numUniforms = count;
 
 		BX_TRACE("%s Shader consts %d"
-			, BGFX_CHUNK_MAGIC_FSH == magic ? "Fragment" : BGFX_CHUNK_MAGIC_VSH == magic ? "Vertex" : "Compute"
+			, getShaderTypeName(magic)
 			, count
 			);
 
-		uint8_t fragmentBit = fragment ? BGFX_UNIFORM_FRAGMENTBIT : 0;
+		const uint8_t fragmentBit = fragment ? BGFX_UNIFORM_FRAGMENTBIT : 0;
 
 		if (0 < count)
 		{
@@ -3927,13 +3962,13 @@ namespace bgfx { namespace d3d11
 		const void* code = reader.getDataPtr();
 		bx::skip(&reader, shaderSize+1);
 
-		if (BGFX_CHUNK_MAGIC_FSH == magic)
+		if (isShaderType(magic, 'F') )
 		{
 			m_hasDepthOp = hasDepthOp(code, shaderSize);
 			DX_CHECK(s_renderD3D11->m_device->CreatePixelShader(code, shaderSize, NULL, &m_pixelShader) );
 			BGFX_FATAL(NULL != m_ptr, bgfx::Fatal::InvalidShader, "Failed to create fragment shader.");
 		}
-		else if (BGFX_CHUNK_MAGIC_VSH == magic)
+		else if (isShaderType(magic, 'V') )
 		{
 			m_hash = bx::hash<bx::HashMurmur2A>(code, shaderSize);
 			m_code = copy(code, shaderSize);
@@ -3941,7 +3976,7 @@ namespace bgfx { namespace d3d11
 			DX_CHECK(s_renderD3D11->m_device->CreateVertexShader(code, shaderSize, NULL, &m_vertexShader) );
 			BGFX_FATAL(NULL != m_ptr, bgfx::Fatal::InvalidShader, "Failed to create vertex shader.");
 		}
-		else
+		else if (isShaderType(magic, 'C') )
 		{
 			DX_CHECK(s_renderD3D11->m_device->CreateComputeShader(code, shaderSize, NULL, &m_computeShader) );
 			BGFX_FATAL(NULL != m_ptr, bgfx::Fatal::InvalidShader, "Failed to create compute shader.");
@@ -4484,7 +4519,7 @@ namespace bgfx { namespace d3d11
 									;
 	}
 
-	void TextureD3D11::resolve() const
+	void TextureD3D11::resolve(uint8_t _resolve) const
 	{
 		ID3D11DeviceContext* deviceCtx = s_renderD3D11->m_deviceCtx;
 
@@ -4496,7 +4531,8 @@ namespace bgfx { namespace d3d11
 
 		const bool renderTarget = 0 != (m_flags&BGFX_TEXTURE_RT_MASK);
 		if (renderTarget
-		&&  1 < m_numMips)
+		&&  1 < m_numMips
+		&&  0 != (_resolve & BGFX_RESOLVE_AUTO_GEN_MIPS) )
 		{
 			deviceCtx->GenerateMips(m_srv);
 		}
@@ -4795,11 +4831,11 @@ namespace bgfx { namespace d3d11
 		{
 			for (uint32_t ii = 0; ii < m_numTh; ++ii)
 			{
-				TextureHandle handle = m_attachment[ii].handle;
-				if (isValid(handle) )
+				const Attachment& at = m_attachment[ii];
+				if (isValid(at.handle) )
 				{
-					const TextureD3D11& texture = s_renderD3D11->m_textures[handle.idx];
-					texture.resolve();
+					const TextureD3D11& texture = s_renderD3D11->m_textures[at.handle.idx];
+					texture.resolve(at.resolve);
 				}
 			}
 		}
@@ -5225,6 +5261,9 @@ namespace bgfx { namespace d3d11
 		Rect viewScissorRect;
 		viewScissorRect.clear();
 
+		const uint32_t maxComputeBindings = g_caps.limits.maxComputeBindings;
+		const uint32_t maxTextureSamplers = g_caps.limits.maxTextureSamplers;
+
 		uint32_t statsNumPrimsSubmitted[BX_COUNTOF(s_primInfo)] = {};
 		uint32_t statsNumPrimsRendered[BX_COUNTOF(s_primInfo)] = {};
 		uint32_t statsNumInstances[BX_COUNTOF(s_primInfo)] = {};
@@ -5383,11 +5422,11 @@ namespace bgfx { namespace d3d11
 						deviceCtx->IASetVertexBuffers(0, 2, s_zero.m_buffer, s_zero.m_zero, s_zero.m_zero);
 						deviceCtx->IASetIndexBuffer(NULL, DXGI_FORMAT_R16_UINT, 0);
 
-						deviceCtx->VSSetShaderResources(0, BGFX_CONFIG_MAX_TEXTURE_SAMPLERS, s_zero.m_srv);
-						deviceCtx->PSSetShaderResources(0, BGFX_CONFIG_MAX_TEXTURE_SAMPLERS, s_zero.m_srv);
+						deviceCtx->VSSetShaderResources(0, maxTextureSamplers, s_zero.m_srv);
+						deviceCtx->PSSetShaderResources(0, maxTextureSamplers, s_zero.m_srv);
 
-						deviceCtx->VSSetSamplers(0, BGFX_CONFIG_MAX_TEXTURE_SAMPLERS, s_zero.m_sampler);
-						deviceCtx->PSSetSamplers(0, BGFX_CONFIG_MAX_TEXTURE_SAMPLERS, s_zero.m_sampler);
+						deviceCtx->VSSetSamplers(0, maxTextureSamplers, s_zero.m_sampler);
+						deviceCtx->PSSetSamplers(0, maxTextureSamplers, s_zero.m_sampler);
 					}
 
 					const RenderCompute& compute = renderItem.compute;
@@ -5442,7 +5481,7 @@ namespace bgfx { namespace d3d11
 					ID3D11ShaderResourceView*  srv[BGFX_MAX_COMPUTE_BINDINGS] = {};
 					ID3D11SamplerState*    sampler[BGFX_MAX_COMPUTE_BINDINGS] = {};
 
-					for (uint32_t ii = 0; ii < BGFX_MAX_COMPUTE_BINDINGS; ++ii)
+					for (uint32_t ii = 0; ii < maxComputeBindings; ++ii)
 					{
 						const Binding& bind = renderBind.m_bind[ii];
 						if (kInvalidHandle != bind.m_idx)
@@ -5492,11 +5531,12 @@ namespace bgfx { namespace d3d11
 					if (BX_ENABLED(BGFX_CONFIG_DEBUG) )
 					{
 						// Quiet validation: Resource being set to CS UnorderedAccessView slot 0 is still bound on input!
-						deviceCtx->CSSetShaderResources(0, BGFX_MAX_COMPUTE_BINDINGS, s_zero.m_srv);
+						deviceCtx->CSSetShaderResources(0, maxComputeBindings, s_zero.m_srv);
 					}
-					deviceCtx->CSSetUnorderedAccessViews(0, BX_COUNTOF(uav), uav, NULL);
-					deviceCtx->CSSetShaderResources(0, BX_COUNTOF(srv), srv);
-					deviceCtx->CSSetSamplers(0, BX_COUNTOF(sampler), sampler);
+
+					deviceCtx->CSSetUnorderedAccessViews(0, maxComputeBindings, uav, NULL);
+					deviceCtx->CSSetShaderResources(0, maxTextureSamplers, srv);
+					deviceCtx->CSSetSamplers(0, maxTextureSamplers, sampler);
 
 					if (isValid(compute.m_indirectBuffer) )
 					{
@@ -5756,7 +5796,7 @@ namespace bgfx { namespace d3d11
 
 				{
 					uint32_t changes = 0;
-					for (uint8_t stage = 0; stage < BGFX_CONFIG_MAX_TEXTURE_SAMPLERS; ++stage)
+					for (uint8_t stage = 0; stage < maxTextureSamplers; ++stage)
 					{
 						const Binding& bind = renderBind.m_bind[stage];
 						Binding& current = currentBind.m_bind[stage];
@@ -6121,6 +6161,7 @@ namespace bgfx { namespace d3d11
 		perfStats.gpuTimerFreq  = result.m_frequency;
 		perfStats.numDraw       = statsKeyType[0];
 		perfStats.numCompute    = statsKeyType[1];
+		perfStats.numBlit       = _render->m_numBlitItems;
 		perfStats.maxGpuLatency = maxGpuLatency;
 		bx::memCopy(perfStats.numPrims, statsNumPrimsRendered, sizeof(perfStats.numPrims) );
 		m_nvapi.getMemoryInfo(perfStats.gpuMemoryUsed, perfStats.gpuMemoryMax);
