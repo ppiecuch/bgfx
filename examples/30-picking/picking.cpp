@@ -238,13 +238,14 @@ public:
 				const float camSpeed = 0.25;
 				float cameraSpin = (float)m_cameraSpin;
 				float eyeDist = 2.5f;
-				float eye[3] =
+
+				const bx::Vec3 at = { 0.0f, 0.0f, 0.0f };
+				const bx::Vec3 eye =
 				{
 					-eyeDist * bx::sin(time*cameraSpin*camSpeed),
 					0.0f,
 					-eyeDist * bx::cos(time*cameraSpin*camSpeed),
 				};
-				float at[3] = { 0.0f, 0.0f, 0.0f };
 
 				float view[16];
 				bx::mtxLookAt(view, eye, at);
@@ -267,13 +268,8 @@ public:
 				float mouseXNDC = ( m_mouseState.m_mx             / (float)m_width ) * 2.0f - 1.0f;
 				float mouseYNDC = ((m_height - m_mouseState.m_my) / (float)m_height) * 2.0f - 1.0f;
 
-				float pickEye[3];
-				float mousePosNDC[3] = { mouseXNDC, mouseYNDC, 0.0f };
-				bx::vec3MulMtxH(pickEye, mousePosNDC, invViewProj);
-
-				float pickAt[3];
-				float mousePosNDCEnd[3] = { mouseXNDC, mouseYNDC, 1.0f };
-				bx::vec3MulMtxH(pickAt, mousePosNDCEnd, invViewProj);
+				const bx::Vec3 pickEye = bx::mulH({ mouseXNDC, mouseYNDC, 0.0f }, invViewProj);
+				const bx::Vec3 pickAt  = bx::mulH({ mouseXNDC, mouseYNDC, 1.0f }, invViewProj);
 
 				// Look at our unprojected point
 				float pickView[16];

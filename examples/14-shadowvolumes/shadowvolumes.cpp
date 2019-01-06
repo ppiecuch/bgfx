@@ -155,26 +155,21 @@ void mtxBillboard(float* __restrict _result
 }
 
 void planeNormal(float* __restrict _result
-				 , const float* __restrict _v0
-				 , const float* __restrict _v1
-				 , const float* __restrict _v2
-				 )
+	, const float* __restrict _v0
+	, const float* __restrict _v1
+	, const float* __restrict _v2
+	)
 {
-	float vec0[3], vec1[3];
-	float cross[3];
+	const bx::Vec3 v0    = bx::load<bx::Vec3>(_v0);
+	const bx::Vec3 v1    = bx::load<bx::Vec3>(_v1);
+	const bx::Vec3 v2    = bx::load<bx::Vec3>(_v2);
+	const bx::Vec3 vec0  = bx::sub(v1, v0);
+	const bx::Vec3 vec1  = bx::sub(v2, v1);
+	const bx::Vec3 cross = bx::cross(vec0, vec1);
 
-	vec0[0] = _v1[0] - _v0[0];
-	vec0[1] = _v1[1] - _v0[1];
-	vec0[2] = _v1[2] - _v0[2];
+	bx::store(_result, bx::normalize(cross) );
 
-	vec1[0] = _v2[0] - _v1[0];
-	vec1[1] = _v2[1] - _v1[1];
-	vec1[2] = _v2[2] - _v1[2];
-
-	bx::vec3Cross(cross, vec0, vec1);
-	bx::vec3Norm(_result, cross);
-
-	_result[3] = -bx::vec3Dot(_result, _v0);
+	_result[3] = -bx::dot(bx::load<bx::Vec3>(_result), bx::load<bx::Vec3>(_v0) );
 }
 
 struct Uniforms
@@ -1280,12 +1275,13 @@ struct ShadowVolume
 	bool m_cap;
 };
 
-void shadowVolumeLightTransform(float* __restrict _outLightPos
-							  , const float* __restrict _scale
-							  , const float* __restrict _rotate
-							  , const float* __restrict _translate
-							  , const float* __restrict _lightPos // world pos
-							  )
+void shadowVolumeLightTransform(
+	  float* __restrict _outLightPos
+	, const float* __restrict _scale
+	, const float* __restrict _rotate
+	, const float* __restrict _translate
+	, const float* __restrict _lightPos // world pos
+	)
 {
 	/**
 	 * Instead of transforming all the vertices, transform light instead:
@@ -1320,19 +1316,19 @@ void shadowVolumeLightTransform(float* __restrict _outLightPos
 	float mtx[16];
 	bx::mtxMul(mtx, tmp0, invScale);
 
-	float origin[3] = { 0.0f, 0.0f, 0.0f };
-	bx::vec3MulMtx(_outLightPos, origin, mtx);
+	bx::store(_outLightPos, bx::mul({ 0.0f, 0.0f, 0.0f }, mtx) );
 }
 
-void shadowVolumeCreate(ShadowVolume& _shadowVolume
-					  , Group& _group
-					  , uint16_t _stride
-					  , const float* _mtx
-					  , const float* _light // in model space
-					  , ShadowVolumeImpl::Enum _impl = ShadowVolumeImpl::DepthPass
-					  , ShadowVolumeAlgorithm::Enum _algo = ShadowVolumeAlgorithm::FaceBased
-					  , bool _textureAsStencil = false
-					  )
+void shadowVolumeCreate(
+	  ShadowVolume& _shadowVolume
+	, Group& _group
+	, uint16_t _stride
+	, const float* _mtx
+	, const float* _light // in model space
+	, ShadowVolumeImpl::Enum _impl = ShadowVolumeImpl::DepthPass
+	, ShadowVolumeAlgorithm::Enum _algo = ShadowVolumeAlgorithm::FaceBased
+	, bool _textureAsStencil = false
+	)
 {
 	const uint8_t*    vertices   = _group.m_vertices;
 	const FaceArray&  faces      = _group.m_faces;
@@ -1386,7 +1382,7 @@ void shadowVolumeCreate(ShadowVolume& _shadowVolume
 			const Face& face = *iter;
 
 			bool frontFacing = false;
-			float f = bx::vec3Dot(face.m_plane, _light) + face.m_plane[3];
+			const float f = bx::dot(bx::load<bx::Vec3>(face.m_plane), bx::load<bx::Vec3>(_light) ) + face.m_plane[3];
 			if (f > 0.0f)
 			{
 				frontFacing = true;
@@ -1574,8 +1570,8 @@ void shadowVolumeCreate(ShadowVolume& _shadowVolume
 				const Edge& edge = edges[ii];
 				const Plane* edgePlane = &edgePlanes[ii*2];
 
-				int16_t s0 = ( (vec3Dot(edgePlane[0].m_plane, _light) + edgePlane[0].m_plane[3]) > 0.0f) ^ edge.m_faceReverseOrder[0];
-				int16_t s1 = ( (vec3Dot(edgePlane[1].m_plane, _light) + edgePlane[1].m_plane[3]) > 0.0f) ^ edge.m_faceReverseOrder[1];
+				int16_t s0 = ( (bx::dot(bx::load<bx::Vec3>(edgePlane[0].m_plane), bx::load<bx::Vec3>(_light) ) + edgePlane[0].m_plane[3]) > 0.0f) ^ edge.m_faceReverseOrder[0];
+				int16_t s1 = ( (bx::dot(bx::load<bx::Vec3>(edgePlane[1].m_plane), bx::load<bx::Vec3>(_light) ) + edgePlane[1].m_plane[3]) > 0.0f) ^ edge.m_faceReverseOrder[1];
 				int16_t kk = ( (s0 + s1) << 1) - 2;
 
 				if (kk != 0)
@@ -1612,7 +1608,7 @@ void shadowVolumeCreate(ShadowVolume& _shadowVolume
 			{
 				const Face& face = *iter;
 
-				float f = bx::vec3Dot(face.m_plane, _light) + face.m_plane[3];
+				const float f = bx::dot(bx::load<bx::Vec3>(face.m_plane), bx::load<bx::Vec3>(_light) ) + face.m_plane[3];
 				bool frontFacing = (f > 0.0f);
 
 				for (uint8_t ii = 0, num = 1 + uint8_t(!_textureAsStencil); ii < num; ++ii)
@@ -1704,60 +1700,44 @@ void createNearClipVolume(float* __restrict _outPlanes24f
 
 	const float delta = 0.1f;
 
-	float nearNormal[4] = { 0.0f, 0.0f, 1.0f, _near };
-	float d = bx::vec3Dot(lightPosV, nearNormal) + lightPosV[3] * nearNormal[3];
+	const float nearNormal[4] = { 0.0f, 0.0f, 1.0f, _near };
+	const float d = bx::dot(bx::load<bx::Vec3>(lightPosV), bx::load<bx::Vec3>(nearNormal) ) + lightPosV[3] * nearNormal[3];
 
 	// Light is:
 	//  1.0f - in front of near plane
 	//  0.0f - on the near plane
 	// -1.0f - behind near plane
-	float lightSide = float( (d > delta) - (d < -delta) );
+	const float lightSide = float( (d > delta) - (d < -delta) );
 
-	float t = bx::tan(bx::toRad(_fovy)*0.5f) * _near;
-	float b = -t;
-	float r = t * _aspect;
-	float l = -r;
+	const float t = bx::tan(bx::toRad(_fovy)*0.5f) * _near;
+	const float b = -t;
+	const float r = t * _aspect;
+	const float l = -r;
 
-	float cornersV[4][3] =
+	const bx::Vec3 corners[4] =
 	{
-		{ r, t, _near },
-		{ l, t, _near },
-		{ l, b, _near },
-		{ r, b, _near },
+		bx::mul({ r, t, _near }, mtxViewInv),
+		bx::mul({ l, t, _near }, mtxViewInv),
+		bx::mul({ l, b, _near }, mtxViewInv),
+		bx::mul({ r, b, _near }, mtxViewInv),
 	};
-
-	float corners[4][3];
-	bx::vec3MulMtx(corners[0], cornersV[0], mtxViewInv);
-	bx::vec3MulMtx(corners[1], cornersV[1], mtxViewInv);
-	bx::vec3MulMtx(corners[2], cornersV[2], mtxViewInv);
-	bx::vec3MulMtx(corners[3], cornersV[3], mtxViewInv);
 
 	float planeNormals[4][3];
 	for (uint8_t ii = 0; ii < 4; ++ii)
 	{
-		float* normal = planeNormals[ii];
-		float* plane  = volumePlanes[ii];
+		float* outNormal = planeNormals[ii];
+		float* outPlane  = volumePlanes[ii];
 
-		float planeVec[3];
-		bx::vec3Sub(planeVec, corners[ii], corners[(ii-1)&3]);
+		const bx::Vec3 c0       = corners[ii];
+		const bx::Vec3 planeVec = bx::sub(c0, corners[(ii-1)&3]);
+		const bx::Vec3 light    = bx::sub(bx::load<bx::Vec3>(_lightPos), bx::mul(c0, _lightPos[3]) );
+		const bx::Vec3 normal   = bx::mul(bx::cross(planeVec, light), lightSide);
 
-		float light[3];
-		float tmp[3];
-		bx::vec3Mul(tmp, corners[ii], _lightPos[3]);
-		bx::vec3Sub(light, _lightPos, tmp);
+		const float invLen = 1.0f / bx::sqrt(bx::dot(normal, normal) );
 
-		bx::vec3Cross(normal, planeVec, light);
-
-		normal[0] *= lightSide;
-		normal[1] *= lightSide;
-		normal[2] *= lightSide;
-
-		float lenInv = 1.0f / bx::sqrt(bx::vec3Dot(normal, normal) );
-
-		plane[0] = normal[0] * lenInv;
-		plane[1] = normal[1] * lenInv;
-		plane[2] = normal[2] * lenInv;
-		plane[3] = -bx::vec3Dot(normal, corners[ii]) * lenInv;
+		bx::store(outNormal, normal);
+		bx::store(outPlane, bx::mul(normal, invLen) );
+		outPlane[3] = -bx::dot(normal, c0) * invLen;
 	}
 
 	float nearPlaneV[4] =
@@ -1770,17 +1750,14 @@ void createNearClipVolume(float* __restrict _outPlanes24f
 	bx::vec4MulMtx(volumePlanes[4], nearPlaneV, mtxViewTrans);
 
 	float* lightPlane = volumePlanes[5];
-	float lightPlaneNormal[3] = { 0.0f, 0.0f, -_near * lightSide };
-	float tmp[3];
-	bx::vec3MulMtx(tmp, lightPlaneNormal, mtxViewInv);
-	bx::vec3Sub(lightPlaneNormal, tmp, _lightPos);
+	const bx::Vec3 lightPlaneNormal = bx::sub(bx::mul({ 0.0f, 0.0f, -_near * lightSide }, mtxViewInv), bx::load<bx::Vec3>(_lightPos) );
 
-	float lenInv = 1.0f / bx::sqrt(bx::vec3Dot(lightPlaneNormal, lightPlaneNormal) );
+	float lenInv = 1.0f / bx::sqrt(bx::dot(lightPlaneNormal, lightPlaneNormal) );
 
-	lightPlane[0] = lightPlaneNormal[0] * lenInv;
-	lightPlane[1] = lightPlaneNormal[1] * lenInv;
-	lightPlane[2] = lightPlaneNormal[2] * lenInv;
-	lightPlane[3] = -bx::vec3Dot(lightPlaneNormal, _lightPos) * lenInv;
+	lightPlane[0] = lightPlaneNormal.x * lenInv;
+	lightPlane[1] = lightPlaneNormal.y * lenInv;
+	lightPlane[2] = lightPlaneNormal.z * lenInv;
+	lightPlane[3] = -bx::dot(lightPlaneNormal, bx::load<bx::Vec3>(_lightPos) ) * lenInv;
 }
 
 bool clipTest(const float* _planes, uint8_t _planeNum, const Mesh& _mesh, const float* _scale, const float* _translate)
@@ -1804,7 +1781,7 @@ bool clipTest(const float* _planes, uint8_t _planeNum, const Mesh& _mesh, const 
 		{
 			const float* plane = volumePlanes[ii];
 
-			float positiveSide = bx::vec3Dot(plane, sphere.m_center) + plane[3] + sphere.m_radius;
+			float positiveSide = bx::dot(bx::load<bx::Vec3>(plane), bx::load<bx::Vec3>(sphere.m_center) ) + plane[3] + sphere.m_radius;
 
 			if (positiveSide < 0.0f)
 			{
@@ -2040,8 +2017,7 @@ public:
 
 		// Set view matrix
 		cameraCreate();
-		float initialPos[3] = { 3.0f, 20.0f, -58.0f };
-		cameraSetPosition(initialPos);
+		cameraSetPosition({ 3.0f, 20.0f, -58.0f });
 		cameraSetVerticalAngle(-0.25f);
 		cameraGetViewMtx(m_viewState.m_view);
 	}

@@ -1,6 +1,6 @@
 //
 // Copyright (C) 2014-2015 LunarG, Inc.
-// Copyright (C) 2015-2016 Google, Inc.
+// Copyright (C) 2015-2018 Google, Inc.
 // Copyright (C) 2017 ARM Limited.
 //
 // All rights reserved.
@@ -57,6 +57,7 @@
 #include <sstream>
 #include <stack>
 #include <unordered_map>
+#include <map>
 
 namespace spv {
 
@@ -74,18 +75,33 @@ public:
         source = lang;
         sourceVersion = version;
     }
+    spv::Id getStringId(const std::string& str)
+    {
+        auto sItr = stringIds.find(str);
+        if (sItr != stringIds.end())
+            return sItr->second;
+        spv::Id strId = getUniqueId();
+        Instruction* fileString = new Instruction(strId, NoType, OpString);
+        const char* file_c_str = str.c_str();
+        fileString->addStringOperand(file_c_str);
+        strings.push_back(std::unique_ptr<Instruction>(fileString));
+        stringIds[file_c_str] = strId;
+        return strId;
+    }
     void setSourceFile(const std::string& file)
     {
-        Instruction* fileString = new Instruction(getUniqueId(), NoType, OpString);
-        fileString->addStringOperand(file.c_str());
-        sourceFileStringId = fileString->getResultId();
-        strings.push_back(std::unique_ptr<Instruction>(fileString));
+        sourceFileStringId = getStringId(file);
     }
     void setSourceText(const std::string& text) { sourceText = text; }
     void addSourceExtension(const char* ext) { sourceExtensions.push_back(ext); }
     void addModuleProcessed(const std::string& p) { moduleProcesses.push_back(p.c_str()); }
     void setEmitOpLines() { emitOpLines = true; }
     void addExtension(const char* ext) { extensions.insert(ext); }
+    void addInclude(const std::string& name, const std::string& text)
+    {
+        spv::Id incId = getStringId(name);
+        includeFiles[incId] = &text;
+    }
     Id import(const char*);
     void setMemoryModel(spv::AddressingModel addr, spv::MemoryModel mem)
     {
@@ -106,9 +122,16 @@ public:
         return id;
     }
 
-    // Log the current line, and if different than the last one,
-    // issue a new OpLine, using the current file name.
+    // Generate OpLine for non-filename-based #line directives (ie no filename
+    // seen yet): Log the current line, and if different than the last one,
+    // issue a new OpLine using the new line and current source file name.
     void setLine(int line);
+
+    // If filename null, generate OpLine for non-filename-based line directives,
+    // else do filename-based: Log the current line and file, and if different
+    // than the last one, issue a new OpLine using the new line and file
+    // name.
+    void setLine(int line, const char* filename);
     // Low-level OpLine. See setLine() for a layered helper.
     void addLine(Id fileName, int line, int column);
 
@@ -649,6 +672,7 @@ public:
     void createAndSetNoPredecessorBlock(const char*);
     void createSelectionMerge(Block* mergeBlock, unsigned int control);
     void dumpSourceInstructions(std::vector<unsigned int>&) const;
+    void dumpSourceInstructions(const spv::Id fileId, const std::string& text, std::vector<unsigned int>&) const;
     void dumpInstructions(std::vector<unsigned int>&, const std::vector<std::unique_ptr<Instruction> >&) const;
     void dumpModuleProcesses(std::vector<unsigned int>&) const;
 
@@ -658,6 +682,7 @@ public:
     spv::Id sourceFileStringId;
     std::string sourceText;
     int currentLine;
+    const char* currentFile;
     bool emitOpLines;
     std::set<std::string> extensions;
     std::vector<const char*> sourceExtensions;
@@ -694,6 +719,12 @@ public:
 
     // Our loop stack.
     std::stack<LoopBlocks> loops;
+
+    // map from strings to their string ids
+    std::unordered_map<std::string, spv::Id> stringIds;
+
+    // map from include file name ids to their contents
+    std::map<spv::Id, const std::string*> includeFiles;
 
     // The stream for outputting warnings and errors.
     SpvBuildLogger* logger;

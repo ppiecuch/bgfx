@@ -4,10 +4,9 @@
  */
 
 /*
- * References:
- *
- * Next Generation Post Processing in Call of Duty: Advanced Warfare
- * https://web.archive.org/web/20180920045230/http://www.iryoku.com/next-generation-post-processing-in-call-of-duty-advanced-warfare
+ * Reference(s):
+ * - Next Generation Post Processing in Call of Duty: Advanced Warfare
+ *   https://web.archive.org/web/20180920045230/http://www.iryoku.com/next-generation-post-processing-in-call-of-duty-advanced-warfare
  */
 
 #include "common.h"
@@ -284,8 +283,7 @@ public:
 
 		cameraCreate();
 
-		const float initialPos[3] = { 0.0f, 0.0f, -15.0f };
-		cameraSetPosition(initialPos);
+		cameraSetPosition({ 0.0f, 0.0f, -15.0f });
 		cameraSetVerticalAngle(0.0f);
 	}
 

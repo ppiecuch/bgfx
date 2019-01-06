@@ -135,9 +135,8 @@ public:
 
 		cameraCreate();
 
-		const float initialPos[3] = { s_terrainSize/2.0f, 100.0f, 0.0f };
-		cameraSetPosition(initialPos);
-		cameraSetVerticalAngle(-bx::kPi/4.0f);
+		cameraSetPosition({ s_terrainSize/2.0f, 100.0f, 0.0f });
+		cameraSetVerticalAngle(-bx::kPiQuarter);
 	}
 
 	virtual int shutdown() override
@@ -357,30 +356,25 @@ public:
 		float ray_world[4];
 		bx::vec4MulMtx(ray_world, ray_eye, invViewMtx);
 
-		float ray_dir[3];
-		bx::vec3Norm(ray_dir, ray_world);
-		ray_dir[0] *= -1.0;
-		ray_dir[1] *= -1.0;
-		ray_dir[2] *= -1.0;
+		const bx::Vec3 rayDir = bx::mul(bx::normalize(bx::load<bx::Vec3>(ray_world) ), -1.0f);
 
-		float pos[3];
-		cameraGetPosition(pos);
+		bx::Vec3 pos = cameraGetPosition();
 		for (int i = 0; i < 1000; ++i)
 		{
-			bx::vec3Add(pos, pos, ray_dir);
+			pos = bx::add(pos, rayDir);
 
-			if (pos[0] < 0
-			||  pos[0] >= s_terrainSize
-			||  pos[2] < 0
-			||  pos[2] >= s_terrainSize)
+			if (pos.x < 0
+			||  pos.x >= s_terrainSize
+			||  pos.z < 0
+			||  pos.z >= s_terrainSize)
 			{
 				continue;
 			}
 
-			uint32_t heightMapPos = ( (uint32_t)pos[2] * s_terrainSize) + (uint32_t)pos[0];
-			if ( pos[1] < m_terrain.m_heightMap[heightMapPos] )
+			uint32_t heightMapPos = ( (uint32_t)pos.z * s_terrainSize) + (uint32_t)pos.x;
+			if (pos.y < m_terrain.m_heightMap[heightMapPos])
 			{
-				paintTerrainHeight( (uint32_t)pos[0], (uint32_t)pos[2]);
+				paintTerrainHeight( (uint32_t)pos.x, (uint32_t)pos.z);
 				return;
 			}
 		}

@@ -1,6 +1,6 @@
 //
 // Copyright (C) 2014-2015 LunarG, Inc.
-// Copyright (C) 2015-2016 Google, Inc.
+// Copyright (C) 2015-2018 Google, Inc.
 //
 // All rights reserved.
 //
@@ -60,6 +60,7 @@ Builder::Builder(unsigned int spvVersion, unsigned int magicNumber, SpvBuildLogg
     sourceVersion(0),
     sourceFileStringId(NoResult),
     currentLine(0),
+    currentFile(nullptr),
     emitOpLines(false),
     addressModel(AddressingModelLogical),
     memoryModel(MemoryModelGLSL450),
@@ -87,14 +88,35 @@ Id Builder::import(const char* name)
     return import->getResultId();
 }
 
-// Emit an OpLine if we've been asked to emit OpLines and the line number
-// has changed since the last time, and is a valid line number.
+// Emit instruction for non-filename-based #line directives (ie. no filename
+// seen yet): emit an OpLine if we've been asked to emit OpLines and the line
+// number has changed since the last time, and is a valid line number.
 void Builder::setLine(int lineNum)
 {
     if (lineNum != 0 && lineNum != currentLine) {
         currentLine = lineNum;
         if (emitOpLines)
             addLine(sourceFileStringId, currentLine, 0);
+    }
+}
+
+// If no filename, do non-filename-based #line emit. Else do filename-based emit.
+// Emit OpLine if we've been asked to emit OpLines and the line number or filename
+// has changed since the last time, and line number is valid.
+void Builder::setLine(int lineNum, const char* filename)
+{
+    if (filename == nullptr) {
+        setLine(lineNum);
+        return;
+    }
+    if ((lineNum != 0 && lineNum != currentLine) || currentFile == nullptr ||
+            strncmp(filename, currentFile, strlen(currentFile) + 1) != 0) {
+        currentLine = lineNum;
+        currentFile = filename;
+        if (emitOpLines) {
+            spv::Id strId = getStringId(filename);
+            addLine(strId, currentLine, 0);
+        }
     }
 }
 
@@ -507,12 +529,12 @@ Id Builder::makeSampledImageType(Id imageType)
 Id Builder::makeAccelerationStructureNVType()
 {
     Instruction *type;
-    if (groupedTypes[OpTypeAccelerationStructureNVX].size() == 0) {
-        type = new Instruction(getUniqueId(), NoType, OpTypeAccelerationStructureNVX);
+    if (groupedTypes[OpTypeAccelerationStructureNV].size() == 0) {
+        type = new Instruction(getUniqueId(), NoType, OpTypeAccelerationStructureNV);
         constantsTypesGlobals.push_back(std::unique_ptr<Instruction>(type));
         module.mapInstruction(type);
     } else {
-        type = groupedTypes[OpTypeAccelerationStructureNVX].back();
+        type = groupedTypes[OpTypeAccelerationStructureNV].back();
     }
 
     return type->getResultId();
@@ -1293,7 +1315,7 @@ Id Builder::createAccessChain(StorageClass storageClass, Id base, const std::vec
 
 Id Builder::createArrayLength(Id base, unsigned int member)
 {
-    spv::Id intType = makeIntType(32);
+    spv::Id intType = makeUintType(32);
     Instruction* length = new Instruction(getUniqueId(), intType, OpArrayLength);
     length->addIdOperand(base);
     length->addImmediateOperand(member);
@@ -2809,7 +2831,8 @@ void Builder::createConditionalBranch(Id condition, Block* thenBlock, Block* els
 // OpSource
 // [OpSourceContinued]
 // ...
-void Builder::dumpSourceInstructions(std::vector<unsigned int>& out) const
+void Builder::dumpSourceInstructions(const spv::Id fileId, const std::string& text,
+                                     std::vector<unsigned int>& out) const
 {
     const int maxWordCount = 0xFFFF;
     const int opSourceWordCount = 4;
@@ -2821,14 +2844,14 @@ void Builder::dumpSourceInstructions(std::vector<unsigned int>& out) const
         sourceInst.addImmediateOperand(source);
         sourceInst.addImmediateOperand(sourceVersion);
         // File operand
-        if (sourceFileStringId != NoResult) {
-            sourceInst.addIdOperand(sourceFileStringId);
+        if (fileId != NoResult) {
+            sourceInst.addIdOperand(fileId);
             // Source operand
-            if (sourceText.size() > 0) {
+            if (text.size() > 0) {
                 int nextByte = 0;
                 std::string subString;
-                while ((int)sourceText.size() - nextByte > 0) {
-                    subString = sourceText.substr(nextByte, nonNullBytesPerInstruction);
+                while ((int)text.size() - nextByte > 0) {
+                    subString = text.substr(nextByte, nonNullBytesPerInstruction);
                     if (nextByte == 0) {
                         // OpSource
                         sourceInst.addStringOperand(subString.c_str());
@@ -2846,6 +2869,14 @@ void Builder::dumpSourceInstructions(std::vector<unsigned int>& out) const
         } else
             sourceInst.dump(out);
     }
+}
+
+// Dump an OpSource[Continued] sequence for the source and every include file
+void Builder::dumpSourceInstructions(std::vector<unsigned int>& out) const
+{
+    dumpSourceInstructions(sourceFileStringId, sourceText, out);
+    for (auto iItr = includeFiles.begin(); iItr != includeFiles.end(); ++iItr)
+        dumpSourceInstructions(iItr->first, *iItr->second, out);
 }
 
 void Builder::dumpInstructions(std::vector<unsigned int>& out, const std::vector<std::unique_ptr<Instruction> >& instructions) const

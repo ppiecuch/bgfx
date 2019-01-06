@@ -1,5 +1,5 @@
 //
-// Copyright (C) 2017 Google, Inc.
+// Copyright (C) 2017-2018 Google, Inc.
 // Copyright (C) 2017 LunarG, Inc.
 //
 // All rights reserved.
@@ -97,9 +97,6 @@ HlslParseContext::HlslParseContext(TSymbolTable& symbolTable, TIntermediate& int
 
     if (language == EShLangGeometry)
         globalOutputDefaults.layoutStream = 0;
-
-    if (spvVersion.spv == 0 || spvVersion.vulkan == 0)
-        infoSink.info << "ERROR: HLSL currently only supported when requesting SPIR-V for Vulkan.\n";
 }
 
 HlslParseContext::~HlslParseContext()
@@ -136,7 +133,7 @@ bool HlslParseContext::parseShaderStrings(TPpContext& ppContext, TInputScanner& 
         // Print a message formated such that if you click on the message it will take you right to
         // the line through most UIs.
         const glslang::TSourceLoc& sourceLoc = input.getSourceLoc();
-        infoSink.info << sourceLoc.name << "(" << sourceLoc.line << "): error at column " << sourceLoc.column
+        infoSink.info << sourceLoc.name->c_str() << "(" << sourceLoc.line << "): error at column " << sourceLoc.column
                       << ", HLSL parsing failed.\n";
         ++numErrors;
         return false;
@@ -3480,8 +3477,8 @@ void HlslParseContext::decomposeStructBufferMethods(const TSourceLoc& loc, TInte
             if (argStride != nullptr) {
                 int size;
                 int stride;
-                intermediate.getBaseAlignment(argArray->getType(), size, stride, false,
-                                              argArray->getType().getQualifier().layoutMatrix == ElmRowMajor);
+                intermediate.getMemberAlignment(argArray->getType(), size, stride, argArray->getType().getQualifier().layoutPacking,
+                                                argArray->getType().getQualifier().layoutMatrix == ElmRowMajor);
 
                 TIntermTyped* assign = intermediate.addAssign(EOpAssign, argStride,
                                                               intermediate.addConstantUnion(stride, loc, true), loc);
@@ -3770,6 +3767,43 @@ void HlslParseContext::decomposeSampleMethods(const TSourceLoc& loc, TIntermType
             // Texture with ddx & ddy is really gradient form in HLSL
             if (argAggregate->getSequence().size() == 4)
                 node->getAsAggregate()->setOperator(EOpTextureGrad);
+
+            break;
+        }
+    case EOpTextureLod: //is almost EOpTextureBias (only args & operations are different)
+        {
+            TIntermTyped *argSamp = argAggregate->getSequence()[0]->getAsTyped();   // sampler
+            TIntermTyped *argCoord = argAggregate->getSequence()[1]->getAsTyped();  // coord
+
+            assert(argCoord->getVectorSize() == 4);
+            TIntermTyped *w = intermediate.addConstantUnion(3, loc, true);
+            TIntermTyped *argLod = intermediate.addIndex(EOpIndexDirect, argCoord, w, loc);
+
+            TOperator constructOp = EOpNull;
+            const TSampler &sampler = argSamp->getType().getSampler();
+            int coordSize = 0;
+
+            switch (sampler.dim)
+            {
+            case Esd1D:   constructOp = EOpConstructFloat; coordSize = 1; break; // 1D
+            case Esd2D:   constructOp = EOpConstructVec2;  coordSize = 2; break; // 2D
+            case Esd3D:   constructOp = EOpConstructVec3;  coordSize = 3; break; // 3D
+            case EsdCube: constructOp = EOpConstructVec3;  coordSize = 3; break; // also 3D
+            default:
+                break;
+            }
+
+            TIntermAggregate *constructCoord = new TIntermAggregate(constructOp);
+            constructCoord->getSequence().push_back(argCoord);
+            constructCoord->setLoc(loc);
+            constructCoord->setType(TType(argCoord->getBasicType(), EvqTemporary, coordSize));
+
+            TIntermAggregate *tex = new TIntermAggregate(EOpTextureLod);
+            tex->getSequence().push_back(argSamp);        // sampler
+            tex->getSequence().push_back(constructCoord); // coordinate
+            tex->getSequence().push_back(argLod);         // lod
+
+            node = convertReturn(tex, sampler);
 
             break;
         }
@@ -6069,13 +6103,22 @@ void HlslParseContext::handleRegister(const TSourceLoc& loc, TQualifier& qualifi
         }
     }
 
-    // TODO: learn what all these really mean and how they interact with regNumber and subComponent
+    // more information about register types see
+    // https://docs.microsoft.com/en-us/windows/desktop/direct3dhlsl/dx-graphics-hlsl-variable-register
     const std::vector<std::string>& resourceInfo = intermediate.getResourceSetBinding();
     switch (std::tolower(desc[0])) {
-    case 'b':
-    case 't':
     case 'c':
+        // c register is the register slot in the global const buffer
+        // each slot is a vector of 4 32 bit components
+        qualifier.layoutOffset = regNumber * 4 * 4;
+        break;
+        // const buffer register slot
+    case 'b':
+        // textrues and structured buffers
+    case 't':
+        // samplers
     case 's':
+        // uav resources
     case 'u':
         // if nothing else has set the binding, do so now
         // (other mechanisms override this one)
@@ -8558,7 +8601,7 @@ void HlslParseContext::declareBlock(const TSourceLoc& loc, TType& type, const TS
 
     // Process the members
     fixBlockLocations(loc, type.getQualifier(), typeList, memberWithLocation, memberWithoutLocation);
-    fixBlockXfbOffsets(type.getQualifier(), typeList);
+    fixXfbOffsets(type.getQualifier(), typeList);
     fixBlockUniformOffsets(type.getQualifier(), typeList);
 
     // reverse merge, so that currentBlockQualifier now has all layout information
@@ -8641,7 +8684,7 @@ void HlslParseContext::fixBlockLocations(const TSourceLoc& loc, TQualifier& qual
     }
 }
 
-void HlslParseContext::fixBlockXfbOffsets(TQualifier& qualifier, TTypeList& typeList)
+void HlslParseContext::fixXfbOffsets(TQualifier& qualifier, TTypeList& typeList)
 {
     // "If a block is qualified with xfb_offset, all its
     // members are assigned transform feedback buffer offsets. If a block is not qualified with xfb_offset, any
@@ -8682,7 +8725,7 @@ void HlslParseContext::fixBlockUniformOffsets(const TQualifier& qualifier, TType
 {
     if (! qualifier.isUniformOrBuffer())
         return;
-    if (qualifier.layoutPacking != ElpStd140 && qualifier.layoutPacking != ElpStd430)
+    if (qualifier.layoutPacking != ElpStd140 && qualifier.layoutPacking != ElpStd430 && qualifier.layoutPacking != ElpScalar)
         return;
 
     int offset = 0;
@@ -8696,11 +8739,11 @@ void HlslParseContext::fixBlockUniformOffsets(const TQualifier& qualifier, TType
         // modify just the children's view of matrix layout, if there is one for this member
         TLayoutMatrix subMatrixLayout = typeList[member].type->getQualifier().layoutMatrix;
         int dummyStride;
-        int memberAlignment = intermediate.getBaseAlignment(*typeList[member].type, memberSize, dummyStride,
-                                                            qualifier.layoutPacking == ElpStd140,
-                                                            subMatrixLayout != ElmNone
-                                                                ? subMatrixLayout == ElmRowMajor
-                                                                : qualifier.layoutMatrix == ElmRowMajor);
+        int memberAlignment = intermediate.getMemberAlignment(*typeList[member].type, memberSize, dummyStride,
+                                                              qualifier.layoutPacking,
+                                                              subMatrixLayout != ElmNone
+                                                                  ? subMatrixLayout == ElmRowMajor
+                                                                  : qualifier.layoutMatrix == ElmRowMajor);
         if (memberQualifier.hasOffset()) {
             // "The specified offset must be a multiple
             // of the base alignment of the type of the block member it qualifies, or a compile-time error results."

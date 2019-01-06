@@ -346,13 +346,13 @@ public:
 				const double freq = double(bx::getHPFrequency() );
 				float time = (float)( (now-m_timeOffset)/freq);
 
-				// Reference:
-				// Weighted, Blended Order-Independent Transparency
-				// http://jcgt.org/published/0002/02/09/
-				// http://casual-effects.blogspot.com/2014/03/weighted-blended-order-independent.html
-
-				float at[3] = { 0.0f, 0.0f, 0.0f };
-				float eye[3] = { 0.0f, 0.0f, -7.0f };
+				// Reference(s):
+				// - Weighted, Blended Order-Independent Transparency
+				//   https://web.archive.org/save/http://jcgt.org/published/0002/02/09/
+				//   https://web.archive.org/web/20181126040455/http://casual-effects.blogspot.com/2014/03/weighted-blended-order-independent.html
+				//
+				const bx::Vec3 at  = { 0.0f, 0.0f,  0.0f };
+				const bx::Vec3 eye = { 0.0f, 0.0f, -7.0f };
 
 				float view[16];
 				float proj[16];

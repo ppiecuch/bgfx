@@ -2278,9 +2278,9 @@ VK_IMPORT_DEVICE
 			setShaderUniform(_flags, _regIndex, _val, _numRegs);
 		}
 
-		void commitShaderUniforms(VkCommandBuffer _commandBuffer, uint16_t _programIdx)
+		void commitShaderUniforms(VkCommandBuffer _commandBuffer, ProgramHandle _program)
 		{
-			const ProgramVK& program = m_program[_programIdx];
+			const ProgramVK& program = m_program[_program.idx];
 			VkDescriptorBufferInfo descriptorBufferInfo;
 			uint32_t total = 0
 				+ program.m_vsh->m_size
@@ -2590,16 +2590,16 @@ VK_IMPORT_DEVICE
 			return num;
 		}
 
-		VkPipeline getPipeline(uint16_t _programIdx)
+		VkPipeline getPipeline(ProgramHandle _program)
 		{
-			BX_UNUSED(_programIdx);
+			BX_UNUSED(_program);
 			// vkCreateComputePipelines
 			return VK_NULL_HANDLE;
 		}
 
-		VkPipeline getPipeline(uint64_t _state, uint64_t _stencil, uint16_t _declIdx, uint16_t _programIdx, uint8_t _numInstanceData)
+		VkPipeline getPipeline(uint64_t _state, uint64_t _stencil, uint16_t _declIdx, ProgramHandle _program, uint8_t _numInstanceData)
 		{
-			ProgramVK& program = m_program[_programIdx];
+			ProgramVK& program = m_program[_program.idx];
 
 			_state &= 0
 				| BGFX_STATE_WRITE_RGB
@@ -3679,15 +3679,14 @@ VK_DESTROY
 		currentState.m_stateFlags = BGFX_STATE_NONE;
 		currentState.m_stencil    = packStencil(BGFX_STENCIL_NONE, BGFX_STENCIL_NONE);
 
-		const bool hmdEnabled = false;
-		ViewState viewState(_render, hmdEnabled);
-		viewState.reset(_render, hmdEnabled);
+		static ViewState viewState;
+		viewState.reset(_render);
 
 // 		bool wireframe = !!(_render->m_debug&BGFX_DEBUG_WIREFRAME);
 // 		setDebugWireframe(wireframe);
 
 		uint16_t currentSamplerStateIdx = kInvalidHandle;
-		uint16_t currentProgramIdx      = kInvalidHandle;
+		ProgramHandle currentProgram    = BGFX_INVALID_HANDLE;
 		uint32_t currentBindHash        = 0;
 		bool     hasPredefined          = false;
 		bool     commandListChanged     = false;
@@ -3771,12 +3770,10 @@ VK_DESTROY
 		{
 //			m_batch.begin();
 
-// 			uint8_t eye = 0;
-// 			uint8_t restartState = 0;
 			viewState.m_rect = _render->m_view[0].m_rect;
 
 			int32_t numItems = _render->m_numRenderItems;
-			for (int32_t item = 0, restartItem = numItems; item < numItems || restartItem < numItems;)
+			for (int32_t item = 0; item < numItems;)
 			{
 				const uint64_t encodedKey = _render->m_sortKeys[item];
 				const bool isCompute = key.decode(encodedKey, _render->m_viewRemap);
@@ -3811,7 +3808,7 @@ finishAll();
 					currentPipeline = VK_NULL_HANDLE;
 					currentSamplerStateIdx = kInvalidHandle;
 BX_UNUSED(currentSamplerStateIdx);
-					currentProgramIdx      = kInvalidHandle;
+					currentProgram         = BGFX_INVALID_HANDLE;
 					hasPredefined          = false;
 
 					fbh = _render->m_view[view].m_fbh;
@@ -3908,15 +3905,15 @@ BX_UNUSED(currentSamplerStateIdx);
 //										{
 //											TextureD3D12& texture = m_textures[bind.m_idx];
 //
-//											if (Access::Read != bind.m_un.m_compute.m_access)
+//											if (Access::Read != bind.m_access)
 //											{
 //												texture.setState(m_commandList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-//												scratchBuffer.allocUav(srvHandle[ii], texture, bind.m_un.m_compute.m_mip);
+//												scratchBuffer.allocUav(srvHandle[ii], texture, bind.m_mip);
 //											}
 //											else
 //											{
 //												texture.setState(m_commandList, D3D12_RESOURCE_STATE_GENERIC_READ);
-//												scratchBuffer.allocSrv(srvHandle[ii], texture, bind.m_un.m_compute.m_mip);
+//												scratchBuffer.allocSrv(srvHandle[ii], texture, bind.m_mip);
 //												samplerFlags[ii] = texture.m_flags;
 //											}
 //										}
@@ -3930,7 +3927,7 @@ BX_UNUSED(currentSamplerStateIdx);
 //												: m_vertexBuffers[bind.m_idx]
 //												;
 //
-//											if (Access::Read != bind.m_un.m_compute.m_access)
+//											if (Access::Read != bind.m_access)
 //											{
 //												buffer.setState(m_commandList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 //												scratchBuffer.allocUav(srvHandle[ii], buffer);
@@ -3976,12 +3973,12 @@ BX_UNUSED(currentSamplerStateIdx);
 
 					bool constantsChanged = false;
 					if (compute.m_uniformBegin < compute.m_uniformEnd
-					||  currentProgramIdx != key.m_program)
+					||  currentProgram.idx != key.m_program.idx)
 					{
 						rendererUpdateUniforms(this, _render->m_uniformBuffer[compute.m_uniformIdx], compute.m_uniformBegin, compute.m_uniformEnd);
 
-						currentProgramIdx = key.m_program;
-						ProgramVK& program = m_program[currentProgramIdx];
+						currentProgram = key.m_program;
+						ProgramVK& program = m_program[currentProgram.idx];
 
 						UniformBuffer* vcb = program.m_vsh->m_constantBuffer;
 						if (NULL != vcb)
@@ -3996,8 +3993,8 @@ BX_UNUSED(currentSamplerStateIdx);
 					if (constantsChanged
 					||  hasPredefined)
 					{
-						ProgramVK& program = m_program[currentProgramIdx];
-						viewState.setPredefined<4>(this, view, 0, program, _render, compute);
+						ProgramVK& program = m_program[currentProgram.idx];
+						viewState.setPredefined<4>(this, view, program, _render, compute);
 //						commitShaderConstants(key.m_program, gpuAddress);
 //						m_commandList->SetComputeRootConstantBufferView(Rdt::CBV, gpuAddress);
 					}
@@ -4092,7 +4089,7 @@ BX_UNUSED(currentSamplerStateIdx);
 					currentPipeline        = VK_NULL_HANDLE;
 					currentBindHash        = 0;
 					currentSamplerStateIdx = kInvalidHandle;
-					currentProgramIdx      = kInvalidHandle;
+					currentProgram         = BGFX_INVALID_HANDLE;
 					currentState.clear();
 					currentState.m_scissor = !draw.m_scissor;
 					changedFlags = BGFX_STATE_MASK;
@@ -4158,8 +4155,8 @@ BX_UNUSED(currentSamplerStateIdx);
 //										TextureD3D12& texture = m_textures[bind.m_idx];
 //										texture.setState(m_commandList, D3D12_RESOURCE_STATE_GENERIC_READ);
 //										scratchBuffer.allocSrv(srvHandle[stage], texture);
-//										samplerFlags[stage] = (0 == (BGFX_TEXTURE_INTERNAL_DEFAULT_SAMPLER & bind.m_un.m_draw.m_textureFlags)
-//											? bind.m_un.m_draw.m_textureFlags
+//										samplerFlags[stage] = (0 == (BGFX_TEXTURE_INTERNAL_DEFAULT_SAMPLER & bind.m_textureFlags)
+//											? bind.m_textureFlags
 //											: texture.m_flags
 //											) & (BGFX_TEXTURE_SAMPLER_BITS_MASK|BGFX_TEXTURE_BORDER_COLOR_MASK)
 //											;
@@ -4272,11 +4269,11 @@ BX_UNUSED(currentSamplerStateIdx);
 
 					bool constantsChanged = false;
 					if (draw.m_uniformBegin < draw.m_uniformEnd
-					||  currentProgramIdx != key.m_program
+					||  currentProgram.idx != key.m_program.idx
 					||  BGFX_STATE_ALPHA_REF_MASK & changedFlags)
 					{
-						currentProgramIdx = key.m_program;
-						ProgramVK& program = m_program[currentProgramIdx];
+						currentProgram = key.m_program;
+						ProgramVK& program = m_program[currentProgram.idx];
 
 						UniformBuffer* vcb = program.m_vsh->m_constantBuffer;
 						if (NULL != vcb)
@@ -4297,10 +4294,10 @@ BX_UNUSED(currentSamplerStateIdx);
 					if (constantsChanged
 					||  hasPredefined)
 					{
-						ProgramVK& program = m_program[currentProgramIdx];
+						ProgramVK& program = m_program[currentProgram.idx];
 						uint32_t ref = (newFlags&BGFX_STATE_ALPHA_REF_MASK)>>BGFX_STATE_ALPHA_REF_SHIFT;
 						viewState.m_alphaRef = ref/255.0f;
-						viewState.setPredefined<4>(this, view, 0, program, _render, draw);
+						viewState.setPredefined<4>(this, view, program, _render, draw);
 						commitShaderUniforms(m_commandBuffer, key.m_program); //, gpuAddress);
 					}
 

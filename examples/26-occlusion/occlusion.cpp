@@ -137,8 +137,7 @@ public:
 
 		cameraCreate();
 
-		const float initialPos[3] = { 15.5f, 0.0f, -15.5f };
-		cameraSetPosition(initialPos);
+		cameraSetPosition({ 15.5f, 0.0f, -15.5f });
 		cameraSetHorizontalAngle(bx::toRad(-45.0f) );
 
 		m_timeOffset = bx::getHPCounter();
@@ -219,8 +218,8 @@ public:
 					bgfx::setViewTransform(1, view, proj);
 					bgfx::setViewRect(1, 0, 0, uint16_t(m_width), uint16_t(m_height) );
 
-					float at[3]  = {  0.0f,  0.0f,   0.0f };
-					float eye[3] = { 17.5f, 10.0f, -17.5f };
+					const bx::Vec3 at  = {  0.0f,  0.0f,   0.0f };
+					const bx::Vec3 eye = { 17.5f, 10.0f, -17.5f };
 					bx::mtxLookAt(view, eye, at);
 
 					bgfx::setViewTransform(2, view, proj);

@@ -351,8 +351,8 @@ public:
 				, false
 				, 1
 				, bgfx::TextureFormat::D16
-				, BGFX_TEXTURE_RT /* | BGFX_TEXTURE_COMPARE_LEQUAL*/
-				);  // Note I'm not setting BGFX_TEXTURE_COMPARE_LEQUAL.  Why?
+				, BGFX_TEXTURE_RT /* | BGFX_SAMPLER_COMPARE_LEQUAL*/
+				);  // Note I'm not setting BGFX_SAMPLER_COMPARE_LEQUAL.  Why?
 					// Normally a PCF shadow map such as this requires a compare.  However, this sample also
 					// reads from this texture in the lighting pass, and only uses the PCF capabilites in the
 					// combine pass, so the flag is disabled by default.
@@ -364,8 +364,7 @@ public:
 
 		// Init camera
 		cameraCreate();
-		float camPos[] = {0.0f, 1.5f, 0.0f};
-		cameraSetPosition(camPos);
+		cameraSetPosition({0.0f, 1.5f, 0.0f});
 		cameraSetVerticalAngle(-0.3f);
 
 		// Init directional light
@@ -476,7 +475,7 @@ public:
 			lightAt[1] = 0.0f;
 			lightAt[2] = 0.0f;
 
-			bx::mtxLookAt(smView, lightEye, lightAt);
+			bx::mtxLookAt(smView, bx::load<bx::Vec3>(lightEye), bx::load<bx::Vec3>(lightAt) );
 			const float area = 10.0f;
 			const bgfx::Caps* caps = bgfx::getCaps();
 			bx::mtxOrtho(smProj, -area, area, -area, area, -100.0f, 100.0f, 0.0f, caps->homogeneousDepth);

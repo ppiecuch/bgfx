@@ -6,37 +6,39 @@
 #ifndef BOUNDS_H_HEADER_GUARD
 #define BOUNDS_H_HEADER_GUARD
 
+#include <bx/math.h>
+
 struct Aabb
 {
-	float m_min[3];
-	float m_max[3];
+	bx::Vec3 m_min;
+	bx::Vec3 m_max;
 };
 
 struct Cylinder
 {
-	float m_pos[3];
-	float m_end[3];
+	bx::Vec3 m_pos;
+	bx::Vec3 m_end;
 	float m_radius;
 };
 
 struct Capsule
 {
-	float m_pos[3];
-	float m_end[3];
+	bx::Vec3 m_pos;
+	bx::Vec3 m_end;
 	float m_radius;
 };
 
 struct Cone
 {
-	float m_pos[3];
-	float m_end[3];
+	bx::Vec3 m_pos;
+	bx::Vec3 m_end;
 	float m_radius;
 };
 
 struct Disk
 {
-	float m_center[3];
-	float m_normal[3];
+	bx::Vec3 m_center;
+	bx::Vec3 m_normal;
 	float m_radius;
 };
 
@@ -45,35 +47,29 @@ struct Obb
 	float m_mtx[16];
 };
 
-struct Plane
-{
-	float m_normal[3];
-	float m_dist;
-};
-
 struct Ray
 {
-	float m_pos[3];
-	float m_dir[3];
+	bx::Vec3 m_pos;
+	bx::Vec3 m_dir;
 };
 
 struct Sphere
 {
-	float m_center[3];
+	bx::Vec3 m_center;
 	float m_radius;
 };
 
 struct Tris
 {
-	float m_v0[3];
-	float m_v1[3];
-	float m_v2[3];
+	bx::Vec3 m_v0;
+	bx::Vec3 m_v1;
+	bx::Vec3 m_v2;
 };
 
 struct Hit
 {
-	float m_pos[3];
-	float m_normal[3];
+	bx::Vec3 m_pos;
+	bx::Vec3 m_normal;
 	float m_dist;
 };
 
@@ -121,10 +117,10 @@ void calcMaxBoundingSphere(Sphere& _sphere, const void* _vertices, uint32_t _num
 void calcMinBoundingSphere(Sphere& _sphere, const void* _vertices, uint32_t _numVertices, uint32_t _stride, float _step = 0.01f);
 
 /// Returns 6 (near, far, left, right, top, bottom) planes representing frustum planes.
-void buildFrustumPlanes(Plane* _planes, const float* _viewProj);
+void buildFrustumPlanes(bx::Plane* _planes, const float* _viewProj);
 
 /// Returns point from 3 intersecting planes.
-void intersectPlanes(float _result[3], const Plane& _pa, const Plane& _pb, const Plane& _pc);
+bx::Vec3 intersectPlanes(const bx::Plane& _pa, const bx::Plane& _pb, const bx::Plane& _pc);
 
 /// Make screen space ray from x, y coordinate and inverse view-projection matrix.
 Ray makeRay(float _x, float _y, const float* _invVp);
@@ -148,7 +144,7 @@ bool intersect(const Ray& _ray, const Cone& _cone, Hit* _hit = NULL);
 bool intersect(const Ray& _ray, const Disk& _disk, Hit* _hit = NULL);
 
 /// Intersect ray / plane.
-bool intersect(const Ray& _ray, const Plane& _plane, Hit* _hit = NULL);
+bool intersect(const Ray& _ray, const bx::Plane& _plane, Hit* _hit = NULL);
 
 /// Intersect ray / sphere.
 bool intersect(const Ray& _ray, const Sphere& _sphere, Hit* _hit = NULL);

@@ -560,8 +560,8 @@ namespace bgfx { namespace d3d11
 	/*
 	 * AMD GPU Services (AGS) library
 	 *
-	 * Reference:
-	 * https://github.com/GPUOpen-LibrariesAndSDKs/AGS_SDK
+	 * Reference(s):
+	 * - https://web.archive.org/web/20181126035805/https://github.com/GPUOpen-LibrariesAndSDKs/AGS_SDK
 	 */
 	enum AGS_RETURN_CODE
 	{
@@ -4514,9 +4514,7 @@ namespace bgfx { namespace d3d11
 			: uint32_t(m_flags)
 			;
 		uint32_t index = (flags & BGFX_SAMPLER_BORDER_COLOR_MASK) >> BGFX_SAMPLER_BORDER_COLOR_SHIFT;
-		ts.m_sampler[_stage] = s_renderD3D11->getSamplerState(flags
-									, _palette[index])
-									;
+		ts.m_sampler[_stage] = s_renderD3D11->getSamplerState(flags, _palette[index]);
 	}
 
 	void TextureD3D11::resolve(uint8_t _resolve) const
@@ -4592,6 +4590,15 @@ namespace bgfx { namespace d3d11
 			);
 		BGFX_FATAL(SUCCEEDED(hr), Fatal::UnableToInitialize, "Failed to create swap chain.");
 
+#if BX_PLATFORM_WINDOWS
+		DX_CHECK(s_renderD3D11->m_dxgi.m_factory->MakeWindowAssociation(
+			  (HWND)_nwh
+			, 0
+			| DXGI_MWA_NO_WINDOW_CHANGES
+			| DXGI_MWA_NO_ALT_ENTER
+			) );
+#endif // BX_PLATFORM_WINDOWS
+
 		ID3D11Resource* ptr;
 		DX_CHECK(m_swapChain->GetBuffer(0, IID_ID3D11Texture2D, (void**)&ptr) );
 		DX_CHECK(device->CreateRenderTargetView(ptr, NULL, &m_rtv[0]) );
@@ -4666,10 +4673,11 @@ namespace bgfx { namespace d3d11
 			m_num = 0;
 			for (uint32_t ii = 0; ii < m_numTh; ++ii)
 			{
-				TextureHandle handle = m_attachment[ii].handle;
-				if (isValid(handle) )
+				const Attachment& at = m_attachment[ii];
+
+				if (isValid(at.handle) )
 				{
-					const TextureD3D11& texture = s_renderD3D11->m_textures[handle.idx];
+					const TextureD3D11& texture = s_renderD3D11->m_textures[at.handle.idx];
 
 					if (0 == m_width)
 					{
@@ -4715,7 +4723,7 @@ namespace bgfx { namespace d3d11
 									: D3D11_DSV_DIMENSION_TEXTURE2D
 									;
 								dsvDesc.Flags = 0;
-								dsvDesc.Texture2D.MipSlice = m_attachment[ii].mip;
+								dsvDesc.Texture2D.MipSlice = at.mip;
 								DX_CHECK(s_renderD3D11->m_device->CreateDepthStencilView(
 									  NULL == texture.m_rt ? texture.m_ptr : texture.m_rt
 									, &dsvDesc
@@ -4732,14 +4740,14 @@ namespace bgfx { namespace d3d11
 								{
 									dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMSARRAY;
 									dsvDesc.Texture2DMSArray.ArraySize       = 1;
-									dsvDesc.Texture2DMSArray.FirstArraySlice = m_attachment[ii].layer;
+									dsvDesc.Texture2DMSArray.FirstArraySlice = at.layer;
 								}
 								else
 								{
 									dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DARRAY;
 									dsvDesc.Texture2DArray.ArraySize       = 1;
-									dsvDesc.Texture2DArray.FirstArraySlice = m_attachment[ii].layer;
-									dsvDesc.Texture2DArray.MipSlice        = m_attachment[ii].mip;
+									dsvDesc.Texture2DArray.FirstArraySlice = at.layer;
+									dsvDesc.Texture2DArray.MipSlice        = at.mip;
 								}
 								dsvDesc.Flags = 0;
 								DX_CHECK(s_renderD3D11->m_device->CreateDepthStencilView(texture.m_ptr, &dsvDesc, &m_dsv) );
@@ -4747,7 +4755,7 @@ namespace bgfx { namespace d3d11
 							break;
 						}
 					}
-					else
+					else if (Access::Write == at.access)
 					{
 						D3D11_RENDER_TARGET_VIEW_DESC desc;
 						desc.Format = texture.getSrvFormat();
@@ -4760,7 +4768,7 @@ namespace bgfx { namespace d3d11
 								if (1 < texture.m_depth)
 								{
 									desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DMSARRAY;
-									desc.Texture2DMSArray.FirstArraySlice = m_attachment[ii].layer;
+									desc.Texture2DMSArray.FirstArraySlice = at.layer;
 									desc.Texture2DMSArray.ArraySize = 1;
 								}
 								else
@@ -4773,14 +4781,14 @@ namespace bgfx { namespace d3d11
 								if (1 < texture.m_depth)
 								{
 									desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
-									desc.Texture2DArray.FirstArraySlice = m_attachment[ii].layer;
+									desc.Texture2DArray.FirstArraySlice = at.layer;
 									desc.Texture2DArray.ArraySize = 1;
-									desc.Texture2DArray.MipSlice = m_attachment[ii].mip;
+									desc.Texture2DArray.MipSlice = at.mip;
 								}
 								else
 								{
 									desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
-									desc.Texture2D.MipSlice = m_attachment[ii].mip;
+									desc.Texture2D.MipSlice = at.mip;
 								}
 							}
 
@@ -4796,29 +4804,33 @@ namespace bgfx { namespace d3d11
 							{
 								desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DMSARRAY;
 								desc.Texture2DMSArray.ArraySize       = 1;
-								desc.Texture2DMSArray.FirstArraySlice = m_attachment[ii].layer;
+								desc.Texture2DMSArray.FirstArraySlice = at.layer;
 							}
 							else
 							{
 								desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
 								desc.Texture2DArray.ArraySize       = 1;
-								desc.Texture2DArray.FirstArraySlice = m_attachment[ii].layer;
-								desc.Texture2DArray.MipSlice        = m_attachment[ii].mip;
+								desc.Texture2DArray.FirstArraySlice = at.layer;
+								desc.Texture2DArray.MipSlice        = at.mip;
 							}
 							DX_CHECK(s_renderD3D11->m_device->CreateRenderTargetView(texture.m_ptr, &desc, &m_rtv[m_num]) );
 							break;
 
 						case TextureD3D11::Texture3D:
 							desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE3D;
-							desc.Texture3D.MipSlice    = m_attachment[ii].mip;
+							desc.Texture3D.MipSlice    = at.mip;
 							desc.Texture3D.WSize       = 1;
-							desc.Texture3D.FirstWSlice = m_attachment[ii].layer;
+							desc.Texture3D.FirstWSlice = at.layer;
 							DX_CHECK(s_renderD3D11->m_device->CreateRenderTargetView(texture.m_ptr, &desc, &m_rtv[m_num]) );
 							break;
 						}
 
 						DX_CHECK(s_renderD3D11->m_device->CreateShaderResourceView(texture.m_ptr, NULL, &m_srv[m_num]) );
 						m_num++;
+					}
+					else
+					{
+						BX_CHECK(false, "");
 					}
 				}
 			}
@@ -4832,6 +4844,7 @@ namespace bgfx { namespace d3d11
 			for (uint32_t ii = 0; ii < m_numTh; ++ii)
 			{
 				const Attachment& at = m_attachment[ii];
+
 				if (isValid(at.handle) )
 				{
 					const TextureD3D11& texture = s_renderD3D11->m_textures[at.handle.idx];
@@ -5236,15 +5249,14 @@ namespace bgfx { namespace d3d11
 		RenderBind currentBind;
 		currentBind.clear();
 
-		const bool hmdEnabled = false;
 		static ViewState viewState;
-		viewState.reset(_render, hmdEnabled);
+		viewState.reset(_render);
 
 		bool wireframe = !!(_render->m_debug&BGFX_DEBUG_WIREFRAME);
 		bool scissorEnabled = false;
 		setDebugWireframe(wireframe);
 
-		uint16_t programIdx = kInvalidHandle;
+		ProgramHandle currentProgram = BGFX_INVALID_HANDLE;
 		SortKey key;
 		uint16_t view = UINT16_MAX;
 		FrameBufferHandle fbh = { BGFX_CONFIG_MAX_FRAME_BUFFERS };
@@ -5286,13 +5298,10 @@ namespace bgfx { namespace d3d11
 			// if we don't do this we'll only see one frame of output and then nothing
 			setFrameBuffer(BGFX_INVALID_HANDLE, true, false);
 
-			bool viewRestart = false;
-			uint8_t eye = 0;
-			uint8_t restartState = 0;
 			viewState.m_rect = _render->m_view[0].m_rect;
-
 			int32_t numItems = _render->m_numRenderItems;
-			for (int32_t item = 0, restartItem = numItems; item < numItems || restartItem < numItems;)
+
+			for (int32_t item = 0; item < numItems;)
 			{
 				const uint64_t encodedKey = _render->m_sortKeys[item];
 				const bool isCompute = key.decode(encodedKey, _render->m_viewRemap);
@@ -5310,40 +5319,13 @@ namespace bgfx { namespace d3d11
 
 				if (viewChanged)
 				{
-					if (1 == restartState)
-					{
-						restartState = 2;
-						item = restartItem;
-						restartItem = numItems;
-						view = UINT16_MAX;
-						continue;
-					}
-
 					view = key.m_view;
-					programIdx = kInvalidHandle;
+					currentProgram = BGFX_INVALID_HANDLE;
 
 					if (_render->m_view[view].m_fbh.idx != fbh.idx)
 					{
 						fbh = _render->m_view[view].m_fbh;
 						setFrameBuffer(fbh);
-					}
-
-					viewRestart = ( (BGFX_VIEW_STEREO == (_render->m_view[view].m_flags & BGFX_VIEW_STEREO) ) );
-					viewRestart &= hmdEnabled;
-					if (viewRestart)
-					{
-						if (0 == restartState)
-						{
-							restartState = 1;
-							restartItem  = item - 1;
-						}
-
-						eye = (restartState - 1) & 1;
-						restartState &= 1;
-					}
-					else
-					{
-						eye = 0;
 					}
 
 					PIX_ENDEVENT();
@@ -5354,32 +5336,12 @@ namespace bgfx { namespace d3d11
 					profiler.begin(view);
 
 					viewState.m_rect = _render->m_view[view].m_rect;
-					if (viewRestart)
+					if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
 					{
-						if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
-						{
-							wchar_t* viewNameW = s_viewNameW[view];
-							viewNameW[3] = L' ';
-							viewNameW[4] = eye ? L'R' : L'L';
-							PIX_BEGINEVENT(0 == ( (view*2+eye)&1)
-								? D3DCOLOR_VIEW_L
-								: D3DCOLOR_VIEW_R
-								, viewNameW
-								);
-						}
-
-						viewState.m_rect.m_x = eye * (viewState.m_rect.m_width+1)/2;
-						viewState.m_rect.m_width /= 2;
-					}
-					else
-					{
-						if (BX_ENABLED(BGFX_CONFIG_DEBUG_PIX) )
-						{
-							wchar_t* viewNameW = s_viewNameW[view];
-							viewNameW[3] = L' ';
-							viewNameW[4] = L' ';
-							PIX_BEGINEVENT(D3DCOLOR_VIEW, viewNameW);
-						}
+						wchar_t* viewNameW = s_viewNameW[view];
+						viewNameW[3] = L' ';
+						viewNameW[4] = L' ';
+						PIX_BEGINEVENT(D3DCOLOR_VIEW, viewNameW);
 					}
 
 					const Rect& scissorRect = _render->m_view[view].m_scissor;
@@ -5431,21 +5393,15 @@ namespace bgfx { namespace d3d11
 
 					const RenderCompute& compute = renderItem.compute;
 
-					if (0 != eye
-					&&  BGFX_SUBMIT_EYE_LEFT == (compute.m_submitFlags&BGFX_SUBMIT_EYE_MASK) )
-					{
-						continue;
-					}
-
 					bool programChanged = false;
 					bool constantsChanged = compute.m_uniformBegin < compute.m_uniformEnd;
 					rendererUpdateUniforms(this, _render->m_uniformBuffer[compute.m_uniformIdx], compute.m_uniformBegin, compute.m_uniformEnd);
 
-					if (key.m_program != programIdx)
+					if (key.m_program.idx != currentProgram.idx)
 					{
-						programIdx = key.m_program;
+						currentProgram = key.m_program;
 
-						ProgramD3D11& program = m_program[key.m_program];
+						ProgramD3D11& program = m_program[currentProgram.idx];
 						m_currentProgram = &program;
 
 						deviceCtx->CSSetShader(program.m_vsh->m_computeShader, NULL, 0);
@@ -5455,9 +5411,9 @@ namespace bgfx { namespace d3d11
 							constantsChanged = true;
 					}
 
-					if (kInvalidHandle != programIdx)
+					if (isValid(currentProgram) )
 					{
-						ProgramD3D11& program = m_program[programIdx];
+						ProgramD3D11& program = m_program[currentProgram.idx];
 
 						if (constantsChanged)
 						{
@@ -5468,7 +5424,7 @@ namespace bgfx { namespace d3d11
 							}
 						}
 
-						viewState.setPredefined<4>(this, view, eye, program, _render, compute);
+						viewState.setPredefined<4>(this, view, program, _render, compute);
 
 						if (constantsChanged
 						||  program.m_numPredefined > 0)
@@ -5478,32 +5434,36 @@ namespace bgfx { namespace d3d11
 					}
 					BX_UNUSED(programChanged);
 					ID3D11UnorderedAccessView* uav[BGFX_MAX_COMPUTE_BINDINGS] = {};
-					ID3D11ShaderResourceView*  srv[BGFX_MAX_COMPUTE_BINDINGS] = {};
-					ID3D11SamplerState*    sampler[BGFX_MAX_COMPUTE_BINDINGS] = {};
 
-					for (uint32_t ii = 0; ii < maxComputeBindings; ++ii)
+					for (uint8_t stage = 0; stage < maxComputeBindings; ++stage)
 					{
-						const Binding& bind = renderBind.m_bind[ii];
+						const Binding& bind = renderBind.m_bind[stage];
 						if (kInvalidHandle != bind.m_idx)
 						{
 							switch (bind.m_type)
 							{
 							case Binding::Image:
-							case Binding::Texture:
 								{
 									TextureD3D11& texture = m_textures[bind.m_idx];
-									if (Access::Read != bind.m_un.m_compute.m_access)
+									if (Access::Read != bind.m_access)
 									{
-										uav[ii] = 0 == bind.m_un.m_compute.m_mip
+										uav[stage] = 0 == bind.m_mip
 											? texture.m_uav
-											: s_renderD3D11->getCachedUav(texture.getHandle(), bind.m_un.m_compute.m_mip)
+											: s_renderD3D11->getCachedUav(texture.getHandle(), bind.m_mip)
 											;
 									}
 									else
 									{
-										srv[ii] = s_renderD3D11->getCachedSrv(texture.getHandle(), bind.m_un.m_compute.m_mip, true);
-										sampler[ii] = s_renderD3D11->getSamplerState(uint32_t(texture.m_flags), NULL);
+										m_textureStage.m_srv[stage]     = s_renderD3D11->getCachedSrv(texture.getHandle(), bind.m_mip, true);
+										m_textureStage.m_sampler[stage] = s_renderD3D11->getSamplerState(uint32_t(texture.m_flags), NULL);
 									}
+								}
+								break;
+
+							case Binding::Texture:
+								{
+									TextureD3D11& texture = m_textures[bind.m_idx];
+									texture.commit(stage, bind.m_samplerFlags, _render->m_colorPalette);
 								}
 								break;
 
@@ -5514,17 +5474,22 @@ namespace bgfx { namespace d3d11
 										? m_indexBuffers[bind.m_idx]
 										: m_vertexBuffers[bind.m_idx]
 										;
-									if (Access::Read != bind.m_un.m_compute.m_access)
+									if (Access::Read != bind.m_access)
 									{
-										uav[ii] = buffer.m_uav;
+										uav[stage] = buffer.m_uav;
 									}
 									else
 									{
-										srv[ii] = buffer.m_srv;
+										m_textureStage.m_srv[stage] = buffer.m_srv;
 									}
 								}
 								break;
 							}
+						}
+						else
+						{
+							m_textureStage.m_srv[stage]     = NULL;
+							m_textureStage.m_sampler[stage] = NULL;
 						}
 					}
 
@@ -5535,8 +5500,8 @@ namespace bgfx { namespace d3d11
 					}
 
 					deviceCtx->CSSetUnorderedAccessViews(0, maxComputeBindings, uav, NULL);
-					deviceCtx->CSSetShaderResources(0, maxTextureSamplers, srv);
-					deviceCtx->CSSetSamplers(0, maxTextureSamplers, sampler);
+					deviceCtx->CSSetShaderResources(0, maxTextureSamplers, m_textureStage.m_srv);
+					deviceCtx->CSSetSamplers(0, maxTextureSamplers, m_textureStage.m_sampler);
 
 					if (isValid(compute.m_indirectBuffer) )
 					{
@@ -5575,7 +5540,7 @@ namespace bgfx { namespace d3d11
 						PIX_BEGINEVENT(D3DCOLOR_DRAW, viewNameW);
 					}
 
-					programIdx = kInvalidHandle;
+					currentProgram   = BGFX_INVALID_HANDLE;
 					m_currentProgram = NULL;
 
 					invalidateCompute();
@@ -5726,11 +5691,11 @@ namespace bgfx { namespace d3d11
 				bool constantsChanged = draw.m_uniformBegin < draw.m_uniformEnd;
 				rendererUpdateUniforms(this, _render->m_uniformBuffer[draw.m_uniformIdx], draw.m_uniformBegin, draw.m_uniformEnd);
 
-				if (key.m_program != programIdx)
+				if (key.m_program.idx != currentProgram.idx)
 				{
-					programIdx = key.m_program;
+					currentProgram = key.m_program;
 
-					if (kInvalidHandle == programIdx)
+					if (!isValid(currentProgram) )
 					{
 						m_currentProgram = NULL;
 
@@ -5739,7 +5704,7 @@ namespace bgfx { namespace d3d11
 					}
 					else
 					{
-						ProgramD3D11& program = m_program[programIdx];
+						ProgramD3D11& program = m_program[currentProgram.idx];
 						m_currentProgram = &program;
 
 						const ShaderD3D11* vsh = program.m_vsh;
@@ -5763,9 +5728,9 @@ namespace bgfx { namespace d3d11
 						constantsChanged = true;
 				}
 
-				if (kInvalidHandle != programIdx)
+				if (isValid(currentProgram) )
 				{
-					ProgramD3D11& program = m_program[programIdx];
+					ProgramD3D11& program = m_program[currentProgram.idx];
 
 					if (constantsChanged)
 					{
@@ -5785,7 +5750,7 @@ namespace bgfx { namespace d3d11
 						}
 					}
 
-					viewState.setPredefined<4>(this, view, eye, program, _render, draw);
+					viewState.setPredefined<4>(this, view, program, _render, draw);
 
 					if (constantsChanged
 					||  program.m_numPredefined > 0)
@@ -5800,9 +5765,9 @@ namespace bgfx { namespace d3d11
 					{
 						const Binding& bind = renderBind.m_bind[stage];
 						Binding& current = currentBind.m_bind[stage];
-						if (current.m_idx != bind.m_idx
-						||  current.m_type != bind.m_type
-						||  current.m_un.m_draw.m_textureFlags != bind.m_un.m_draw.m_textureFlags
+						if (current.m_idx          != bind.m_idx
+						||  current.m_type         != bind.m_type
+						||  current.m_samplerFlags != bind.m_samplerFlags
 						||  programChanged)
 						{
 							if (kInvalidHandle != bind.m_idx)
@@ -5812,7 +5777,7 @@ namespace bgfx { namespace d3d11
 								case Binding::Texture:
 									{
 										TextureD3D11& texture = m_textures[bind.m_idx];
-										texture.commit(stage, bind.m_un.m_draw.m_textureFlags, _render->m_colorPalette);
+										texture.commit(stage, bind.m_samplerFlags, _render->m_colorPalette);
 									}
 									break;
 
@@ -5909,12 +5874,12 @@ namespace bgfx { namespace d3d11
 							const VertexBufferD3D11& inst = m_vertexBuffers[draw.m_instanceDataBuffer.idx];
 							const uint32_t instStride = draw.m_instanceDataStride;
 							deviceCtx->IASetVertexBuffers(numStreams, 1, &inst.m_ptr, &instStride, &draw.m_instanceDataOffset);
-							setInputLayout(numStreams, decls, m_program[programIdx], uint16_t(instStride/16) );
+							setInputLayout(numStreams, decls, m_program[currentProgram.idx], uint16_t(instStride/16) );
 						}
 						else
 						{
 							deviceCtx->IASetVertexBuffers(numStreams, 1, s_zero.m_buffer, s_zero.m_zero, s_zero.m_zero);
-							setInputLayout(numStreams, decls, m_program[programIdx], 0);
+							setInputLayout(numStreams, decls, m_program[currentProgram.idx], 0);
 						}
 					}
 					else
@@ -5926,7 +5891,7 @@ namespace bgfx { namespace d3d11
 							const VertexBufferD3D11& inst = m_vertexBuffers[draw.m_instanceDataBuffer.idx];
 							const uint32_t instStride = draw.m_instanceDataStride;
 							deviceCtx->IASetVertexBuffers(0, 1, &inst.m_ptr, &instStride, &draw.m_instanceDataOffset);
-							setInputLayout(0, NULL, m_program[programIdx], uint16_t(instStride/16) );
+							setInputLayout(0, NULL, m_program[currentProgram.idx], uint16_t(instStride/16) );
 						}
 						else
 						{

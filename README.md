@@ -50,7 +50,7 @@ Supported compilers:
 
  * Clang 3.3 and above
  * GCC 5 and above
- * VS2015 and above
+ * VS2017 and above
 
 Languages:
 
@@ -60,8 +60,7 @@ Languages:
  * [Go language API bindings](https://github.com/james4k/go-bgfx)
  * [Haskell language API bindings](https://github.com/haskell-game/bgfx)
  * [Lightweight Java Game Library 3 bindings](https://github.com/LWJGL/lwjgl3)
- * [Lua language API bindings 1](https://github.com/excessive/lua-bgfx)
- * [Lua language API bindings 2](https://github.com/cloudwu/lua-bgfx)
+ * [Lua language API bindings](https://github.com/cloudwu/lua-bgfx)
  * [Nim language API bindings](https://github.com/Halsys/nim-bgfx)
  * [Python language API bindings](https://github.com/jnadro/pybgfx#pybgf)
  * [Rust language API bindings](https://github.com/rhoot/bgfx-rs)
@@ -72,6 +71,9 @@ Languages:
 
  - AppVeyor https://ci.appveyor.com/project/bkaradzic/bgfx
  - TravisCI https://travis-ci.org/bkaradzic/bgfx
+
+[Getting involved](https://bkaradzic.github.io/bgfx/overview.html#getting-involved)
+-----------------------------------------------------------------------------------
 
 [Examples](https://bkaradzic.github.io/bgfx/examples.html)
 ----------------------------------------------------------
@@ -320,6 +322,21 @@ simulator.
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=IUmxqAWdXvk" 
 target="_blank"><img src="http://img.youtube.com/vi/IUmxqAWdXvk/0.jpg" 
 alt="Off The Road"
+width="640" height="480" border="0" /></a>
+
+## Coal Burnout
+
+https://beardsvibe.com/ - Multiplayer PVP rhythm game.
+
+![coal-burnout](https://beardsvibe.com/scr/0l.png)
+
+## My Talking Tom 2
+
+https://outfit7.com/apps/my-talking-tom-2/ - Many mini games for mobile devices.
+
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=I0U7EQKKDjw" 
+target="_blank"><img src="http://img.youtube.com/vi/I0U7EQKKDjw/0.jpg" 
+alt="My Talking Tom 2"
 width="640" height="480" border="0" /></a>
 
 [License (BSD 2-clause)](https://bkaradzic.github.io/bgfx/license.html)

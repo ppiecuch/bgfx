@@ -190,8 +190,8 @@ public:
 
 			float time = (float)( (bx::getHPCounter()-m_timeOffset)/double(bx::getHPFrequency() ) );
 
-			float at[3]  = { 0.0f, 0.0f,   0.0f };
-			float eye[3] = { 0.0f, 0.0f, -35.0f };
+			const bx::Vec3 at  = { 0.0f, 0.0f,   0.0f };
+			const bx::Vec3 eye = { 0.0f, 0.0f, -35.0f };
 
 			// Set view and projection matrix for view 0.
 			{
@@ -220,7 +220,7 @@ public:
 				const uint32_t abgr = m_mwc.gen();
 				for (uint32_t ii = 0; ii < BX_COUNTOF(s_cubeVertices); ++ii)
 				{
-					bx::vec3MulMtx(&vertex[ii].m_x, &s_cubeVertices[ii].m_x, mtx);
+					bx::store(&vertex[ii].m_x, bx::mul(bx::load<bx::Vec3>(&s_cubeVertices[ii].m_x), mtx) );
 					vertex[ii].m_abgr = abgr;
 				}
 

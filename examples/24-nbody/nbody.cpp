@@ -207,9 +207,8 @@ public:
 			bgfx::setBuffer(1, m_currPositionBuffer0, bgfx::Access::Write);
 			bgfx::dispatch(0, m_initInstancesProgram, kMaxParticleCount / kThreadGroupUpdateSize, 1, 1);
 
-			float initialPos[3] = { 0.0f, 0.0f, -45.0f };
 			cameraCreate();
-			cameraSetPosition(initialPos);
+			cameraSetPosition({ 0.0f, 0.0f, -45.0f });
 			cameraSetVerticalAngle(0.0f);
 
 			m_useIndirect = false;
@@ -365,8 +364,8 @@ public:
 					bgfx::dispatch(0, m_updateInstancesProgram, uint16_t(m_paramsData.dispatchSize), 1, 1);
 				}
 
-				bx::xchg(m_currPositionBuffer0, m_currPositionBuffer1);
-				bx::xchg(m_prevPositionBuffer0, m_prevPositionBuffer1);
+				bx::swap(m_currPositionBuffer0, m_currPositionBuffer1);
+				bx::swap(m_prevPositionBuffer0, m_prevPositionBuffer1);
 
 				// Update camera.
 				cameraUpdate(deltaTime, m_mouseState);

@@ -195,8 +195,8 @@ public:
 			// if no other draw calls are submitted to viewZ 0.
 			bgfx::touch(0);
 
-			float at[3]  = { 0.0f, 0.0f,   0.0f };
-			float eye[3] = { 0.0f, 0.0f, -15.0f };
+			const bx::Vec3 at  = { 0.0f, 0.0f,   0.0f };
+			const bx::Vec3 eye = { 0.0f, 0.0f, -15.0f };
 
 			float view[16];
 			float proj[16];
@@ -227,11 +227,9 @@ public:
 
 			float mtxInv[16];
 			bx::mtxInverse(mtxInv, mtx);
-			float lightDirModel[4] = { -0.4f, -0.5f, -1.0f, 0.0f };
-			float lightDirModelN[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-			bx::vec3Norm(lightDirModelN, lightDirModel);
 			float lightDirTime[4];
-			bx::vec4MulMtx(lightDirTime, lightDirModelN, mtxInv);
+			const bx::Vec3 lightDirModelN = bx::normalize(bx::Vec3{-0.4f, -0.5f, -1.0f});
+			bx::store(lightDirTime, bx::mul(lightDirModelN, mtxInv) );
 			lightDirTime[3] = time;
 			bgfx::setUniform(u_lightDirTime, lightDirTime);
 

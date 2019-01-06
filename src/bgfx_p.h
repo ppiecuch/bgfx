@@ -213,6 +213,7 @@ namespace stl = std;
 #define BGFX_STATE_INTERNAL_SCISSOR         UINT64_C(0x2000000000000000)
 #define BGFX_STATE_INTERNAL_OCCLUSION_QUERY UINT64_C(0x4000000000000000)
 
+#define BGFX_SUBMIT_RESERVED_MASK              UINT8_C(0xff)
 #define BGFX_SUBMIT_INTERNAL_OCCLUSION_VISIBLE UINT8_C(0x80)
 
 #define BGFX_RENDERER_DIRECT3D9_NAME  "Direct3D 9"
@@ -232,7 +233,7 @@ namespace stl = std;
 #		else
 #			define BGFX_RENDERER_OPENGL_NAME "OpenGL 3.3"
 #		endif // 31+
-#	elif BGFX_CONFIG_RENDERER_OPENGL >= 40 && BGFX_CONFIG_RENDERER_OPENGL <= 45
+#	elif BGFX_CONFIG_RENDERER_OPENGL >= 40 && BGFX_CONFIG_RENDERER_OPENGL <= 46
 #		if BGFX_CONFIG_RENDERER_OPENGL == 40
 #			define BGFX_RENDERER_OPENGL_NAME "OpenGL 4.0"
 #		elif BGFX_CONFIG_RENDERER_OPENGL == 41
@@ -243,8 +244,10 @@ namespace stl = std;
 #			define BGFX_RENDERER_OPENGL_NAME "OpenGL 4.3"
 #		elif BGFX_CONFIG_RENDERER_OPENGL == 44
 #			define BGFX_RENDERER_OPENGL_NAME "OpenGL 4.4"
-#		else
+#		elif BGFX_CONFIG_RENDERER_OPENGL == 45
 #			define BGFX_RENDERER_OPENGL_NAME "OpenGL 4.5"
+#		else
+#			define BGFX_RENDERER_OPENGL_NAME "OpenGL 4.6"
 #		endif // 40+
 #	else
 #		define BGFX_RENDERER_OPENGL_NAME "OpenGL 2.1"
@@ -252,8 +255,10 @@ namespace stl = std;
 #elif BGFX_CONFIG_RENDERER_OPENGLES
 #	if BGFX_CONFIG_RENDERER_OPENGLES == 30
 #		define BGFX_RENDERER_OPENGL_NAME "OpenGL ES 3.0"
-#	elif BGFX_CONFIG_RENDERER_OPENGLES >= 31
+#	elif BGFX_CONFIG_RENDERER_OPENGLES == 31
 #		define BGFX_RENDERER_OPENGL_NAME "OpenGL ES 3.1"
+#	elif BGFX_CONFIG_RENDERER_OPENGLES >= 32
+#		define BGFX_RENDERER_OPENGL_NAME "OpenGL ES 3.2"
 #	else
 #		define BGFX_RENDERER_OPENGL_NAME "OpenGL ES 2.0"
 #	endif // BGFX_CONFIG_RENDERER_OPENGLES
@@ -472,6 +477,7 @@ namespace bgfx
 	bool isGraphicsDebuggerPresent();
 	void release(const Memory* _mem);
 	const char* getAttribName(Attrib::Enum _attr);
+	const char* getAttribNameShort(Attrib::Enum _attr);
 	void getTextureSizeFromRatio(BackbufferRatio::Enum _ratio, uint16_t& _width, uint16_t& _height);
 	TextureFormat::Enum getViableTextureFormat(const bimg::ImageContainer& _imageContainer);
 	const char* getName(TextureFormat::Enum _fmt);
@@ -527,6 +533,7 @@ namespace bgfx
 		return 1;
 	}
 
+	/// Dump vertex declaration into debug output.
 	void dump(const VertexDecl& _decl);
 
 	struct TextVideoMem
@@ -1032,46 +1039,58 @@ namespace bgfx
 
 		uint64_t encodeDraw(Enum _type)
 		{
-			if (SortDepth == _type)
+			switch (_type)
 			{
-				const uint64_t depth   = (uint64_t(m_depth  ) << SORT_KEY_DRAW_1_DEPTH_SHIFT  ) & SORT_KEY_DRAW_1_DEPTH_MASK;
-				const uint64_t program = (uint64_t(m_program) << SORT_KEY_DRAW_1_PROGRAM_SHIFT) & SORT_KEY_DRAW_1_PROGRAM_MASK;
-				const uint64_t trans   = (uint64_t(m_trans  ) << SORT_KEY_DRAW_1_TRANS_SHIFT  ) & SORT_KEY_DRAW_1_TRANS_MASK;
-				const uint64_t view    = (uint64_t(m_view   ) << SORT_KEY_VIEW_SHIFT          ) & SORT_KEY_VIEW_MASK;
-				const uint64_t key     = view|SORT_KEY_DRAW_BIT|SORT_KEY_DRAW_TYPE_DEPTH|depth|trans|program;
+			case SortProgram:
+				{
+					const uint64_t depth   = (uint64_t(m_depth      ) << SORT_KEY_DRAW_0_DEPTH_SHIFT  ) & SORT_KEY_DRAW_0_DEPTH_MASK;
+					const uint64_t program = (uint64_t(m_program.idx) << SORT_KEY_DRAW_0_PROGRAM_SHIFT) & SORT_KEY_DRAW_0_PROGRAM_MASK;
+					const uint64_t trans   = (uint64_t(m_trans      ) << SORT_KEY_DRAW_0_TRANS_SHIFT  ) & SORT_KEY_DRAW_0_TRANS_MASK;
+					const uint64_t view    = (uint64_t(m_view       ) << SORT_KEY_VIEW_SHIFT          ) & SORT_KEY_VIEW_MASK;
+					const uint64_t key     = view|SORT_KEY_DRAW_BIT|SORT_KEY_DRAW_TYPE_PROGRAM|trans|program|depth;
 
-				return key;
+					return key;
+				}
+				break;
+
+			case SortDepth:
+				{
+					const uint64_t depth   = (uint64_t(m_depth      ) << SORT_KEY_DRAW_1_DEPTH_SHIFT  ) & SORT_KEY_DRAW_1_DEPTH_MASK;
+					const uint64_t program = (uint64_t(m_program.idx) << SORT_KEY_DRAW_1_PROGRAM_SHIFT) & SORT_KEY_DRAW_1_PROGRAM_MASK;
+					const uint64_t trans   = (uint64_t(m_trans      ) << SORT_KEY_DRAW_1_TRANS_SHIFT  ) & SORT_KEY_DRAW_1_TRANS_MASK;
+					const uint64_t view    = (uint64_t(m_view       ) << SORT_KEY_VIEW_SHIFT          ) & SORT_KEY_VIEW_MASK;
+					const uint64_t key     = view|SORT_KEY_DRAW_BIT|SORT_KEY_DRAW_TYPE_DEPTH|depth|trans|program;
+					return key;
+				}
+				break;
+
+			case SortSequence:
+				{
+					const uint64_t seq     = (uint64_t(m_seq        ) << SORT_KEY_DRAW_2_SEQ_SHIFT    ) & SORT_KEY_DRAW_2_SEQ_MASK;
+					const uint64_t program = (uint64_t(m_program.idx) << SORT_KEY_DRAW_2_PROGRAM_SHIFT) & SORT_KEY_DRAW_2_PROGRAM_MASK;
+					const uint64_t trans   = (uint64_t(m_trans      ) << SORT_KEY_DRAW_2_TRANS_SHIFT  ) & SORT_KEY_DRAW_2_TRANS_MASK;
+					const uint64_t view    = (uint64_t(m_view       ) << SORT_KEY_VIEW_SHIFT          ) & SORT_KEY_VIEW_MASK;
+					const uint64_t key     = view|SORT_KEY_DRAW_BIT|SORT_KEY_DRAW_TYPE_SEQUENCE|seq|trans|program;
+
+					BX_CHECK(seq == (uint64_t(m_seq) << SORT_KEY_DRAW_2_SEQ_SHIFT)
+						, "SortKey error, sequence is truncated (m_seq: %d)."
+						, m_seq
+						);
+
+					return key;
+				}
+				break;
 			}
-			else if (SortSequence == _type)
-			{
-				const uint64_t seq     = (uint64_t(m_seq    ) << SORT_KEY_DRAW_2_SEQ_SHIFT    ) & SORT_KEY_DRAW_2_SEQ_MASK;
-				const uint64_t program = (uint64_t(m_program) << SORT_KEY_DRAW_2_PROGRAM_SHIFT) & SORT_KEY_DRAW_2_PROGRAM_MASK;
-				const uint64_t trans   = (uint64_t(m_trans  ) << SORT_KEY_DRAW_2_TRANS_SHIFT  ) & SORT_KEY_DRAW_2_TRANS_MASK;
-				const uint64_t view    = (uint64_t(m_view   ) << SORT_KEY_VIEW_SHIFT          ) & SORT_KEY_VIEW_MASK;
-				const uint64_t key     = view|SORT_KEY_DRAW_BIT|SORT_KEY_DRAW_TYPE_SEQUENCE|seq|trans|program;
 
-				BX_CHECK(seq == (uint64_t(m_seq) << SORT_KEY_DRAW_2_SEQ_SHIFT)
-					, "SortKey error, sequence is truncated (m_seq: %d)."
-					, m_seq
-					);
-
-				return key;
-			}
-
-			const uint64_t depth   = (uint64_t(m_depth  ) << SORT_KEY_DRAW_0_DEPTH_SHIFT  ) & SORT_KEY_DRAW_0_DEPTH_MASK;
-			const uint64_t program = (uint64_t(m_program) << SORT_KEY_DRAW_0_PROGRAM_SHIFT) & SORT_KEY_DRAW_0_PROGRAM_MASK;
-			const uint64_t trans   = (uint64_t(m_trans  ) << SORT_KEY_DRAW_0_TRANS_SHIFT  ) & SORT_KEY_DRAW_0_TRANS_MASK;
-			const uint64_t view    = (uint64_t(m_view   ) << SORT_KEY_VIEW_SHIFT          ) & SORT_KEY_VIEW_MASK;
-			const uint64_t key     = view|SORT_KEY_DRAW_BIT|SORT_KEY_DRAW_TYPE_PROGRAM|trans|program|depth;
-
-			return key;
+			BX_CHECK(false, "You should not be here.");
+			return 0;
 		}
 
 		uint64_t encodeCompute()
 		{
-			const uint64_t program = (uint64_t(m_program) << SORT_KEY_COMPUTE_PROGRAM_SHIFT) & SORT_KEY_COMPUTE_PROGRAM_MASK;
-			const uint64_t seq     = (uint64_t(m_seq    ) << SORT_KEY_COMPUTE_SEQ_SHIFT    ) & SORT_KEY_COMPUTE_SEQ_MASK;
-			const uint64_t view    = (uint64_t(m_view   ) << SORT_KEY_VIEW_SHIFT           ) & SORT_KEY_VIEW_MASK;
+			const uint64_t program = (uint64_t(m_program.idx) << SORT_KEY_COMPUTE_PROGRAM_SHIFT) & SORT_KEY_COMPUTE_PROGRAM_MASK;
+			const uint64_t seq     = (uint64_t(m_seq        ) << SORT_KEY_COMPUTE_SEQ_SHIFT    ) & SORT_KEY_COMPUTE_SEQ_MASK;
+			const uint64_t view    = (uint64_t(m_view       ) << SORT_KEY_VIEW_SHIFT           ) & SORT_KEY_VIEW_MASK;
 			const uint64_t key     = program|seq|view;
 
 			BX_CHECK(seq == (uint64_t(m_seq) << SORT_KEY_COMPUTE_SEQ_SHIFT)
@@ -1091,20 +1110,20 @@ namespace bgfx
 				uint64_t type = _key & SORT_KEY_DRAW_TYPE_MASK;
 				if (type == SORT_KEY_DRAW_TYPE_DEPTH)
 				{
-					m_program = uint16_t( (_key & SORT_KEY_DRAW_1_PROGRAM_MASK) >> SORT_KEY_DRAW_1_PROGRAM_SHIFT);
+					m_program.idx = uint16_t( (_key & SORT_KEY_DRAW_1_PROGRAM_MASK) >> SORT_KEY_DRAW_1_PROGRAM_SHIFT);
 					return false;
 				}
 				else if (type == SORT_KEY_DRAW_TYPE_SEQUENCE)
 				{
-					m_program = uint16_t( (_key & SORT_KEY_DRAW_2_PROGRAM_MASK) >> SORT_KEY_DRAW_2_PROGRAM_SHIFT);
+					m_program.idx = uint16_t( (_key & SORT_KEY_DRAW_2_PROGRAM_MASK) >> SORT_KEY_DRAW_2_PROGRAM_SHIFT);
 					return false;
 				}
 
-				m_program = uint16_t( (_key & SORT_KEY_DRAW_0_PROGRAM_MASK) >> SORT_KEY_DRAW_0_PROGRAM_SHIFT);
+				m_program.idx = uint16_t( (_key & SORT_KEY_DRAW_0_PROGRAM_MASK) >> SORT_KEY_DRAW_0_PROGRAM_SHIFT);
 				return false; // draw
 			}
 
-			m_program = uint16_t( (_key & SORT_KEY_COMPUTE_PROGRAM_MASK) >> SORT_KEY_COMPUTE_PROGRAM_SHIFT);
+			m_program.idx = uint16_t( (_key & SORT_KEY_COMPUTE_PROGRAM_MASK) >> SORT_KEY_COMPUTE_PROGRAM_SHIFT);
 			return true; // compute
 		}
 
@@ -1125,16 +1144,16 @@ namespace bgfx
 		{
 			m_depth   = 0;
 			m_seq     = 0;
-			m_program = 0;
+			m_program = {0};
 			m_view    = 0;
 			m_trans   = 0;
 		}
 
-		uint32_t m_depth;
-		uint32_t m_seq;
-		uint16_t m_program;
-		ViewId   m_view;
-		uint8_t  m_trans;
+		uint32_t      m_depth;
+		uint32_t      m_seq;
+		ProgramHandle m_program;
+		ViewId        m_view;
+		uint8_t       m_trans;
 	};
 #undef SORT_KEY_RENDER_DRAW
 
@@ -1478,24 +1497,12 @@ namespace bgfx
 			Count
 		};
 
+		uint32_t m_samplerFlags;
 		uint16_t m_idx;
 		uint8_t  m_type;
-
-		union
-		{
-			struct
-			{
-				uint32_t m_textureFlags;
-			} m_draw;
-
-			struct
-			{
-				uint8_t  m_format;
-				uint8_t  m_access;
-				uint8_t  m_mip;
-			} m_compute;
-
-		} m_un;
+		uint8_t  m_format;
+		uint8_t  m_access;
+		uint8_t  m_mip;
 	};
 
 	struct Stream
@@ -1521,7 +1528,7 @@ namespace bgfx
 				Binding& bind = m_bind[ii];
 				bind.m_idx = kInvalidHandle;
 				bind.m_type = 0;
-				bind.m_un.m_draw.m_textureFlags = 0;
+				bind.m_samplerFlags = 0;
 			}
 		};
 
@@ -1547,7 +1554,7 @@ namespace bgfx
 			m_startIndirect = 0;
 			m_numIndirect   = UINT16_MAX;
 			m_numMatrices   = 1;
-			m_submitFlags   = BGFX_SUBMIT_EYE_FIRST;
+			m_submitFlags   = 0;
 			m_scissor       = UINT16_MAX;
 			m_streamMask    = 0;
 			m_stream[0].clear();
@@ -1605,7 +1612,7 @@ namespace bgfx
 			m_numY         = 0;
 			m_numZ         = 0;
 			m_numMatrices  = 0;
-			m_submitFlags  = BGFX_SUBMIT_EYE_FIRST;
+			m_submitFlags  = 0;
 			m_uniformIdx   = UINT8_MAX;
 
 			m_indirectBuffer.idx = kInvalidHandle;
@@ -1692,7 +1699,7 @@ namespace bgfx
 			setClear(BGFX_CLEAR_NONE, 0, 0.0f, 0);
 			setMode(ViewMode::Default);
 			setFrameBuffer(BGFX_INVALID_HANDLE);
-			setTransform(NULL, NULL, BGFX_VIEW_NONE, NULL);
+			setTransform(NULL, NULL);
 		}
 
 		void setRect(uint16_t _x, uint16_t _y, uint16_t _width, uint16_t _height)
@@ -1731,10 +1738,8 @@ namespace bgfx
 			m_fbh = _handle;
 		}
 
-		void setTransform(const void* _view, const void* _proj, uint8_t _flags, const void* _proj1)
+		void setTransform(const void* _view, const void* _proj)
 		{
-			m_flags = _flags;
-
 			if (NULL != _view)
 			{
 				bx::memCopy(m_view.un.val, _view, sizeof(Matrix4) );
@@ -1746,20 +1751,11 @@ namespace bgfx
 
 			if (NULL != _proj)
 			{
-				bx::memCopy(m_proj[0].un.val, _proj, sizeof(Matrix4) );
+				bx::memCopy(m_proj.un.val, _proj, sizeof(Matrix4) );
 			}
 			else
 			{
-				m_proj[0].setIdentity();
-			}
-
-			if (NULL != _proj1)
-			{
-				bx::memCopy(m_proj[1].un.val, _proj1, sizeof(Matrix4) );
-			}
-			else
-			{
-				bx::memCopy(m_proj[1].un.val, m_proj[0].un.val, sizeof(Matrix4) );
+				m_proj.setIdentity();
 			}
 		}
 
@@ -1767,10 +1763,9 @@ namespace bgfx
 		Rect    m_rect;
 		Rect    m_scissor;
 		Matrix4 m_view;
-		Matrix4 m_proj[2];
+		Matrix4 m_proj;
 		FrameBufferHandle m_fbh;
 		uint8_t m_mode;
-		uint8_t m_flags;
 	};
 
 	struct FrameCache
@@ -1806,7 +1801,7 @@ namespace bgfx
 		{
 			SortKey term;
 			term.reset();
-			term.m_program = kInvalidHandle;
+			term.m_program = BGFX_INVALID_HANDLE;
 			m_sortKeys[BGFX_CONFIG_MAX_DRAW_CALLS]   = term.encodeDraw(SortKey::SortProgram);
 			m_sortValues[BGFX_CONFIG_MAX_DRAW_CALLS] = BGFX_CONFIG_MAX_DRAW_CALLS;
 			bx::memSet(m_occlusion, 0xff, sizeof(m_occlusion) );
@@ -2325,7 +2320,7 @@ namespace bgfx
 			Binding& bind = m_bind.m_bind[_stage];
 			bind.m_idx    = _handle.idx;
 			bind.m_type   = uint8_t(Binding::Texture);
-			bind.m_un.m_draw.m_textureFlags = (_flags&BGFX_SAMPLER_INTERNAL_DEFAULT)
+			bind.m_samplerFlags = (_flags&BGFX_SAMPLER_INTERNAL_DEFAULT)
 				? BGFX_SAMPLER_INTERNAL_DEFAULT
 				: _flags
 				;
@@ -2342,9 +2337,9 @@ namespace bgfx
 			Binding& bind = m_bind.m_bind[_stage];
 			bind.m_idx    = _handle.idx;
 			bind.m_type   = uint8_t(Binding::IndexBuffer);
-			bind.m_un.m_compute.m_format = 0;
-			bind.m_un.m_compute.m_access = uint8_t(_access);
-			bind.m_un.m_compute.m_mip    = 0;
+			bind.m_format = 0;
+			bind.m_access = uint8_t(_access);
+			bind.m_mip    = 0;
 		}
 
 		void setBuffer(uint8_t _stage, VertexBufferHandle _handle, Access::Enum _access)
@@ -2352,9 +2347,9 @@ namespace bgfx
 			Binding& bind = m_bind.m_bind[_stage];
 			bind.m_idx    = _handle.idx;
 			bind.m_type   = uint8_t(Binding::VertexBuffer);
-			bind.m_un.m_compute.m_format = 0;
-			bind.m_un.m_compute.m_access = uint8_t(_access);
-			bind.m_un.m_compute.m_mip    = 0;
+			bind.m_format = 0;
+			bind.m_access = uint8_t(_access);
+			bind.m_mip    = 0;
 		}
 
 		void setImage(uint8_t _stage, TextureHandle _handle, uint8_t _mip, Access::Enum _access, TextureFormat::Enum _format)
@@ -2362,9 +2357,9 @@ namespace bgfx
 			Binding& bind = m_bind.m_bind[_stage];
 			bind.m_idx    = _handle.idx;
 			bind.m_type   = uint8_t(Binding::Image);
-			bind.m_un.m_compute.m_format = uint8_t(_format);
-			bind.m_un.m_compute.m_access = uint8_t(_access);
-			bind.m_un.m_compute.m_mip    = _mip;
+			bind.m_format = uint8_t(_format);
+			bind.m_access = uint8_t(_access);
+			bind.m_mip    = _mip;
 		}
 
 		void discard()
@@ -2391,14 +2386,14 @@ namespace bgfx
 			submit(_id, _program, handle, _depth, _preserveState);
 		}
 
-		void dispatch(ViewId _id, ProgramHandle _handle, uint32_t _ngx, uint32_t _ngy, uint32_t _ngz, uint8_t _flags);
+		void dispatch(ViewId _id, ProgramHandle _handle, uint32_t _ngx, uint32_t _ngy, uint32_t _ngz);
 
-		void dispatch(ViewId _id, ProgramHandle _handle, IndirectBufferHandle _indirectHandle, uint16_t _start, uint16_t _num, uint8_t _flags)
+		void dispatch(ViewId _id, ProgramHandle _handle, IndirectBufferHandle _indirectHandle, uint16_t _start, uint16_t _num)
 		{
 			m_compute.m_indirectBuffer = _indirectHandle;
 			m_compute.m_startIndirect  = _start;
 			m_compute.m_numIndirect    = _num;
-			dispatch(_id, _handle, 0, 0, 0, _flags);
+			dispatch(_id, _handle, 0, 0, 0);
 		}
 
 		void blit(ViewId _id, TextureHandle _dst, uint8_t _dstMip, uint16_t _dstX, uint16_t _dstY, uint16_t _dstZ, TextureHandle _src, uint8_t _srcMip, uint16_t _srcX, uint16_t _srcY, uint16_t _srcZ, uint16_t _width, uint16_t _height, uint16_t _depth);
@@ -4531,9 +4526,9 @@ namespace bgfx
 			m_view[_id].setFrameBuffer(_handle);
 		}
 
-		BGFX_API_FUNC(void setViewTransform(ViewId _id, const void* _view, const void* _proj, uint8_t _flags, const void* _proj1) )
+		BGFX_API_FUNC(void setViewTransform(ViewId _id, const void* _view, const void* _proj) )
 		{
-			m_view[_id].setTransform(_view, _proj, _flags, _proj1);
+			m_view[_id].setTransform(_view, _proj);
 		}
 
 		BGFX_API_FUNC(void resetView(ViewId _id) )
