@@ -1,14 +1,14 @@
 /*
  * Copyright 2014 Kai Jourdan. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
- *
- * Based on code from Brian Luczkiewicz
- * https://github.com/blucz/Vector
- *
- * Uses the SIMPLEX-Font which is a variant of the Hershey font (public domain)
- * http://paulbourke.net/dataformats/hershey/
  */
 
+// Reference(s):
+// - Based on code from Brian Luczkiewicz
+//   https://github.com/blucz/Vector
+// - Uses the SIMPLEX-Font which is a variant of the Hershey font (public domain)
+//   https://web.archive.org/web/20120313001837/http://paulbourke.net/dataformats/hershey/
+//
 #include <float.h>  // FLT_EPSILON
 #include <alloca.h> // alloca
 
@@ -94,7 +94,7 @@ void VectorDisplay::setup(uint16_t _width, uint16_t _height, uint8_t _view)
 	m_blitShader         = loadProgram("vs_vectordisplay_fb", "fs_vectordisplay_blit");
 
 	u_params   = bgfx::createUniform("u_params",   bgfx::UniformType::Vec4);
-	s_texColor = bgfx::createUniform("s_texColor", bgfx::UniformType::Int1);
+	s_texColor = bgfx::createUniform("s_texColor", bgfx::UniformType::Sampler);
 
 	genLinetex();
 

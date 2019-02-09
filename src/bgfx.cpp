@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2019 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -11,6 +11,10 @@
 #include <bx/mutex.h>
 
 #include "topology.h"
+
+#if BX_PLATFORM_OSX
+#	include <objc/message.h>
+#endif // BX_PLATFORM_OSX
 
 BX_ERROR_RESULT(BGFX_ERROR_TEXTURE_VALIDATION,  BX_MAKEFOURCC('b', 'g', 0, 1) );
 
@@ -292,6 +296,21 @@ namespace bgfx
 	InternalData g_internalData;
 	PlatformData g_platformData;
 	bool g_platformDataChangedSinceReset = false;
+
+	const char* getTypeName(Handle _handle)
+	{
+		switch (_handle.type)
+		{
+		case Handle::IndexBuffer:  return "IB";
+		case Handle::Shader:       return "S";
+		case Handle::Texture:      return "T";
+		case Handle::VertexBuffer: return "VB";
+		default:                   break;
+		}
+
+		BX_CHECK(false, "You should not be here.");
+		return "?";
+	}
 
 	void AllocatorStub::checkLeaks()
 	{
@@ -793,7 +812,7 @@ namespace bgfx
 		{
 			m_decl
 				.begin()
-				.add(Attrib::Position, 3, AttribType::Float)
+				.add(Attrib::Position, 2, AttribType::Float)
 				.end();
 
 			ShaderHandle vsh = createEmbeddedShader(s_embeddedShaders, g_caps.rendererType, "vs_clear");
@@ -811,7 +830,30 @@ namespace bgfx
 
 			destroy(vsh);
 
-			m_vb = s_ctx->createTransientVertexBuffer(4*m_decl.m_stride, &m_decl);
+			struct Vertex
+			{
+				float m_x;
+				float m_y;
+			};
+
+			const uint16_t stride = m_decl.m_stride;
+			const bgfx::Memory* mem = bgfx::alloc(4 * stride);
+			Vertex* vertex = (Vertex*)mem->data;
+			BX_CHECK(stride == sizeof(Vertex), "Stride/Vertex mismatch (stride %d, sizeof(Vertex) %d)", stride, sizeof(Vertex));
+
+			vertex->m_x = -1.0f;
+			vertex->m_y = -1.0f;
+			vertex++;
+			vertex->m_x = 1.0f;
+			vertex->m_y = -1.0f;
+			vertex++;
+			vertex->m_x = -1.0f;
+			vertex->m_y = 1.0f;
+			vertex++;
+			vertex->m_x = 1.0f;
+			vertex->m_y = 1.0f;
+
+			m_vb = s_ctx->createVertexBuffer(mem, m_decl, 0);
 		}
 	}
 
@@ -830,7 +872,7 @@ namespace bgfx
 				}
 			}
 
-			s_ctx->destroyTransientVertexBuffer(m_vb);
+			s_ctx->destroyVertexBuffer(m_vb);
 		}
 	}
 
@@ -1919,11 +1961,12 @@ namespace bgfx
 
 		if (BX_ENABLED(BGFX_CONFIG_DEBUG) )
 		{
-#define CHECK_HANDLE_LEAK(_handleAlloc)                                               \
+#define CHECK_HANDLE_LEAK(_name, _handleAlloc)                                        \
 	BX_MACRO_BLOCK_BEGIN                                                              \
 		if (0 != _handleAlloc.getNumHandles() )                                       \
 		{                                                                             \
-			BX_TRACE("LEAK: " #_handleAlloc " %d (max: %d)"                           \
+			BX_TRACE("LEAK: %s %d (max: %d)"                                          \
+				, _name                                                               \
 				, _handleAlloc.getNumHandles()                                        \
 				, _handleAlloc.getMaxHandles()                                        \
 				);                                                                    \
@@ -1934,11 +1977,34 @@ namespace bgfx
 		}                                                                             \
 	BX_MACRO_BLOCK_END
 
-#define CHECK_HANDLE_LEAK_NAME(_handleAlloc, _type, _ref)                             \
+#define CHECK_HANDLE_LEAK_NAME(_name, _handleAlloc, _type, _ref)                      \
 	BX_MACRO_BLOCK_BEGIN                                                              \
 		if (0 != _handleAlloc.getNumHandles() )                                       \
 		{                                                                             \
-			BX_TRACE("LEAK: " #_handleAlloc " %d (max: %d)"                           \
+			BX_TRACE("LEAK: %s %d (max: %d)"                                          \
+				, _name                                                               \
+				, _handleAlloc.getNumHandles()                                        \
+				, _handleAlloc.getMaxHandles()                                        \
+				);                                                                    \
+			for (uint16_t ii = 0, num = _handleAlloc.getNumHandles(); ii < num; ++ii) \
+			{                                                                         \
+				uint16_t idx = _handleAlloc.getHandleAt(ii);                          \
+				const _type& ref = _ref[idx]; BX_UNUSED(ref);                         \
+				BX_TRACE("\t%3d: %4d %s"                                              \
+					, ii                                                              \
+					, idx                                                             \
+					, ref.m_name.getPtr()                                             \
+					);                                                                \
+			}                                                                         \
+		}                                                                             \
+	BX_MACRO_BLOCK_END
+
+#define CHECK_HANDLE_LEAK_RC_NAME(_name, _handleAlloc, _type, _ref)                   \
+	BX_MACRO_BLOCK_BEGIN                                                              \
+		if (0 != _handleAlloc.getNumHandles() )                                       \
+		{                                                                             \
+			BX_TRACE("LEAK: %s %d (max: %d)"                                          \
+				, _name                                                               \
 				, _handleAlloc.getNumHandles()                                        \
 				, _handleAlloc.getMaxHandles()                                        \
 				);                                                                    \
@@ -1947,26 +2013,26 @@ namespace bgfx
 				uint16_t idx = _handleAlloc.getHandleAt(ii);                          \
 				const _type& ref = _ref[idx]; BX_UNUSED(ref);                         \
 				BX_TRACE("\t%3d: %4d %s (count %d)"                                   \
-						, ii                                                          \
-						, idx                                                         \
-						, ref.m_name.getPtr()                                         \
-						, ref.m_refCount                                              \
-						);                                                            \
+					, ii                                                              \
+					, idx                                                             \
+					, ref.m_name.getPtr()                                             \
+					, ref.m_refCount                                                  \
+					);                                                                \
 			}                                                                         \
 		}                                                                             \
 	BX_MACRO_BLOCK_END
 
-			CHECK_HANDLE_LEAK     (m_dynamicIndexBufferHandle                          );
-			CHECK_HANDLE_LEAK     (m_dynamicVertexBufferHandle                         );
-			CHECK_HANDLE_LEAK     (m_indexBufferHandle                                 );
-			CHECK_HANDLE_LEAK     (m_vertexDeclHandle                                  );
-			CHECK_HANDLE_LEAK     (m_vertexBufferHandle                                );
-			CHECK_HANDLE_LEAK_NAME(m_shaderHandle,             ShaderRef,  m_shaderRef );
-			CHECK_HANDLE_LEAK     (m_programHandle                                     );
-			CHECK_HANDLE_LEAK_NAME(m_textureHandle,            TextureRef, m_textureRef);
-			CHECK_HANDLE_LEAK     (m_frameBufferHandle                                 );
-			CHECK_HANDLE_LEAK_NAME(m_uniformHandle,            UniformRef, m_uniformRef);
-			CHECK_HANDLE_LEAK     (m_occlusionQueryHandle                              );
+			CHECK_HANDLE_LEAK        ("DynamicIndexBufferHandle",  m_dynamicIndexBufferHandle                                  );
+			CHECK_HANDLE_LEAK        ("DynamicVertexBufferHandle", m_dynamicVertexBufferHandle                                 );
+			CHECK_HANDLE_LEAK_NAME   ("IndexBufferHandle",         m_indexBufferHandle,        IndexBuffer,    m_indexBuffers  );
+			CHECK_HANDLE_LEAK        ("VertexDeclHandle",          m_vertexDeclHandle                                          );
+			CHECK_HANDLE_LEAK_NAME   ("VertexBufferHandle",        m_vertexBufferHandle,       VertexBuffer,   m_vertexBuffers );
+			CHECK_HANDLE_LEAK_RC_NAME("ShaderHandle",              m_shaderHandle,             ShaderRef,      m_shaderRef     );
+			CHECK_HANDLE_LEAK        ("ProgramHandle",             m_programHandle                                             );
+			CHECK_HANDLE_LEAK_RC_NAME("TextureHandle",             m_textureHandle,            TextureRef,     m_textureRef    );
+			CHECK_HANDLE_LEAK_NAME   ("FrameBufferHandle",         m_frameBufferHandle,        FrameBufferRef, m_frameBufferRef);
+			CHECK_HANDLE_LEAK_RC_NAME("UniformHandle",             m_uniformHandle,            UniformRef,     m_uniformRef    );
+			CHECK_HANDLE_LEAK        ("OcclusionQueryHandle",      m_occlusionQueryHandle                                      );
 #undef CHECK_HANDLE_LEAK
 #undef CHECK_HANDLE_LEAK_NAME
 		}
@@ -2183,9 +2249,31 @@ namespace bgfx
 		}
 	}
 
+#if BX_PLATFORM_OSX
+	struct NSAutoreleasePoolScope
+	{
+		NSAutoreleasePoolScope()
+		{
+			id obj = class_createInstance(objc_getClass("NSAutoreleasePool"), 0);
+			pool = objc_msgSend(obj, sel_getUid("init") );
+		}
+
+		~NSAutoreleasePoolScope()
+		{
+			objc_msgSend(pool, sel_getUid("release") );
+		}
+
+		id pool;
+	};
+#endif // BX_PLATFORM_OSX
+
 	RenderFrame::Enum Context::renderFrame(int32_t _msecs)
 	{
 		BGFX_PROFILER_SCOPE("bgfx::renderFrame", 0xff2040ff);
+
+#if BX_PLATFORM_OSX
+		NSAutoreleasePoolScope pool;
+#endif // BX_PLATFORM_OSX
 
 		if (!m_flipAfterRender)
 		{
@@ -2264,7 +2352,7 @@ namespace bgfx
 			}
 			else
 			{
-				_renderCtx->setMarker(data, size);
+				_renderCtx->setMarker(data, uint16_t(size)-1);
 			}
 		}
 	}
@@ -2346,10 +2434,10 @@ namespace bgfx
 	BGFX_RENDERER_CONTEXT(d3d9);
 	BGFX_RENDERER_CONTEXT(d3d11);
 	BGFX_RENDERER_CONTEXT(d3d12);
+	BGFX_RENDERER_CONTEXT(gnm);
 	BGFX_RENDERER_CONTEXT(mtl);
 	BGFX_RENDERER_CONTEXT(gl);
 	BGFX_RENDERER_CONTEXT(vk);
-	BGFX_RENDERER_CONTEXT(gnm);
 
 #undef BGFX_RENDERER_CONTEXT
 
@@ -3045,7 +3133,7 @@ namespace bgfx
 
 					const char* name = (const char*)_cmdbuf.skip(len);
 
-					m_renderCtx->setName(handle, name);
+					m_renderCtx->setName(handle, name, len-1);
 				}
 				break;
 
@@ -3380,7 +3468,7 @@ namespace bgfx
 	void Encoder::setUniform(UniformHandle _handle, const void* _value, uint16_t _num)
 	{
 		BGFX_CHECK_HANDLE("setUniform", s_ctx->m_uniformHandle, _handle);
-		const Context::UniformRef& uniform = s_ctx->m_uniformRef[_handle.idx];
+		const UniformRef& uniform = s_ctx->m_uniformRef[_handle.idx];
 		BX_CHECK(isValid(_handle) && 0 < uniform.m_refCount, "Setting invalid uniform (handle %3d)!", _handle.idx);
 		BX_CHECK(_num == UINT16_MAX || uniform.m_num >= _num, "Truncated uniform update. %d (max: %d)", _num, uniform.m_num);
 		BGFX_ENCODER(setUniform(uniform.m_type, _handle, _value, UINT16_MAX != _num ? _num : uniform.m_num) );
@@ -3620,8 +3708,8 @@ namespace bgfx
 		BGFX_CHECK_CAPS(BGFX_CAPS_TEXTURE_BLIT, "Texture blit is not supported!");
 		BGFX_CHECK_HANDLE("blit/src TextureHandle", s_ctx->m_textureHandle, _src);
 		BGFX_CHECK_HANDLE("blit/dst TextureHandle", s_ctx->m_textureHandle, _dst);
-		const Context::TextureRef& src = s_ctx->m_textureRef[_src.idx];
-		const Context::TextureRef& dst = s_ctx->m_textureRef[_dst.idx];
+		const TextureRef& src = s_ctx->m_textureRef[_src.idx];
+		const TextureRef& dst = s_ctx->m_textureRef[_dst.idx];
 		BX_CHECK(src.m_format == dst.m_format
 			, "Texture format must match (src %s, dst %s)."
 			, bimg::getName(bimg::TextureFormat::Enum(src.m_format) )
@@ -3751,6 +3839,11 @@ namespace bgfx
 		return s_ctx->createIndexBuffer(_mem, _flags);
 	}
 
+	void setName(IndexBufferHandle _handle, const char* _name, int32_t _len)
+	{
+		s_ctx->setName(_handle, bx::StringView(_name, _len) );
+	}
+
 	void destroy(IndexBufferHandle _handle)
 	{
 		s_ctx->destroyIndexBuffer(_handle);
@@ -3761,6 +3854,11 @@ namespace bgfx
 		BX_CHECK(NULL != _mem, "_mem can't be NULL");
 		BX_CHECK(isValid(_decl), "Invalid VertexDecl.");
 		return s_ctx->createVertexBuffer(_mem, _decl, _flags);
+	}
+
+	void setName(VertexBufferHandle _handle, const char* _name, int32_t _len)
+	{
+		s_ctx->setName(_handle, bx::StringView(_name, _len) );
 	}
 
 	void destroy(VertexBufferHandle _handle)
@@ -4370,6 +4468,11 @@ namespace bgfx
 			, _format
 			, _depthFormat
 			);
+	}
+
+	void setName(FrameBufferHandle _handle, const char* _name, int32_t _len)
+	{
+		s_ctx->setName(_handle, bx::StringView(_name, _len) );
 	}
 
 	TextureHandle getTexture(FrameBufferHandle _handle, uint8_t _attachment)
@@ -5342,6 +5445,12 @@ BGFX_C_API bgfx_index_buffer_handle_t bgfx_create_index_buffer(const bgfx_memory
 	return handle.c;
 }
 
+void bgfx_set_index_buffer_name(bgfx_index_buffer_handle_t _handle, const char* _name, int32_t _len)
+{
+	union { bgfx_index_buffer_handle_t c; bgfx::IndexBufferHandle cpp; } handle = { _handle };
+	bgfx::setName(handle.cpp, _name, _len);
+}
+
 BGFX_C_API void bgfx_destroy_index_buffer(bgfx_index_buffer_handle_t _handle)
 {
 	union { bgfx_index_buffer_handle_t c; bgfx::IndexBufferHandle cpp; } handle = { _handle };
@@ -5354,6 +5463,12 @@ BGFX_C_API bgfx_vertex_buffer_handle_t bgfx_create_vertex_buffer(const bgfx_memo
 	union { bgfx_vertex_buffer_handle_t c; bgfx::VertexBufferHandle cpp; } handle;
 	handle.cpp = bgfx::createVertexBuffer( (const bgfx::Memory*)_mem, decl, _flags);
 	return handle.c;
+}
+
+void bgfx_set_vertex_buffer_name(bgfx_vertex_buffer_handle_t _handle, const char* _name, int32_t _len)
+{
+	union { bgfx_vertex_buffer_handle_t c; bgfx::VertexBufferHandle cpp; } handle = { _handle };
+	bgfx::setName(handle.cpp, _name, _len);
 }
 
 BGFX_C_API void bgfx_destroy_vertex_buffer(bgfx_vertex_buffer_handle_t _handle)
@@ -5637,6 +5752,12 @@ BGFX_C_API bgfx_frame_buffer_handle_t bgfx_create_frame_buffer_from_nwh(void* _n
 	union { bgfx_frame_buffer_handle_t c; bgfx::FrameBufferHandle cpp; } handle;
 	handle.cpp = bgfx::createFrameBuffer(_nwh, _width, _height, bgfx::TextureFormat::Enum(_format), bgfx::TextureFormat::Enum(_depthFormat) );
 	return handle.c;
+}
+
+void bgfx_set_frame_buffer_name(bgfx_frame_buffer_handle_t _handle, const char* _name, int32_t _len)
+{
+	union { bgfx_frame_buffer_handle_t c; bgfx::FrameBufferHandle cpp; } handle = { _handle };
+	bgfx::setName(handle.cpp, _name, _len);
 }
 
 BGFX_C_API bgfx_texture_handle_t bgfx_get_texture(bgfx_frame_buffer_handle_t _handle, uint8_t _attachment)
@@ -6244,8 +6365,10 @@ BGFX_C_API bgfx_interface_vtbl_t* bgfx_get_interface(uint32_t _version)
 	BGFX_IMPORT_FUNC(dbg_text_vprintf)                                     \
 	BGFX_IMPORT_FUNC(dbg_text_image)                                       \
 	BGFX_IMPORT_FUNC(create_index_buffer)                                  \
+	BGFX_IMPORT_FUNC(set_index_buffer_name)                                \
 	BGFX_IMPORT_FUNC(destroy_index_buffer)                                 \
 	BGFX_IMPORT_FUNC(create_vertex_buffer)                                 \
+	BGFX_IMPORT_FUNC(set_vertex_buffer_name)                               \
 	BGFX_IMPORT_FUNC(destroy_vertex_buffer)                                \
 	BGFX_IMPORT_FUNC(create_dynamic_index_buffer)                          \
 	BGFX_IMPORT_FUNC(create_dynamic_index_buffer_mem)                      \
@@ -6289,6 +6412,7 @@ BGFX_C_API bgfx_interface_vtbl_t* bgfx_get_interface(uint32_t _version)
 	BGFX_IMPORT_FUNC(create_frame_buffer_scaled)                           \
 	BGFX_IMPORT_FUNC(create_frame_buffer_from_attachment)                  \
 	BGFX_IMPORT_FUNC(create_frame_buffer_from_nwh)                         \
+	BGFX_IMPORT_FUNC(set_frame_buffer_name)                                \
 	BGFX_IMPORT_FUNC(get_texture)                                          \
 	BGFX_IMPORT_FUNC(destroy_frame_buffer)                                 \
 	BGFX_IMPORT_FUNC(create_uniform)                                       \

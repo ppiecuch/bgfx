@@ -871,8 +871,8 @@ VirtualTexture::VirtualTexture(TileDataFile* _tileDataFile, VirtualTextureInfo* 
 	// Create uniforms
 	u_vt_settings_1 = bgfx::createUniform("u_vt_settings_1", bgfx::UniformType::Vec4);
 	u_vt_settings_2 = bgfx::createUniform("u_vt_settings_2", bgfx::UniformType::Vec4);
-	s_vt_page_table = bgfx::createUniform("s_vt_page_table", bgfx::UniformType::Int1);
-	s_vt_texture_atlas = bgfx::createUniform("s_vt_texture_atlas", bgfx::UniformType::Int1);
+	s_vt_page_table = bgfx::createUniform("s_vt_page_table", bgfx::UniformType::Sampler);
+	s_vt_texture_atlas = bgfx::createUniform("s_vt_texture_atlas", bgfx::UniformType::Sampler);
 }
 
 VirtualTexture::~VirtualTexture()
@@ -1177,7 +1177,7 @@ bool TileGenerator::generate(const bx::FilePath& _filename)
 			return false;
 		}
 
-		uint8_t* rawImage = (uint8_t*)BX_ALLOC(VirtualTexture::getAllocator(), size);
+		uint8_t* rawImage = (uint8_t*)BX_ALLOC(VirtualTexture::getAllocator(), size_t(size) );
 
 		bx::read(&fileReader, rawImage, int32_t(size), &err);
 		bx::close(&fileReader);

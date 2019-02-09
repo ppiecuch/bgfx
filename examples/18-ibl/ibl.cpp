@@ -453,8 +453,8 @@ public:
 		u_params     = bgfx::createUniform("u_params",     bgfx::UniformType::Vec4);
 		u_flags      = bgfx::createUniform("u_flags",      bgfx::UniformType::Vec4);
 		u_camPos     = bgfx::createUniform("u_camPos",     bgfx::UniformType::Vec4);
-		s_texCube    = bgfx::createUniform("s_texCube",    bgfx::UniformType::Int1);
-		s_texCubeIrr = bgfx::createUniform("s_texCubeIrr", bgfx::UniformType::Int1);
+		s_texCube    = bgfx::createUniform("s_texCube",    bgfx::UniformType::Sampler);
+		s_texCubeIrr = bgfx::createUniform("s_texCubeIrr", bgfx::UniformType::Sampler);
 
 		m_programMesh  = loadProgram("vs_ibl_mesh",   "fs_ibl_mesh");
 		m_programSky   = loadProgram("vs_ibl_skybox", "fs_ibl_skybox");
@@ -530,19 +530,21 @@ public:
 			ImGui::Checkbox("IBL Diffuse",  &m_settings.m_doDiffuseIbl);
 			ImGui::Checkbox("IBL Specular", &m_settings.m_doSpecularIbl);
 
+			if (ImGui::BeginTabBar("Cubemap", ImGuiTabBarFlags_None) )
 			{
-				float tabWidth = ImGui::GetContentRegionAvailWidth() / 2.0f;
-				if (ImGui::TabButton("Bolonga", tabWidth, m_currentLightProbe == LightProbe::Bolonga) )
+				if (ImGui::BeginTabItem("Bolonga") )
 				{
 					m_currentLightProbe = LightProbe::Bolonga;
+					ImGui::EndTabItem();
 				}
 
-				ImGui::SameLine(0.0f,0.0f);
-
-				if (ImGui::TabButton("Kyoto", tabWidth, m_currentLightProbe == LightProbe::Kyoto) )
+				if (ImGui::BeginTabItem("Kyoto") )
 				{
 					m_currentLightProbe = LightProbe::Kyoto;
+					ImGui::EndTabItem();
 				}
+
+				ImGui::EndTabBar();
 			}
 
 			ImGui::SliderFloat("Texture LOD", &m_settings.m_lod, 0.0f, 10.1f);
@@ -567,55 +569,30 @@ public:
 			ImGui::Text("Background:");
 			ImGui::Indent();
 			{
-				int32_t selection;
-				if (0.0f == m_settings.m_bgType)
+				if (ImGui::BeginTabBar("CubemapSelection", ImGuiTabBarFlags_None) )
 				{
-					selection = UINT8_C(0);
-				}
-				else if (7.0f == m_settings.m_bgType)
-				{
-					selection = UINT8_C(2);
-				}
-				else
-				{
-					selection = UINT8_C(1);
-				}
+					if (ImGui::BeginTabItem("Irradiance") )
+					{
+						m_settings.m_bgType = m_settings.m_radianceSlider;
+						ImGui::EndTabItem();
+					}
 
-				float tabWidth = ImGui::GetContentRegionAvailWidth() / 3.0f;
-				if (ImGui::TabButton("Skybox", tabWidth, selection == 0) )
-				{
-					selection = 0;
-				}
+					if (ImGui::BeginTabItem("Radiance") )
+					{
+						m_settings.m_bgType = 7.0f;
 
-				ImGui::SameLine(0.0f,0.0f);
-				if (ImGui::TabButton("Radiance", tabWidth, selection == 1) )
-				{
-					selection = 1;
-				}
+						ImGui::SliderFloat("Mip level", &m_settings.m_radianceSlider, 1.0f, 6.0f);
 
-				ImGui::SameLine(0.0f,0.0f);
-				if (ImGui::TabButton("Irradiance", tabWidth, selection == 2) )
-				{
-					selection = 2;
-				}
+						ImGui::EndTabItem();
+					}
 
-				if (0 == selection)
-				{
-					m_settings.m_bgType = 0.0f;
-				}
-				else if (2 == selection)
-				{
-					m_settings.m_bgType = 7.0f;
-				}
-				else
-				{
-					m_settings.m_bgType = m_settings.m_radianceSlider;
-				}
+					if (ImGui::BeginTabItem("Skybox") )
+					{
+						m_settings.m_bgType = 0.0f;
+						ImGui::EndTabItem();
+					}
 
-				const bool isRadiance = (selection == 1);
-				if (isRadiance)
-				{
-					ImGui::SliderFloat("Mip level", &m_settings.m_radianceSlider, 1.0f, 6.0f);
+					ImGui::EndTabBar();
 				}
 			}
 			ImGui::Unindent();

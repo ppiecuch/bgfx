@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2019 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -7,6 +7,7 @@
 #define DEBUGDRAW_H_HEADER_GUARD
 
 #include <bx/allocator.h>
+#include <bgfx/bgfx.h>
 #include "../bounds.h"
 
 struct Axis
@@ -50,7 +51,7 @@ GeometryHandle ddCreateGeometry(uint32_t _numVertices, const DdVertex* _vertices
 ///
 void ddDestroy(GeometryHandle _handle);
 
-
+///
 struct DebugDrawEncoder
 {
 	///
@@ -138,6 +139,9 @@ struct DebugDrawEncoder
 	void draw(const Sphere& _sphere);
 
 	///
+	void draw(const Triangle& _triangle);
+
+	///
 	void draw(const Cone& _cone);
 
 	///
@@ -192,6 +196,20 @@ struct DebugDrawEncoder
 	void drawOrb(float _x, float _y, float _z, float _radius, Axis::Enum _highlight = Axis::Count);
 
 	BX_ALIGN_DECL_CACHE_LINE(uint8_t) m_internal[50<<10];
+};
+
+///
+class DebugDrawEncoderScopePush
+{
+public:
+	///
+	DebugDrawEncoderScopePush(DebugDrawEncoder& _dde);
+
+	///
+	~DebugDrawEncoderScopePush();
+
+private:
+	DebugDrawEncoder& m_dde;
 };
 
 #endif // DEBUGDRAW_H_HEADER_GUARD

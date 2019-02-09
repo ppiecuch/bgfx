@@ -149,11 +149,11 @@ struct TOffsetRange {
 
 // Things that need to be tracked per xfb buffer.
 struct TXfbBuffer {
-    TXfbBuffer() : stride(TQualifier::layoutXfbStrideEnd), implicitStride(0), containsDouble(false) { }
+    TXfbBuffer() : stride(TQualifier::layoutXfbStrideEnd), implicitStride(0), contains64BitType(false) { }
     std::vector<TRange> ranges;  // byte offsets that have already been assigned
     unsigned int stride;
     unsigned int implicitStride;
-    bool containsDouble;
+    bool contains64BitType;
 };
 
 // Track a set of strings describing how the module was processed.
@@ -255,6 +255,7 @@ public:
         textureSamplerTransformMode(EShTexSampTransKeep),
         needToLegalize(false),
         binaryDoubleOutput(false),
+        usePhysicalStorageBuffer(false),
         uniformLocationBase(0)
     {
         localSize[0] = 1;
@@ -390,6 +391,11 @@ public:
         processes.addProcess("use-vulkan-memory-model");
     }
     bool usingVulkanMemoryModel() const { return useVulkanMemoryModel; }
+    void setUsePhysicalStorageBuffer()
+    {
+        usePhysicalStorageBuffer = true;
+    }
+    bool usingPhysicalStorageBuffer() const { return usePhysicalStorageBuffer; }
 
     template<class T> T addCounterBufferName(const T& name) const { return name + implicitCounterName; }
     bool hasCounterBufferName(const TString& name) const {
@@ -414,11 +420,40 @@ public:
         if (spvVersion.openGl > 0)
             processes.addProcess("client opengl100");
 
+        // target SPV
+        switch (spvVersion.spv) {
+        case 0:
+            break;
+        case EShTargetSpv_1_0:
+            break;
+        case EShTargetSpv_1_1:
+            processes.addProcess("target-env spirv1.1");
+            break;
+        case EShTargetSpv_1_2:
+            processes.addProcess("target-env spirv1.2");
+            break;
+        case EShTargetSpv_1_3:
+            processes.addProcess("target-env spirv1.3");
+            break;
+        default:
+            processes.addProcess("target-env spirvUnknown");
+            break;
+        }
+
         // target-environment processes
-        if (spvVersion.vulkan > 0)
+        switch (spvVersion.vulkan) {
+        case 0:
+            break;
+        case EShTargetVulkan_1_0:
             processes.addProcess("target-env vulkan1.0");
-        else if (spvVersion.vulkan > 0)
+            break;
+        case EShTargetVulkan_1_1:
+            processes.addProcess("target-env vulkan1.1");
+            break;
+        default:
             processes.addProcess("target-env vulkanUnknown");
+            break;
+        }
         if (spvVersion.openGl > 0)
             processes.addProcess("target-env opengl");
     }
@@ -634,7 +669,7 @@ public:
     }
     unsigned getXfbStride(int buffer) const { return xfbBuffers[buffer].stride; }
     int addXfbBufferOffset(const TType&);
-    unsigned int computeTypeXfbSize(const TType&, bool& containsDouble) const;
+    unsigned int computeTypeXfbSize(const TType&, bool& contains64BitType) const;
     static int getBaseAlignmentScalar(const TType&, int& size);
     static int getBaseAlignment(const TType&, int& size, int& stride, TLayoutPacking layoutPacking, bool rowMajor);
     static int getScalarAlignment(const TType&, int& size, int& stride, bool rowMajor);
@@ -666,7 +701,7 @@ public:
 
     void setSourceFile(const char* file) { if (file != nullptr) sourceFile = file; }
     const std::string& getSourceFile() const { return sourceFile; }
-    void addSourceText(const char* text) { sourceText = sourceText + text; }
+    void addSourceText(const char* text, size_t len) { sourceText.append(text, len); }
     const std::string& getSourceText() const { return sourceText; }
     const std::map<std::string, std::string>& getIncludeText() const { return includeText; }
     void addIncludeText(const char* name, const char* text, size_t len) { includeText[name].assign(text,len); }
@@ -825,6 +860,7 @@ protected:
 
     bool needToLegalize;
     bool binaryDoubleOutput;
+    bool usePhysicalStorageBuffer;
 
     std::unordered_map<std::string, int> uniformLocationOverrides;
     int uniformLocationBase;

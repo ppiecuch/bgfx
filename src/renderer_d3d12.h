@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2019 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -326,6 +326,7 @@ namespace bgfx { namespace d3d12
 		uint32_t m_width;
 		uint32_t m_height;
 		uint32_t m_depth;
+		uint32_t m_numLayers;
 		uint16_t m_samplerIdx;
 		uint8_t m_type;
 		uint8_t m_requestedFormat;

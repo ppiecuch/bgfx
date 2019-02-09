@@ -780,6 +780,8 @@ class OpTypeArrayLengthTest
   // Runs spvValidate() on v, printing any errors via spvDiagnosticPrint().
   spv_result_t Val(const SpirvVector& v, const std::string& expected_err = "") {
     spv_const_binary_t cbinary{v.data(), v.size()};
+    spvDiagnosticDestroy(diagnostic_);
+    diagnostic_ = nullptr;
     const auto status =
         spvValidate(ScopedContext().context, &cbinary, &diagnostic_);
     if (status != SPV_SUCCESS) {
@@ -855,8 +857,8 @@ TEST_P(OpTypeArrayLengthTest, LengthNegative) {
 // capability prohibits usage of signed integers, we can skip 8-bit integers
 // here since the purpose of these tests is to check the validity of
 // OpTypeArray, not OpTypeInt.
-INSTANTIATE_TEST_CASE_P(Widths, OpTypeArrayLengthTest,
-                        ValuesIn(std::vector<int>{16, 32, 64}));
+INSTANTIATE_TEST_SUITE_P(Widths, OpTypeArrayLengthTest,
+                         ValuesIn(std::vector<int>{16, 32, 64}));
 
 TEST_F(ValidateIdWithMessage, OpTypeArrayLengthNull) {
   std::string spirv = kGLSL450MemoryModel + R"(
@@ -3916,7 +3918,7 @@ OpFunctionEnd
 }
 
 // Run tests for Access Chain Instructions.
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     CheckAccessChainInstructions, AccessChainInstructionTest,
     ::testing::Values("OpAccessChain", "OpInBoundsAccessChain",
                       "OpPtrAccessChain", "OpInBoundsPtrAccessChain"));

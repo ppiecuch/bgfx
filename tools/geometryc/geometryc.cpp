@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2019 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -59,14 +59,7 @@ namespace stl = tinystl;
 
 #include "bounds.h"
 
-struct Vector3
-{
-	float x;
-	float y;
-	float z;
-};
-
-typedef std::vector<Vector3> Vector3Array;
+typedef std::vector<bx::Vec3> Vec3Array;
 
 struct Index3
 {
@@ -79,12 +72,12 @@ struct Index3
 
 typedef stl::unordered_map<uint64_t, Index3> Index3Map;
 
-struct Triangle
+struct TriIndices
 {
 	uint64_t m_index[3];
 };
 
-typedef std::vector<Triangle> TriangleArray;
+typedef std::vector<TriIndices> TriangleArray;
 
 struct Group
 {
@@ -265,7 +258,7 @@ void write(bx::WriterI* _writer, const void* _vertices, uint32_t _numVertices, u
 	Sphere minSphere;
 	calcMinBoundingSphere(minSphere, _vertices, _numVertices, _stride);
 
-	if (minSphere.m_radius > maxSphere.m_radius)
+	if (minSphere.radius > maxSphere.radius)
 	{
 		bx::write(_writer, maxSphere);
 	}
@@ -366,7 +359,7 @@ void help(const char* _error = NULL)
 
 	fprintf(stderr
 		, "geometryc, bgfx geometry compiler tool, version %d.%d.%d.\n"
-		  "Copyright 2011-2018 Branimir Karadzic. All rights reserved.\n"
+		  "Copyright 2011-2019 Branimir Karadzic. All rights reserved.\n"
 		  "License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause\n\n"
 		, BGFX_GEOMETRYC_VERSION_MAJOR
 		, BGFX_GEOMETRYC_VERSION_MINOR
@@ -484,11 +477,13 @@ int main(int _argc, const char* _argv[])
 	data[size] = '\0';
 	fclose(file);
 
-	// https://en.wikipedia.org/wiki/Wavefront_.obj_file
+	// Reference(s):
+	// - Wavefront .obj file
+	//   https://en.wikipedia.org/wiki/Wavefront_.obj_file
 
-	Vector3Array positions;
-	Vector3Array normals;
-	Vector3Array texcoords;
+	Vec3Array positions;
+	Vec3Array normals;
+	Vec3Array texcoords;
 	Index3Map indexMap;
 	TriangleArray triangles;
 	GroupArray groups;
@@ -519,8 +514,8 @@ int main(int _argc, const char* _argv[])
 			}
 			else if (0 == bx::strCmp(argv[0], "f") )
 			{
-				Triangle triangle;
-				bx::memSet(&triangle, 0, sizeof(Triangle) );
+				TriIndices triangle;
+				bx::memSet(&triangle, 0, sizeof(TriIndices) );
 
 				const int numNormals   = (int)normals.size();
 				const int numTexcoords = (int)texcoords.size();
@@ -537,7 +532,7 @@ int main(int _argc, const char* _argv[])
 					}
 					else
 					{
-						index.m_vbc = 0; 
+						index.m_vbc = 0;
 					}
 
 					{
@@ -558,7 +553,9 @@ int main(int _argc, const char* _argv[])
 
 							texcoord.set(texcoord.getPtr() + 1, normal.getPtr());
 
-							// https://en.wikipedia.org/wiki/Wavefront_.obj_file#Vertex_Normal_Indices_Without_Texture_Coordinate_Indices
+							// Reference(s):
+							// - Wavefront .obj file / Vertex normal indices without texture coordinate indices
+							//   https://en.wikipedia.org/wiki/Wavefront_.obj_file#Vertex_Normal_Indices_Without_Texture_Coordinate_Indices
 							if (!texcoord.isEmpty())
 							{
 								int32_t tex;
@@ -638,7 +635,7 @@ int main(int _argc, const char* _argv[])
 
 				if (0 == bx::strCmp(argv[0], "vn") )
 				{
-					Vector3 normal;
+					bx::Vec3 normal;
 					bx::fromString(&normal.x, argv[1]);
 					bx::fromString(&normal.y, argv[2]);
 					bx::fromString(&normal.z, argv[3]);
@@ -656,7 +653,7 @@ int main(int _argc, const char* _argv[])
 				}
 				else if (0 == bx::strCmp(argv[0], "vt") )
 				{
-					Vector3 texcoord;
+					bx::Vec3 texcoord;
 					texcoord.y = 0.0f;
 					texcoord.z = 0.0f;
 
@@ -699,7 +696,7 @@ int main(int _argc, const char* _argv[])
 					py *= invW;
 					pz *= invW;
 
-					Vector3 pos;
+					bx::Vec3 pos;
 					pos.x = px;
 					pos.y = py;
 					pos.z = pz;
@@ -953,7 +950,7 @@ int main(int _argc, const char* _argv[])
 				material = groupIt->m_material;
 			}
 
-			Triangle& triangle = triangles[tri];
+			TriIndices& triangle = triangles[tri];
 			for (uint32_t edge = 0; edge < 3; ++edge)
 			{
 				uint64_t hash = triangle.m_index[edge];

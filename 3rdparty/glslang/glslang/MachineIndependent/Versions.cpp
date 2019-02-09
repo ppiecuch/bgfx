@@ -157,6 +157,7 @@ void TParseVersions::initializeExtensionBehavior()
     extensionBehavior[E_GL_EXT_frag_depth]                   = EBhDisable;
     extensionBehavior[E_GL_OES_EGL_image_external]           = EBhDisable;
     extensionBehavior[E_GL_OES_EGL_image_external_essl3]     = EBhDisable;
+    extensionBehavior[E_GL_EXT_YUV_target]                   = EBhDisable;
     extensionBehavior[E_GL_EXT_shader_texture_lod]           = EBhDisable;
     extensionBehavior[E_GL_EXT_shadow_samplers]              = EBhDisable;
     extensionBehavior[E_GL_ARB_texture_rectangle]            = EBhDisable;
@@ -207,6 +208,7 @@ void TParseVersions::initializeExtensionBehavior()
     extensionBehavior[E_GL_EXT_samplerless_texture_functions]           = EBhDisable;
     extensionBehavior[E_GL_EXT_scalar_block_layout]                     = EBhDisable;
     extensionBehavior[E_GL_EXT_fragment_invocation_density]             = EBhDisable;
+    extensionBehavior[E_GL_EXT_buffer_reference]                        = EBhDisable;
 
     extensionBehavior[E_GL_EXT_shader_16bit_storage]                    = EBhDisable;
     extensionBehavior[E_GL_EXT_shader_8bit_storage]                     = EBhDisable;
@@ -306,6 +308,7 @@ void TParseVersions::getPreamble(std::string& preamble)
             "#define GL_EXT_frag_depth 1\n"
             "#define GL_OES_EGL_image_external 1\n"
             "#define GL_OES_EGL_image_external_essl3 1\n"
+            "#define GL_EXT_YUV_target 1\n"
             "#define GL_EXT_shader_texture_lod 1\n"
             "#define GL_EXT_shadow_samplers 1\n"
 
@@ -383,6 +386,7 @@ void TParseVersions::getPreamble(std::string& preamble)
             "#define GL_EXT_samplerless_texture_functions 1\n"
             "#define GL_EXT_scalar_block_layout 1\n"
             "#define GL_EXT_fragment_invocation_density 1\n"
+            "#define GL_EXT_buffer_reference 1\n"
 
             // GL_KHR_shader_subgroup
             "#define GL_KHR_shader_subgroup_basic 1\n"

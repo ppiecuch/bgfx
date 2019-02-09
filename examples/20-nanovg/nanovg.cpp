@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2019 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -23,9 +23,6 @@
 
 #include "common.h"
 #include "bgfx_utils.h"
-
-#include <stdio.h>
-#include <math.h>
 
 #include <bx/string.h>
 #include <bx/timer.h>
@@ -980,7 +977,7 @@ struct DemoData
 	int images[12];
 };
 
-int createImage(struct NVGcontext* _ctx, const char* _filePath, int _imageFlags)
+int32_t createImage(struct NVGcontext* _ctx, const char* _filePath, int _imageFlags)
 {
 	uint32_t size;
 	void* data = load(_filePath, &size);
@@ -1002,7 +999,7 @@ int createImage(struct NVGcontext* _ctx, const char* _filePath, int _imageFlags)
 		return 0;
 	}
 
-	int texId = nvgCreateImageRGBA(
+	int32_t texId = nvgCreateImageRGBA(
 		  _ctx
 		, imageContainer->m_width
 		, imageContainer->m_height
@@ -1013,6 +1010,18 @@ int createImage(struct NVGcontext* _ctx, const char* _filePath, int _imageFlags)
 	bimg::imageFree(imageContainer);
 
 	return texId;
+}
+
+int32_t createFont(NVGcontext* _ctx, const char* _name, const char* _filePath)
+{
+	uint32_t size;
+	void* data = load(_filePath, &size);
+	if (NULL == data)
+	{
+		return -1;
+	}
+
+	return nvgCreateFontMem(_ctx, _name, (uint8_t*)data, size, 0);
 }
 
 int loadDemoData(struct NVGcontext* vg, struct DemoData* data)
@@ -1029,42 +1038,45 @@ int loadDemoData(struct NVGcontext* vg, struct DemoData* data)
 		data->images[i] = createImage(vg, file, 0);
 		if (data->images[i] == 0)
 		{
-			printf("Could not load %s.\n", file);
+			bx::debugPrintf("Could not load %s.\n", file);
 			return -1;
 		}
 	}
 
-	data->fontIcons = nvgCreateFont(vg, "icons", "font/entypo.ttf");
+	int32_t result = 0;
+
+	data->fontIcons = createFont(vg, "icons", "font/entypo.ttf");
 	if (data->fontIcons == -1)
 	{
-		printf("Could not add font icons (font/entypo.ttf).\n");
-		return -1;
+		bx::debugPrintf("Could not add font icons.\n");
+		result = -1;
 	}
 
-	data->fontNormal = nvgCreateFont(vg, "sans", "font/roboto-regular.ttf");
+	data->fontNormal = createFont(vg, "sans", "font/roboto-regular.ttf");
 	if (data->fontNormal == -1)
 	{
-		printf("Could not add font italic (font/roboto-regular.ttf).\n");
-		return -1;
+		bx::debugPrintf("Could not add font italic.\n");
+		result = -1;
 	}
 
-	data->fontBold = nvgCreateFont(vg, "sans-bold", "font/roboto-bold.ttf");
+	data->fontBold = createFont(vg, "sans-bold", "font/roboto-bold.ttf");
 	if (data->fontBold == -1)
 	{
-		printf("Could not add font bold (font/roboto-bold.ttf).\n");
-		return -1;
+		bx::debugPrintf("Could not add font bold.\n");
+		result = -1;
 	}
 
-	data->fontEmoji = nvgCreateFont(vg, "emoji", "font/NotoEmoji-Regular.ttf");
+	data->fontEmoji = createFont(vg, "emoji", "font/NotoEmoji-Regular.ttf");
 	if (data->fontEmoji == -1)
 	{
-		printf("Could not add font emoji.\n");
-		return -1;
+		bx::debugPrintf("Could not add font emoji.\n");
+		result = -1;
 	}
+
 	nvgAddFallbackFontId(vg, data->fontNormal, data->fontEmoji);
 	nvgAddFallbackFontId(vg, data->fontBold, data->fontEmoji);
 
-	return 0;
+	return result;
 }
 
 void freeDemoData(struct NVGcontext* vg, struct DemoData* data)
@@ -1410,7 +1422,7 @@ public:
 
 		loadDemoData(m_nvg, &m_data);
 
-		bndSetFont(nvgCreateFont(m_nvg, "droidsans", "font/droidsans.ttf") );
+		bndSetFont(createFont(m_nvg, "droidsans", "font/droidsans.ttf") );
 		bndSetIconImage(createImage(m_nvg, "images/blender_icons16.png", 0) );
 
 		m_timeOffset = bx::getHPCounter();

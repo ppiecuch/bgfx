@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2019 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -375,32 +375,37 @@ namespace ps
 				const bx::Vec3 vdir = { _mtxView[1]*scale, _mtxView[5]*scale, _mtxView[9]*scale };
 
 				PosColorTexCoord0Vertex* vertex = &_outVertices[current*4];
-				bx::store(&vertex->m_x, bx::sub(bx::sub(pos, udir), vdir) );
-				aabbExpand(aabb, &vertex->m_x);
+
+				const bx::Vec3 ul = bx::sub(bx::sub(pos, udir), vdir);
+				bx::store(&vertex->m_x, ul);
+				aabbExpand(aabb, ul);
 				vertex->m_abgr  = abgr;
 				vertex->m_u     = _uv[0];
 				vertex->m_v     = _uv[1];
 				vertex->m_blend = blend;
 				++vertex;
 
-				bx::store(&vertex->m_x, bx::sub(bx::add(pos, udir), vdir) );
-				aabbExpand(aabb, &vertex->m_x);
+				const bx::Vec3 ur = bx::sub(bx::add(pos, udir), vdir);
+				bx::store(&vertex->m_x, ur);
+				aabbExpand(aabb, ur);
 				vertex->m_abgr  = abgr;
 				vertex->m_u     = _uv[2];
 				vertex->m_v     = _uv[1];
 				vertex->m_blend = blend;
 				++vertex;
 
-				bx::store(&vertex->m_x, bx::add(bx::add(pos, udir), vdir) );
-				aabbExpand(aabb, &vertex->m_x);
+				const bx::Vec3 br = bx::add(bx::add(pos, udir), vdir);
+				bx::store(&vertex->m_x, br);
+				aabbExpand(aabb, br);
 				vertex->m_abgr  = abgr;
 				vertex->m_u     = _uv[2];
 				vertex->m_v     = _uv[3];
 				vertex->m_blend = blend;
 				++vertex;
 
-				bx::store(&vertex->m_x, bx::add(bx::sub(pos, udir), vdir) );
-				aabbExpand(aabb, &vertex->m_x);
+				const bx::Vec3 bl = bx::add(bx::sub(pos, udir), vdir);
+				bx::store(&vertex->m_x, bl);
+				aabbExpand(aabb, bl);
 				vertex->m_abgr  = abgr;
 				vertex->m_u     = _uv[0];
 				vertex->m_v     = _uv[3];
@@ -453,7 +458,7 @@ namespace ps
 
 			m_num = 0;
 
-			s_texColor = bgfx::createUniform("s_texColor", bgfx::UniformType::Int1);
+			s_texColor = bgfx::createUniform("s_texColor", bgfx::UniformType::Sampler);
 			m_texture  = bgfx::createTexture2D(
 				  SPRITE_TEXTURE_SIZE
 				, SPRITE_TEXTURE_SIZE

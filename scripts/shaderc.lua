@@ -1,29 +1,34 @@
 --
--- Copyright 2010-2018 Branimir Karadzic. All rights reserved.
+-- Copyright 2010-2019 Branimir Karadzic. All rights reserved.
 -- License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
 --
 
 group "tools/shaderc"
 
 local GLSL_OPTIMIZER = path.join(BGFX_DIR, "3rdparty/glsl-optimizer")
-local FCPP_DIR = path.join(BGFX_DIR, "3rdparty/fcpp")
-local GLSLANG = path.join(BGFX_DIR, "3rdparty/glslang")
-local SPIRV_TOOLS = path.join(BGFX_DIR, "3rdparty/spirv-tools")
+local FCPP_DIR       = path.join(BGFX_DIR, "3rdparty/fcpp")
+local GLSLANG        = path.join(BGFX_DIR, "3rdparty/glslang")
+local SPIRV_CROSS    = path.join(BGFX_DIR, "3rdparty/spirv-cross")
+local SPIRV_HEADERS  = path.join(BGFX_DIR, "3rdparty/spirv-headers")
+local SPIRV_TOOLS    = path.join(BGFX_DIR, "3rdparty/spirv-tools")
 
 project "spirv-opt"
 	kind "StaticLib"
 
 	includedirs {
+		SPIRV_TOOLS,
+
 		path.join(SPIRV_TOOLS, "include"),
 		path.join(SPIRV_TOOLS, "include/generated"),
 		path.join(SPIRV_TOOLS, "source"),
-		path.join(SPIRV_TOOLS),
-		path.join(SPIRV_TOOLS, "external/SPIRV-Headers/include"),
+		path.join(SPIRV_HEADERS, "include"),
 	}
 
 	files {
 		path.join(SPIRV_TOOLS, "source/opt/**.cpp"),
 		path.join(SPIRV_TOOLS, "source/opt/**.h"),
+		path.join(SPIRV_TOOLS, "source/reduce/**.cpp"),
+		path.join(SPIRV_TOOLS, "source/reduce/**.h"),
 
 		-- libspirv
 		path.join(SPIRV_TOOLS, "source/assembly_grammar.cpp"),
@@ -136,6 +141,64 @@ project "spirv-opt"
 			"/wd4702", -- warning C4702: unreachable code
 			"/wd4706", -- warning C4706: assignment within conditional expression
 		}
+
+	configuration { "mingw* or linux or osx" }
+		buildoptions {
+			"-Wno-switch",
+		}
+
+	configuration { "mingw* or linux-gcc-*" }
+		buildoptions {
+			"-Wno-misleading-indentation",
+		}
+
+	configuration {}
+
+project "spirv-cross"
+	kind "StaticLib"
+
+	defines {
+		"SPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS",
+	}
+
+	includedirs {
+		path.join(SPIRV_CROSS, "include"),
+	}
+
+	files {
+		path.join(SPIRV_CROSS, "spirv.hpp"),
+		path.join(SPIRV_CROSS, "spirv_cfg.cpp"),
+		path.join(SPIRV_CROSS, "spirv_cfg.hpp"),
+		path.join(SPIRV_CROSS, "spirv_common.hpp"),
+		path.join(SPIRV_CROSS, "spirv_cpp.cpp"),
+		path.join(SPIRV_CROSS, "spirv_cpp.hpp"),
+		path.join(SPIRV_CROSS, "spirv_cross.cpp"),
+		path.join(SPIRV_CROSS, "spirv_cross.hpp"),
+		path.join(SPIRV_CROSS, "spirv_cross_parsed_ir.cpp"),
+		path.join(SPIRV_CROSS, "spirv_cross_parsed_ir.hpp"),
+		path.join(SPIRV_CROSS, "spirv_cross_util.cpp"),
+		path.join(SPIRV_CROSS, "spirv_cross_util.hpp"),
+		path.join(SPIRV_CROSS, "spirv_glsl.cpp"),
+		path.join(SPIRV_CROSS, "spirv_glsl.hpp"),
+		path.join(SPIRV_CROSS, "spirv_hlsl.cpp"),
+		path.join(SPIRV_CROSS, "spirv_hlsl.hpp"),
+		path.join(SPIRV_CROSS, "spirv_msl.cpp"),
+		path.join(SPIRV_CROSS, "spirv_msl.hpp"),
+		path.join(SPIRV_CROSS, "spirv_parser.cpp"),
+		path.join(SPIRV_CROSS, "spirv_parser.hpp"),
+		path.join(SPIRV_CROSS, "spirv_reflect.cpp"),
+		path.join(SPIRV_CROSS, "spirv_reflect.hpp"),
+	}
+
+	configuration { "vs*" }
+		buildoptions {
+			"/wd4018", -- warning C4018: '<': signed/unsigned mismatch
+			"/wd4245", -- warning C4245: 'return': conversion from 'int' to 'unsigned int', signed/unsigned mismatch
+			"/wd4706", -- warning C4706: assignment within conditional expression
+			"/wd4715", -- warning C4715: '': not all control paths return a value
+		}
+
+	configuration {}
 
 project "glslang"
 	kind "StaticLib"
@@ -536,6 +599,7 @@ project "shaderc"
 		path.join(BGFX_DIR, "include"),
 
 		path.join(BGFX_DIR, "3rdparty/dxsdk/include"),
+
 		FCPP_DIR,
 
 		path.join(BGFX_DIR, "3rdparty/glslang/glslang/Public"),
@@ -544,6 +608,10 @@ project "shaderc"
 
 		path.join(GLSL_OPTIMIZER, "include"),
 		path.join(GLSL_OPTIMIZER, "src/glsl"),
+
+		SPIRV_CROSS,
+
+		path.join(SPIRV_TOOLS, "include"),
 	}
 
 	links {
@@ -552,6 +620,7 @@ project "shaderc"
 		"glslang",
 		"glsl-optimizer",
 		"spirv-opt",
+		"spirv-cross",
 	}
 
 	files {
@@ -579,6 +648,11 @@ project "shaderc"
 			"psapi",
 		}
 
+	configuration { "osx or linux*" }
+		links {
+			"pthread",
+		}
+
 	configuration {}
 
 	if filesexist(BGFX_DIR, path.join(BGFX_DIR, "../bgfx-ext"), {
@@ -594,13 +668,6 @@ project "shaderc"
 
 		dofile(path.join(BGFX_DIR, "../bgfx-ext/scripts/shaderc.lua") )
 	end
-
-	configuration { "osx or linux*" }
-		links {
-			"pthread",
-		}
-
-	configuration {}
 
 	strip()
 

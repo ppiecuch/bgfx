@@ -1,5 +1,5 @@
 /*
- * Copyright 2011-2018 Branimir Karadzic. All rights reserved.
+ * Copyright 2011-2019 Branimir Karadzic. All rights reserved.
  * License: https://github.com/bkaradzic/bgfx#license-bsd-2-clause
  */
 
@@ -124,7 +124,7 @@ static bgfx::ShaderHandle loadShader(bx::FileReaderI* _reader, const char* _name
 	bx::strCat(filePath, BX_COUNTOF(filePath), ".bin");
 
 	bgfx::ShaderHandle handle = bgfx::createShader(loadMem(_reader, filePath) );
-	bgfx::setName(handle, filePath);
+	bgfx::setName(handle, _name);
 
 	return handle;
 }

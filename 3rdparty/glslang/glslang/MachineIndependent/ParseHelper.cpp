@@ -312,9 +312,6 @@ TIntermTyped* TParseContext::handleVariable(const TSourceLoc& loc, TSymbol* symb
     if (anon) {
         // It was a member of an anonymous container.
 
-        // The "getNumExtensions()" mechanism above doesn't yet work for block members
-        blockMemberExtensionCheck(loc, nullptr, *string);
-
         // Create a subtree for its dereference.
         variable = anon->getAnonContainer().getAsVariable();
         TIntermTyped* container = intermediate.addSymbol(*variable, loc);
@@ -353,6 +350,11 @@ TIntermTyped* TParseContext::handleVariable(const TSourceLoc& loc, TSymbol* symb
 
     if (variable->getType().getQualifier().isIo())
         intermediate.addIoAccessed(*string);
+
+    if (variable->getType().getBasicType() == EbtReference &&
+        variable->getType().getQualifier().bufferReferenceNeedsVulkanMemoryModel()) {
+        intermediate.setUseVulkanMemoryModel();
+    }
 
     return node;
 }
@@ -811,8 +813,12 @@ TIntermTyped* TParseContext::handleDotDereference(const TSourceLoc& loc, TInterm
             if (base->getType().getQualifier().isSpecConstant())
                 result->getWritableType().getQualifier().makeSpecConstant();
         }
-    } else if (base->getBasicType() == EbtStruct || base->getBasicType() == EbtBlock) {
-        const TTypeList* fields = base->getType().getStruct();
+    } else if (base->getBasicType() == EbtStruct ||
+               base->getBasicType() == EbtBlock ||
+               base->getBasicType() == EbtReference) {
+        const TTypeList* fields = base->getBasicType() == EbtReference ?
+                                                            base->getType().getReferentType()->getStruct() :
+                                                            base->getType().getStruct();
         bool fieldFound = false;
         int member;
         for (member = 0; member < (int)fields->size(); ++member) {
@@ -825,7 +831,7 @@ TIntermTyped* TParseContext::handleDotDereference(const TSourceLoc& loc, TInterm
             if (base->getType().getQualifier().isFrontEndConstant())
                 result = intermediate.foldDereference(base, member, loc);
             else {
-                blockMemberExtensionCheck(loc, base, field);
+                blockMemberExtensionCheck(loc, base, member, field);
                 TIntermTyped* index = intermediate.addConstantUnion(member, loc);
                 result = intermediate.addIndex(EOpIndexDirectStruct, base, index, loc);
                 result->setType(*(*fields)[member].type);
@@ -848,14 +854,30 @@ TIntermTyped* TParseContext::handleDotDereference(const TSourceLoc& loc, TInterm
     return result;
 }
 
-void TParseContext::blockMemberExtensionCheck(const TSourceLoc& loc, const TIntermTyped* /*base*/, const TString& field)
+void TParseContext::blockMemberExtensionCheck(const TSourceLoc& loc, const TIntermTyped* base, int member, const TString& memberName)
 {
-    if (profile == EEsProfile && field == "gl_PointSize") {
-        if (language == EShLangGeometry)
-            requireExtensions(loc, Num_AEP_geometry_point_size, AEP_geometry_point_size, "gl_PointSize");
-        else if (language == EShLangTessControl || language == EShLangTessEvaluation)
-            requireExtensions(loc, Num_AEP_tessellation_point_size, AEP_tessellation_point_size, "gl_PointSize");
-    }
+    // a block that needs extension checking is either 'base', or if arrayed,
+    // one level removed to the left
+    const TIntermSymbol* baseSymbol = nullptr;
+    if (base->getAsBinaryNode() == nullptr)
+        baseSymbol = base->getAsSymbolNode();
+    else
+        baseSymbol = base->getAsBinaryNode()->getLeft()->getAsSymbolNode();
+    if (baseSymbol == nullptr)
+        return;
+    const TSymbol* symbol = symbolTable.find(baseSymbol->getName());
+    if (symbol == nullptr)
+        return;
+    const TVariable* variable = symbol->getAsVariable();
+    if (variable == nullptr)
+        return;
+    if (!variable->hasMemberExtensions())
+        return;
+
+    // We now have a variable that is the base of a dot reference
+    // with members that need extension checking.
+    if (variable->getNumMemberExtensions(member) > 0)
+        requireExtensions(loc, variable->getNumMemberExtensions(member), variable->getMemberExtensions(member), memberName.c_str());
 }
 
 //
@@ -2386,6 +2408,10 @@ bool TParseContext::lValueErrorCheck(const TSourceLoc& loc, const char* op, TInt
         }
     }
 
+    if (binaryNode && binaryNode->getOp() == EOpIndexDirectStruct &&
+        binaryNode->getLeft()->getBasicType() == EbtReference)
+        return false;
+
     // Let the base class check errors
     if (TParseContextBase::lValueErrorCheck(loc, op, node))
         return true;
@@ -2980,6 +3006,9 @@ void TParseContext::samplerCheck(const TSourceLoc& loc, const TType& type, const
             requireExtensions(loc, 1, &E_GL_OES_EGL_image_external_essl3, "samplerExternalOES");
         }
     }
+    if (type.getSampler().yuv) {
+        requireExtensions(loc, 1, &E_GL_EXT_YUV_target, "__samplerExternal2DY2YEXT");
+    }
 
     if (type.getQualifier().storage == EvqUniform)
         return;
@@ -3096,13 +3125,17 @@ void TParseContext::globalQualifierTypeCheck(const TSourceLoc& loc, const TQuali
     if (! symbolTable.atGlobalLevel())
         return;
 
-    if (qualifier.isMemoryQualifierImageAndSSBOOnly() && ! publicType.isImage() && publicType.qualifier.storage != EvqBuffer) {
-        error(loc, "memory qualifiers cannot be used on this type", "", "");
-    } else if (qualifier.isMemory() && (publicType.basicType != EbtSampler) && !publicType.qualifier.isUniformOrBuffer()) {
-        error(loc, "memory qualifiers cannot be used on this type", "", "");
+    if (!(publicType.userDef && publicType.userDef->getBasicType() == EbtReference)) {
+        if (qualifier.isMemoryQualifierImageAndSSBOOnly() && ! publicType.isImage() && publicType.qualifier.storage != EvqBuffer) {
+            error(loc, "memory qualifiers cannot be used on this type", "", "");
+        } else if (qualifier.isMemory() && (publicType.basicType != EbtSampler) && !publicType.qualifier.isUniformOrBuffer()) {
+            error(loc, "memory qualifiers cannot be used on this type", "", "");
+        }
     }
 
-    if (qualifier.storage == EvqBuffer && publicType.basicType != EbtBlock)
+    if (qualifier.storage == EvqBuffer &&
+        publicType.basicType != EbtBlock &&
+        !qualifier.layoutBufferReference)
         error(loc, "buffers can be declared only as blocks", "buffer", "");
 
     if (qualifier.storage != EvqVaryingIn && qualifier.storage != EvqVaryingOut)
@@ -3760,6 +3793,21 @@ void TParseContext::checkRuntimeSizable(const TSourceLoc& loc, const TIntermType
     if (isRuntimeLength(base))
         return;
 
+    // Check for last member of a bufferreference type, which is runtime sizeable
+    // but doesn't support runtime length
+    if (base.getType().getQualifier().storage == EvqBuffer) {
+        const TIntermBinary* binary = base.getAsBinaryNode();
+        if (binary != nullptr &&
+            binary->getOp() == EOpIndexDirectStruct &&
+            binary->getLeft()->getBasicType() == EbtReference) {
+
+            const int index = binary->getRight()->getAsConstantUnion()->getConstArray()[0].getIConst();
+            const int memberCount = (int)binary->getLeft()->getType().getReferentType()->getStruct()->size();
+            if (index == memberCount - 1)
+                return;
+        }
+    }
+
     // check for additional things allowed by GL_EXT_nonuniform_qualifier
     if (base.getBasicType() == EbtSampler ||
             (base.getBasicType() == EbtBlock && base.getType().getQualifier().isUniformOrBuffer()))
@@ -3777,6 +3825,10 @@ bool TParseContext::isRuntimeLength(const TIntermTyped& base) const
         if (binary != nullptr && binary->getOp() == EOpIndexDirectStruct) {
             // is it the last member?
             const int index = binary->getRight()->getAsConstantUnion()->getConstArray()[0].getIConst();
+
+            if (binary->getLeft()->getBasicType() == EbtReference)
+                return false;
+
             const int memberCount = (int)binary->getLeft()->getType().getStruct()->size();
             if (index == memberCount - 1)
                 return true;
@@ -4655,6 +4707,14 @@ void TParseContext::setLayoutQualifier(const TSourceLoc& loc, TPublicType& publi
         publicType.qualifier.layoutPushConstant = true;
         return;
     }
+    if (id == "buffer_reference") {
+        requireVulkan(loc, "buffer_reference");
+        requireExtensions(loc, 1, &E_GL_EXT_buffer_reference, "buffer_reference");
+        publicType.qualifier.layoutBufferReference = true;
+        intermediate.setUseStorageBuffer();
+        intermediate.setUsePhysicalStorageBuffer();
+        return;
+    }
     if (language == EShLangGeometry || language == EShLangTessEvaluation
 #ifdef NV_EXTENSIONS
         || language == EShLangMeshNV
@@ -5013,6 +5073,15 @@ void TParseContext::setLayoutQualifier(const TSourceLoc& loc, TPublicType& publi
     }
 #endif
 
+    if (id == "buffer_reference_align") {
+        requireExtensions(loc, 1, &E_GL_EXT_buffer_reference, "buffer_reference_align");
+        if (! IsPow2(value))
+            error(loc, "must be a power of 2", "buffer_reference_align", "");
+        else
+            publicType.qualifier.layoutBufferReferenceAlign = (unsigned int)std::log2(value);
+        return;
+    }
+
     switch (language) {
     case EShLangVertex:
         break;
@@ -5177,6 +5246,9 @@ void TParseContext::mergeObjectLayoutQualifiers(TQualifier& dst, const TQualifie
     if (src.hasAlign())
         dst.layoutAlign = src.layoutAlign;
 
+    if (src.hasBufferReferenceAlign())
+        dst.layoutBufferReferenceAlign = src.layoutBufferReferenceAlign;
+
     if (! inheritOnly) {
         if (src.hasLocation())
             dst.layoutLocation = src.layoutLocation;
@@ -5204,6 +5276,9 @@ void TParseContext::mergeObjectLayoutQualifiers(TQualifier& dst, const TQualifie
 
         if (src.layoutPushConstant)
             dst.layoutPushConstant = true;
+
+        if (src.layoutBufferReference)
+            dst.layoutBufferReference = true;
 
 #ifdef NV_EXTENSIONS
         if (src.layoutPassthrough)
@@ -5452,7 +5527,8 @@ void TParseContext::layoutTypeCheck(const TSourceLoc& loc, const TType& type)
 #ifdef NV_EXTENSIONS
                        !qualifier.layoutShaderRecordNV &&
 #endif
-                       !qualifier.layoutAttachment)
+                       !qualifier.layoutAttachment &&
+                       !qualifier.layoutBufferReference)
                     error(loc, "uniform/buffer blocks require layout(binding=X)", "binding", "");
                 else if (spvVersion.vulkan > 0 && type.getBasicType() == EbtSampler)
                     error(loc, "sampler/texture/image requires layout(binding=X)", "binding", "");
@@ -5503,6 +5579,9 @@ void TParseContext::layoutTypeCheck(const TSourceLoc& loc, const TType& type)
 
     if (qualifier.layoutPushConstant && type.getBasicType() != EbtBlock)
         error(loc, "can only be used with a block", "push_constant", "");
+
+    if (qualifier.layoutBufferReference && type.getBasicType() != EbtBlock)
+        error(loc, "can only be used with a block", "buffer_reference", "");
 
 #ifdef NV_EXTENSIONS
     if (qualifier.layoutShaderRecordNV && type.getBasicType() != EbtBlock)
@@ -5643,6 +5722,10 @@ void TParseContext::layoutQualifierCheck(const TSourceLoc& loc, const TQualifier
             error(loc, "can only be used with a uniform", "push_constant", "");
         if (qualifier.hasSet())
             error(loc, "cannot be used with push_constant", "set", "");
+    }
+    if (qualifier.layoutBufferReference) {
+        if (qualifier.storage != EvqBuffer)
+            error(loc, "can only be used with buffer", "buffer_reference", "");
     }
 #ifdef NV_EXTENSIONS
     if (qualifier.layoutShaderRecordNV) {
@@ -6051,7 +6134,7 @@ void TParseContext::declareTypeDefaults(const TSourceLoc& loc, const TPublicType
         return;
     }
 
-    if (publicType.qualifier.hasLayout())
+    if (publicType.qualifier.hasLayout() && !publicType.qualifier.layoutBufferReference)
         warn(loc, "useless application of layout qualifier", "layout", "");
 }
 
@@ -6659,10 +6742,15 @@ TIntermTyped* TParseContext::constructBuiltIn(const TType& type, TOperator op, T
         basicOp = EOpConstructInt64;
         break;
 
+    case EOpConstructUint64:
+        if (type.isScalar() && node->getType().getBasicType() == EbtReference) {
+            TIntermUnary* newNode = intermediate.addUnaryNode(EOpConvPtrToUint64, node, node->getLoc(), type);
+            return newNode;
+        }
+        // fall through
     case EOpConstructU64Vec2:
     case EOpConstructU64Vec3:
     case EOpConstructU64Vec4:
-    case EOpConstructUint64:
         basicOp = EOpConstructUint64;
         break;
 
@@ -6677,6 +6765,19 @@ TIntermTyped* TParseContext::constructBuiltIn(const TType& type, TOperator op, T
         node->getWritableType().getQualifier().nonUniform = true;
         return node;
         break;
+
+    case EOpConstructReference:
+        // construct reference from reference
+        if (node->getType().getBasicType() == EbtReference) {
+            newNode = intermediate.addUnaryNode(EOpConstructReference, node, node->getLoc(), type);
+            return newNode;
+        // construct reference from uint64
+        } else if (node->getType().isScalar() && node->getType().getBasicType() == EbtUint64) {
+            TIntermUnary* newNode = intermediate.addUnaryNode(EOpConvUint64ToPtr, node, node->getLoc(), type);
+            return newNode;
+        } else {
+            return nullptr;
+        }
 
     default:
         error(loc, "unsupported construction", "", "");
@@ -6922,31 +7023,57 @@ void TParseContext::declareBlock(const TSourceLoc& loc, TTypeList& typeList, con
     else
         ioArrayCheck(loc, blockType, instanceName ? *instanceName : *blockName);
 
-    //
-    // Don't make a user-defined type out of block name; that will cause an error
-    // if the same block name gets reused in a different interface.
-    //
-    // "Block names have no other use within a shader
-    // beyond interface matching; it is a compile-time error to use a block name at global scope for anything
-    // other than as a block name (e.g., use of a block name for a global variable name or function name is
-    // currently reserved)."
-    //
-    // Use the symbol table to prevent normal reuse of the block's name, as a variable entry,
-    // whose type is EbtBlock, but without all the structure; that will come from the type
-    // the instances point to.
-    //
-    TType blockNameType(EbtBlock, blockType.getQualifier().storage);
-    TVariable* blockNameVar = new TVariable(blockName, blockNameType);
-    if (! symbolTable.insert(*blockNameVar)) {
-        TSymbol* existingName = symbolTable.find(*blockName);
-        if (existingName->getType().getBasicType() == EbtBlock) {
-            if (existingName->getType().getQualifier().storage == blockType.getQualifier().storage) {
-                error(loc, "Cannot reuse block name within the same interface:", blockName->c_str(), blockType.getStorageQualifierString());
+    if (currentBlockQualifier.layoutBufferReference) {
+
+        if (currentBlockQualifier.storage != EvqBuffer)
+            error(loc, "can only be used with buffer", "buffer_reference", "");
+
+        // Create the block reference type. If it was forward-declared, detect that
+        // as a referent struct type with no members. Replace the referent type with
+        // blockType.
+        TType blockNameType(EbtReference, blockType, *blockName);
+        TVariable* blockNameVar = new TVariable(blockName, blockNameType, true);
+        if (! symbolTable.insert(*blockNameVar)) {
+            TSymbol* existingName = symbolTable.find(*blockName);
+            if (existingName->getType().getBasicType() == EbtReference &&
+                existingName->getType().getReferentType()->getStruct() &&
+                existingName->getType().getReferentType()->getStruct()->size() == 0 &&
+                existingName->getType().getQualifier().storage == blockType.getQualifier().storage) {
+                existingName->getType().getReferentType()->deepCopy(blockType);
+            } else {
+                error(loc, "block name cannot be redefined", blockName->c_str(), "");
+            }
+        }
+        if (!instanceName) {
+            return;
+        }
+    } else {
+        //
+        // Don't make a user-defined type out of block name; that will cause an error
+        // if the same block name gets reused in a different interface.
+        //
+        // "Block names have no other use within a shader
+        // beyond interface matching; it is a compile-time error to use a block name at global scope for anything
+        // other than as a block name (e.g., use of a block name for a global variable name or function name is
+        // currently reserved)."
+        //
+        // Use the symbol table to prevent normal reuse of the block's name, as a variable entry,
+        // whose type is EbtBlock, but without all the structure; that will come from the type
+        // the instances point to.
+        //
+        TType blockNameType(EbtBlock, blockType.getQualifier().storage);
+        TVariable* blockNameVar = new TVariable(blockName, blockNameType);
+        if (! symbolTable.insert(*blockNameVar)) {
+            TSymbol* existingName = symbolTable.find(*blockName);
+            if (existingName->getType().getBasicType() == EbtBlock) {
+                if (existingName->getType().getQualifier().storage == blockType.getQualifier().storage) {
+                    error(loc, "Cannot reuse block name within the same interface:", blockName->c_str(), blockType.getStorageQualifierString());
+                    return;
+                }
+            } else {
+                error(loc, "block name cannot redefine a non-block name", blockName->c_str(), "");
                 return;
             }
-        } else {
-            error(loc, "block name cannot redefine a non-block name", blockName->c_str(), "");
-            return;
         }
     }
 
@@ -7159,12 +7286,12 @@ void TParseContext::fixXfbOffsets(TQualifier& qualifier, TTypeList& typeList)
     int nextOffset = qualifier.layoutXfbOffset;
     for (unsigned int member = 0; member < typeList.size(); ++member) {
         TQualifier& memberQualifier = typeList[member].type->getQualifier();
-        bool containsDouble = false;
-        int memberSize = intermediate.computeTypeXfbSize(*typeList[member].type, containsDouble);
+        bool contains64BitType = false;
+        int memberSize = intermediate.computeTypeXfbSize(*typeList[member].type, contains64BitType);
         // see if we need to auto-assign an offset to this member
         if (! memberQualifier.hasXfbOffset()) {
-            // "if applied to an aggregate containing a double, the offset must also be a multiple of 8"
-            if (containsDouble)
+            // "if applied to an aggregate containing a double or 64-bit integer, the offset must also be a multiple of 8"
+            if (contains64BitType)
                 RoundToPow2(nextOffset, 8);
             memberQualifier.layoutXfbOffset = nextOffset;
         } else
@@ -7246,6 +7373,22 @@ void TParseContext::fixBlockUniformOffsets(TQualifier& qualifier, TTypeList& typ
 void TParseContext::addQualifierToExisting(const TSourceLoc& loc, TQualifier qualifier, const TString& identifier)
 {
     TSymbol* symbol = symbolTable.find(identifier);
+
+    // A forward declaration of a block reference looks to the grammar like adding
+    // a qualifier to an existing symbol. Detect this and create the block reference
+    // type with an empty type list, which will be filled in later in
+    // TParseContext::declareBlock.
+    if (!symbol && qualifier.layoutBufferReference) {
+        TTypeList typeList;
+        TType blockType(&typeList, identifier, qualifier);;
+        TType blockNameType(EbtReference, blockType, identifier);
+        TVariable* blockNameVar = new TVariable(&identifier, blockNameType, true);
+        if (! symbolTable.insert(*blockNameVar)) {
+            error(loc, "block name cannot redefine a non-block name", blockName->c_str(), "");
+        }
+        return;
+    }
+
     if (! symbol) {
         error(loc, "identifier not previously declared", identifier.c_str(), "");
         return;
@@ -7580,6 +7723,8 @@ void TParseContext::updateStandaloneQualifierDefaults(const TSourceLoc& loc, con
         error(loc, "cannot declare a default, use a full declaration", "xfb_offset", "");
     if (qualifier.layoutPushConstant)
         error(loc, "cannot declare a default, can only be used on a block", "push_constant", "");
+    if (qualifier.layoutBufferReference)
+        error(loc, "cannot declare a default, can only be used on a block", "buffer_reference", "");
     if (qualifier.hasSpecConstantId())
         error(loc, "cannot declare a default, can only be used on a scalar", "constant_id", "");
 #ifdef NV_EXTENSIONS
